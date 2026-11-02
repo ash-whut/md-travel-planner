@@ -24,7 +24,8 @@ We deliberately optimize for one common case instead of every traveler type.
 
 ## 3. Core user flow
 
-1. User opens the app → the most recent session (or a new one) is shown.
+1. User opens the app → a **new trip** starts (planning is usually a fresh task); past trips
+   can be reopened from the history sidebar.
 2. Agent greets and asks questions; user answers freely in chat.
 3. A "What I know so far" strip fills in as the agent learns details.
 4. When required details are known, the agent offers to generate. The user can also click
@@ -113,7 +114,7 @@ slots in muted style. Read-only in the MVP — corrections happen via chat.
 - **Latency:** first streamed token < 3 s; generation shows continuous status updates and
   should finish in < ~60 s for a 3-day trip.
 - **Cost:** free tiers for all external APIs; the LLM is the only paid component and is
-  swappable (see 05 §2).
+  swappable (see 04-backend-design §3).
 - **Resilience:** tool/API failure → agent continues and states the gap. A failed generation
   never replaces the previous itinerary.
 - **Persistence:** local SQLite file; survives restarts. No cloud services required.
@@ -129,7 +130,19 @@ slots in muted style. Read-only in the MVP — corrections happen via chat.
 - Families with kids, accessibility planning, trips > 7 days or > 2 cities.
 - Mobile layout, sharing/export, history search/archive, metric toggle.
 
-## 7. Post-MVP roadmap (ordered)
+## 7. Build order and post-MVP roadmap
+
+The MVP features above are built in stages (details and checklist in
+[05-implementation-plan.md](05-implementation-plan.md)):
+1. **Talking skeleton** — F1 chat with a real LLM; F4 day cards drafted by the LLM (no tools
+   yet); F5 tags; Map/Checklist tabs visible but disabled.
+2. **Places on the map** — F7.
+3. **Live tools & smarter chat** — weather, hotel prices, F2/F3 intake + profile strip, F6
+   editing, F8 checklist.
+4. **Memory** — F9 history.
+5. **Polish & demo.**
+
+Post-MVP (ordered):
 
 1. Diff-aware edits: only changed items re-render, changes highlighted.
 2. Direct editing in the Plan view (drag between days, delete, reorder) with agent re-validation.

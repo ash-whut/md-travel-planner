@@ -1,4 +1,10 @@
-# 04 — UI Spec
+# 02 — UI Spec
+
+> Team consensus — agents implement this as written and do not edit it without a human
+> request. Data shapes come from [03-contracts.md](03-contracts.md).
+
+This is the **end-state** UI. It is built in stages ([05-implementation-plan.md](05-implementation-plan.md)); §11
+says what each stage shows. Build only what your task's stage needs.
 
 Desktop-first single-page app. Visual tone: clean, light, friendly (aimed at 15–35 year-olds;
 modern, not corporate). Neutral grays + one accent color + a per-day palette (used on day
@@ -83,7 +89,7 @@ Hover → tooltip "Refer to this as 'C' in chat".
 - Day filter chips: All, Day 1…N. Selecting a day fits bounds to that day's places and draws
   its polyline (straight segments for MVP). "All" shows every place, polylines per day in day colors.
 - Side list (overlay, collapsible): items of the selected day with tag badges; hover/click ↔ marker highlight + InfoWindow (tag, name, day, time, Google Maps link).
-- Missing Maps key → placeholder card pointing to `docs/setup-guide.md`.
+- Missing Maps key → placeholder card pointing to [setup-guide.md](setup-guide.md).
 
 ### 4.3 Checklist tab
 - Progress bar "3 of 9 done".
@@ -94,6 +100,8 @@ Hover → tooltip "Refer to this as 'C' in chat".
 
 ## 5. History behavior
 
+- **Every page load starts a new trip** (`POST /sessions`) — planning is usually a fresh task.
+  Past trips are reopened from the sidebar.
 - New trip → `POST /sessions`; becomes active; greeting shown; Plan empty state.
 - Click → `GET /sessions/{id}`; skeleton while loading; active item highlighted.
 - Rename: inline input; Enter saves, Esc cancels; 1–80 chars.
@@ -114,13 +122,40 @@ Hover → tooltip "Refer to this as 'C' in chat".
 
 40% opacity, `cursor: not-allowed`, `aria-disabled="true"`, tooltip "Generate a plan to unlock the map/checklist". Skipped by keyboard focus.
 
-## 8. Mock mode (Phase 1)
+## 8. Working without keys
 
-With `VITE_USE_MOCKS=true` the full UI works with no backend:
-- `fixtures/`: 3 sessions — empty intake, mid-intake (partial profile), planned (3-day Austin
-  trip, real coordinates, tags A–K, H1 with price, checklist).
-- Mock `sendMessage` streams canned replies (~30 chars / 40 ms), emits status + profile
-  events; "generate" or the button → status events then fixture itinerary v1.
-- Mock edit: a message containing a tag like "replace C" returns fixture v2 where C is
-  replaced by a new place tagged L (demonstrates tag stability) + a change summary.
-- Create/rename/delete mutate in-memory state (mirrored to localStorage).
+There is no frontend mock mode. To work without an LLM key, run the backend with
+`LLM_PROVIDER=fake` (canned streamed replies and a sample itinerary) — see
+[setup-guide.md](setup-guide.md) §4.
+
+## 9. Frontend architecture
+
+- **Stack:** React 18 + TS + Vite, Tailwind + shadcn/ui (copy-in components: Tabs, Dialog,
+  Tooltip, ScrollArea, Checkbox, DropdownMenu…), Zustand for state, `react-markdown` for
+  chat, `@vis.gl/react-google-maps` for the map.
+- `src/api/client.ts` — `ApiClient` interface: `listSessions`, `createSession`, `getSession`,
+  `renameSession`, `deleteSession`, `sendMessage` (stream), `generate` (stream),
+  `updateChecklistItem`. `http.ts` = real implementation (fetch + `@microsoft/fetch-event-source`,
+  because native `EventSource` cannot POST). Methods are added as their stage needs them.
+  Components never call `fetch` directly.
+- `src/store/` — `useSessionsStore` (history list, active id), `useChatStore` (messages,
+  streaming state, status lines), `usePlanStore` (itinerary, active tab, selected day/place).
+- `src/lib/format.ts` — dates ("Sat, Mar 6"), 12h times, °F, miles, money.
+- `src/types/` — mirrors 03-contracts exactly.
+- Env: `VITE_API_BASE_URL`; from Stage 2 `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAPS_MAP_ID`.
+
+## 10. Frontend testing
+
+Manual QA against a backend running `LLM_PROVIDER=fake`, checked against the stage's
+acceptance criteria; Vitest only for stores and `format.ts` helpers.
+`npm run lint && npm run build` must pass before review.
+
+## 11. What each stage shows
+
+| Stage | UI in scope |
+|---|---|
+| 1 | `AppShell` without the sidebar (plan area left, chat right); `PlanTabs` with Map and Checklist **disabled**, tooltip "Coming soon"; Plan empty state (no `TripProfileCard` yet) with **Generate plan**; generation skeleton; `PlanView` (header, `LodgingCard` with "Price not available yet", `DayCard`s, `ItineraryItem`s, `TagBadge`); `ChatPanel` (bubbles, streaming, status line, error + Retry); new trip on every page load. Weather chips, transit connectors and "show on map" hidden. |
+| 2 | Map tab enabled once a plan exists (§4.2); `TagBadge` click → Map tab; "not on map" for places without coordinates. Checklist still disabled. |
+| 3 | `TripProfileCard`; weather chips; prices with "as of"; Checklist tab (§4.3); `VersionMarker`; Stop button; post-plan placeholder "Edit by letter…". Disabled-tab tooltip becomes "Generate a plan to unlock the map/checklist" (§7). |
+| 4 | `HistorySidebar` (§5), editable title in `ChatHeader`, read-only banner. |
+| 5 | < 1024px Plan/Chat toggle, "↓ New messages" pill, polish. |

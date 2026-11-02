@@ -4,6 +4,15 @@
 frontend TypeScript types (`frontend/src/types/`) mirror it. Change this file first, in the
 same PR as the code change.
 
+**Stages:** the MVP is built in stages ([05-implementation-plan.md](05-implementation-plan.md)).
+The REST and SSE tables below have a **Stage** column saying when each piece first exists.
+Fields that are filled only from a later stage are nullable and are `null` before then.
+
+> **CONTRACT CHANGE (2026-11-02, staged MVP):** `places[].lat/lng/address/place_id/rating` and
+> `lodging[].lat/lng/address/place_id/rating` are now **nullable** — Stage 1 has no place
+> lookups (filled from Stage 2). `days[].weather` and `weather_summary` may be `null` (until
+> Stage 3). Frontend impact: render "not on map" / hide weather and transit when null.
+
 Conventions: JSON uses `snake_case`. IDs are UUID4 strings. Timestamps are ISO-8601 UTC
 (`2026-11-01T18:04:05Z`). Dates are `YYYY-MM-DD`; times are local `HH:MM` (24h; the UI
 formats as 12h). Money is `{ "amount": number, "currency": "USD" }`.
@@ -97,18 +106,18 @@ Places are stored once in `places` and referenced by `place_tag` from items.
     "currency": "USD", "low": 280, "high": 390,
     "breakdown": [ { "category": "lodging", "low": 120, "high": 120 } ]   // lodging|food|activities|local_transport|other (flights excluded)
   },
-  "weather_summary": "Sunny and mild, 52–74 °F.",
+  "weather_summary": "Sunny and mild, 52–74 °F.",      // null until Stage 3
   "assumptions": ["Budget level assumed since none was given."],
 
   "places": [
     {
       "tag": "A",                                      // A..Z, AA.. ; stable across versions
       "name": "Franklin Barbecue",
-      "address": "900 E 11th St, Austin, TX",
-      "lat": 30.2701, "lng": -97.7312,
+      "address": "900 E 11th St, Austin, TX",          // null if unknown
+      "lat": 30.2701, "lng": -97.7312,                 // null until found (Stage 2+)
       "place_id": "ChIJ…",                             // provider id; null if none
       "category": "food",                              // food|sight|nature|nightlife|shopping|museum|activity|transport_hub|other
-      "rating": 4.7,
+      "rating": 4.7,                                   // null if unknown
       "maps_url": "https://www.google.com/maps/search/?api=1&query=…"
     }
   ],
@@ -117,12 +126,12 @@ Places are stored once in `places` and referenced by `place_tag` from items.
     {
       "tag": "H1",                                     // H1, H2
       "name": "Example Inn Downtown", "city": "Austin",
-      "address": "…", "lat": 30.26, "lng": -97.74, "place_id": "…",
+      "address": "…", "lat": 30.26, "lng": -97.74, "place_id": "…",   // each null until found (Stage 2+)
       "check_in": "2027-03-06", "check_out": "2027-03-08", "nights": 2,
       "rating": 4.1,
       "price_per_night": { "amount": 89, "currency": "USD" },   // null if no pricing source
       "total_price":     { "amount": 178, "currency": "USD" },  // whole stay, whole room
-      "price_as_of": "2026-11-01T18:04:05Z",
+      "price_as_of": "2026-11-01T18:04:05Z",           // null when price_source is "none"
       "price_source": "serpapi_google_hotels",         // serpapi_google_hotels | none
       "alternatives": [ { "name": "…", "total_price": { "amount": 199, "currency": "USD" }, "rating": 4.3, "link": "https://…" } ],
       "links": [ { "label": "Google Hotels", "url": "https://…" }, { "label": "Booking.com", "url": "https://…" } ]
@@ -134,7 +143,7 @@ Places are stored once in `places` and referenced by `place_tag` from items.
       "day_number": 1, "date": "2027-03-06", "title": "Arrival, East Side eats",
       "city": "Austin",
       "lodging_tag": "H1",
-      "weather": { "high_f": 72, "low_f": 51, "condition": "sunny", "precip_chance": 10, "source": "forecast" },  // forecast|climate|unavailable
+      "weather": { "high_f": 72, "low_f": 51, "condition": "sunny", "precip_chance": 10, "source": "forecast" },  // forecast|climate|unavailable; whole object null until Stage 3
       "items": [
         {
           "id": "d1-i1",
@@ -204,20 +213,20 @@ Places are stored once in `places` and referenced by `place_tag` from items.
 
 ## 3. REST endpoints (prefix `/api`)
 
-| Method | Path | Body | Response |
-|---|---|---|---|
-| GET | `/sessions` | — | `SessionSummary[]` by `updated_at` desc |
-| POST | `/sessions` | — | `SessionDetail` (new; includes greeting message) |
-| GET | `/sessions/{id}` | — | `SessionDetail` · 404 |
-| PATCH | `/sessions/{id}` | `{ "title": "1–80 chars" }` | `SessionSummary` (sets `title_is_custom`) |
-| DELETE | `/sessions/{id}` | — | `204` (cascade) |
-| POST | `/sessions/{id}/messages` | `{ "content": "1–4000 chars" }` | **SSE** (§4) |
-| POST | `/sessions/{id}/generate` | `{}` | **SSE** (§4) |
-| PATCH | `/sessions/{id}/checklist/{item_id}` | `{ "status": "todo" \| "done" }` | updated item |
-| GET | `/health` | — | `{ "ok": true, "llm_provider": "anthropic", "tool_mode": "live" }` |
+| Method | Path | Body | Response | Stage |
+|---|---|---|---|---|
+| GET | `/sessions` | — | `SessionSummary[]` by `updated_at` desc | 4 |
+| POST | `/sessions` | — | `SessionDetail` (new; includes greeting message) | 1 |
+| GET | `/sessions/{id}` | — | `SessionDetail` · 404 | 1 |
+| PATCH | `/sessions/{id}` | `{ "title": "1–80 chars" }` | `SessionSummary` (sets `title_is_custom`) | 4 |
+| DELETE | `/sessions/{id}` | — | `204` (cascade) | 4 |
+| POST | `/sessions/{id}/messages` | `{ "content": "1–4000 chars" }` | **SSE** (§4) | 1 |
+| POST | `/sessions/{id}/generate` | `{}` | **SSE** (§4) | 1 |
+| PATCH | `/sessions/{id}/checklist/{item_id}` | `{ "status": "todo" \| "done" }` | updated item | 3 |
+| GET | `/health` | — | `{ "ok": true, "llm_provider": "fake", "tool_mode": "mock" }` | 1 |
 
 Errors: `{ "detail": "message" }` with 400/404/409/500. A second stream on a session that is
-already streaming → `409`.
+already streaming → `409` (Stage 3; before that there is no lock).
 
 ---
 
@@ -225,19 +234,20 @@ already streaming → `409`.
 
 `text/event-stream`; each event has an `event:` name and JSON `data:`.
 
-| event | data | when |
-|---|---|---|
-| `message_start` | `{ "message_id": "uuid" }` | assistant message begins |
-| `token` | `{ "text": "partial" }` | streamed assistant text |
-| `status` | `{ "label": "Finding cheap hotels in Austin…", "tool": "search_hotels", "state": "start" \| "end" \| "error" }` | tool activity / phases |
-| `profile` | `TripProfile` | trip profile changed |
-| `title` | `{ "title": "Austin · Mar 6–8" }` | session auto-titled |
-| `itinerary` | `Itinerary` | new version persisted |
-| `error` | `{ "message": "user-friendly text", "retryable": true }` | failure; stream ends |
-| `done` | `{ "message_id": "uuid" }` | complete; assistant message persisted |
+| event | data | when | Stage |
+|---|---|---|---|
+| `message_start` | `{ "message_id": "uuid" }` | assistant message begins | 1 |
+| `token` | `{ "text": "partial" }` | streamed assistant text | 1 |
+| `status` | `{ "label": "Finding cheap hotels in Austin…", "tool": "search_hotels", "state": "start" \| "end" \| "error" }` | tool activity / phases (`tool` may be `null` for phases like "Drafting your itinerary…") | 1 |
+| `profile` | `TripProfile` | trip profile changed | 3 |
+| `title` | `{ "title": "Austin · Mar 6–8" }` | session auto-titled | 4 |
+| `itinerary` | `Itinerary` | new version persisted | 1 |
+| `error` | `{ "message": "user-friendly text", "retryable": true }` | failure; stream ends | 1 |
+| `done` | `{ "message_id": "uuid" }` | complete; assistant message persisted | 1 |
 
 Order: `message_start` first; `done` or `error` last; `itinerary` only after it's persisted.
-Client abort → server stops the LLM call and saves partial text with "*(stopped)*".
+Client abort (Stage 3) → server stops the LLM call and saves partial text with "*(stopped)*".
+Before Stage 3 an aborted stream saves nothing partial.
 
 ---
 
