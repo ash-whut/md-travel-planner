@@ -1,0 +1,13 @@
+# Backend dependencies (install from the repo root: pip install -r backend/requirements.txt)
+fastapi
+uvicorn[standard]
+pydantic-settings
+sqlmodel
+sse-starlette
+httpx
+openai
+anthropic
+
+# tests
+pytest
+pytest-asyncio

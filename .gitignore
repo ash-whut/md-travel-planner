@@ -1,0 +1,33 @@
+# --- Secrets: never commit .env files (only the .env.example templates) ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- SQLite databases (local data, e.g. backend/travel.db) ---
+*.db
+*.db-journal
+*.sqlite3
+
+# --- Node / frontend ---
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# --- OS / editor junk ---
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Claude Code: .claude/ is committed, personal settings are not ---
+.claude/settings.local.json
