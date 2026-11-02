@@ -33,7 +33,7 @@ what your item's stage needs; the docs describe the end state plus each stage's 
 
 ## 3. Stack and layout
 
-- **Frontend:** React 18 + TypeScript + Vite, Tailwind CSS, shadcn/ui, Zustand,
+- **Frontend:** React 19 + TypeScript 6 + Vite (see decisions D23), Tailwind CSS, shadcn/ui, Zustand,
   `@vis.gl/react-google-maps`, `@microsoft/fetch-event-source`, `react-markdown`. Package manager: npm.
 - **Backend:** Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLModel on SQLite (local file),
   `httpx`; SSE streaming; LLM behind a swappable provider adapter (`fake` default; TAMU AI via

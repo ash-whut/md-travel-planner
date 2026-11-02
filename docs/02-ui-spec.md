@@ -130,7 +130,7 @@ There is no frontend mock mode. To work without an LLM key, run the backend with
 
 ## 9. Frontend architecture
 
-- **Stack:** React 18 + TS + Vite, Tailwind + shadcn/ui (copy-in components: Tabs, Dialog,
+- **Stack:** React 19 + TS + Vite (decisions D23), Tailwind + shadcn/ui (copy-in components: Tabs, Dialog,
   Tooltip, ScrollArea, Checkbox, DropdownMenu…), Zustand for state, `react-markdown` for
   chat, `@vis.gl/react-google-maps` for the map.
 - `src/api/client.ts` — `ApiClient` interface: `listSessions`, `createSession`, `getSession`,

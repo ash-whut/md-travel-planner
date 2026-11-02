@@ -108,10 +108,26 @@ To prove the LLM integration early, Stage 1's "Generate plan" asks the LLM for a
 weather stay `null` (CONTRACT CHANGE in 03: those fields are nullable). Stage 2 adds place
 lookups; Stage 3 adds the tool loop. Baseline: 04 §3.0, §4.0, §5.0, §7.0.
 
+### D23 — Frontend toolchain: React 19, TypeScript 6, shadcn's `cn` package (2026-11-02) · Final
+Found while scaffolding S1.2 (frontend-dev, confirmed by code-reviewer):
+- **React 19** instead of 18. Current shadcn/ui components are plain function components that
+  receive `ref` as a prop (no `forwardRef`); on React 18 that ref is dropped, which breaks Radix
+  `asChild` compositions such as `<TooltipTrigger asChild><Button/></TooltipTrigger>` — needed
+  for the disabled-tab tooltips in S1.12. Rejected: React 18 with hand-patched components.
+- **TypeScript 6.0** instead of the Vite template's 7.x — typescript-eslint supports only
+  `<6.1`. Strict mode is on (TS 6 default).
+- **shadcn's `cn` npm package** (shadcn-ui/cn, 0.x) instead of `clsx` + `tailwind-merge`,
+  because current `shadcn init` generates it. Expect churn while it is pre-1.0; swapping back
+  is a one-file change in `src/lib/utils.ts` plus imports.
+- Also from current shadcn defaults: Tailwind v4 (`@tailwindcss/vite`), Radix primitives,
+  Nova preset (bundled Geist font), `shadcn` as a dependency (its CSS is imported).
+
 ---
 
 ## Open questions
-- TAMU AI: base URL (`https://chat-api.tamu.ai/openai`) and model IDs are confirmed; still to
-  check: chat, JSON-schema output and streaming (H1.2, setup-guide §6.2), tool calling (before Stage 3).
+- TAMU AI: base URL (`https://chat-api.tamu.ai/openai`), model IDs and streaming are confirmed;
+  non-streaming calls return no usable response, so the adapter always streams (setup-guide
+  §6.2). Still unknown: JSON-schema output (S1.6 uses prompt-JSON instead) and tool calling
+  (needed before Stage 3).
 - Who owns the shared Google Cloud project (needed from Stage 2) and the Claude Console
   workspace (only if we use the Claude backup)?
