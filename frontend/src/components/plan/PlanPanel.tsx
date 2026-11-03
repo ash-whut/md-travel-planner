@@ -1,6 +1,6 @@
 import { PlanEmptyState } from "@/components/plan/PlanEmptyState"
 import { PlanSkeleton } from "@/components/plan/PlanSkeleton"
-import { formatDateRange } from "@/lib/format"
+import { PlanView } from "@/components/plan/PlanView"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -9,7 +9,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useTripStore } from "@/store/tripStore"
-import type { Itinerary } from "@/types"
 
 // Map arrives in Stage 2 and Checklist in Stage 3; until then both tabs are disabled.
 const COMING_SOON_TABS = [
@@ -65,20 +64,6 @@ function PlanContent() {
   const itinerary = useTripStore((s) => s.itinerary)
 
   if (draftingPlan) return <PlanSkeleton statusLabel={statusLabel} />
-  if (itinerary) return <PlanSummaryPlaceholder itinerary={itinerary} />
+  if (itinerary) return <PlanView itinerary={itinerary} />
   return <PlanEmptyState />
-}
-
-// PLACEHOLDER: S1.15 replaces this with PlanView (header, LodgingCard, DayCards).
-function PlanSummaryPlaceholder({ itinerary }: { itinerary: Itinerary }) {
-  const dayCount = itinerary.days.length
-  return (
-    <div className="space-y-1">
-      <h2 className="text-lg font-semibold">{itinerary.title}</h2>
-      <p className="text-sm text-muted-foreground">
-        {formatDateRange(itinerary.start_date, itinerary.end_date)} · {dayCount}{" "}
-        {dayCount === 1 ? "day" : "days"}
-      </p>
-    </div>
-  )
 }
