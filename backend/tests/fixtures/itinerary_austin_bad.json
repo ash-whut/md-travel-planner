@@ -1,0 +1,528 @@
+{
+  "id": "6f1c2a9e-3b7d-4c2e-9a51-0d8e4b7f2c13",
+  "version": 1,
+  "title": "Austin — Tacos, Music & Hills",
+  "summary": "Three budget-friendly days in Austin: barbecue and the Capitol on arrival, Zilker Park, Barton Springs and live music on Saturday night, and a history museum before the drive home.",
+  "start_date": "2027-03-06",
+  "end_date": "2027-03-09",
+  "travelers": 3,
+  "cities": [
+    {
+      "name": "Austin",
+      "region": "TX",
+      "country": "USA",
+      "lat": null,
+      "lng": null
+    }
+  ],
+  "cost_estimate": {
+    "currency": "USD",
+    "low": 230,
+    "high": 340,
+    "breakdown": [
+      {
+        "category": "lodging",
+        "low": 90,
+        "high": 130
+      },
+      {
+        "category": "food",
+        "low": 80,
+        "high": 120
+      },
+      {
+        "category": "activities",
+        "low": 30,
+        "high": 50
+      },
+      {
+        "category": "local_transport",
+        "low": 30,
+        "high": 40
+      }
+    ]
+  },
+  "weather_summary": null,
+  "assumptions": [
+    "Budget level assumed since none was given.",
+    "You drive from College Station and park at the hotel."
+  ],
+  "places": [
+    {
+      "tag": "A",
+      "name": "Franklin Barbecue",
+      "address": "900 E 11th St, Austin, TX 78702",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "food",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Franklin%20Barbecue%20Austin"
+    },
+    {
+      "tag": "B",
+      "name": "Texas State Capitol",
+      "address": "1100 Congress Ave, Austin, TX 78701",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "sight",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Texas%20State%20Capitol%20Austin"
+    },
+    {
+      "tag": "C",
+      "name": "South Congress Avenue",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "shopping",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=South%20Congress%20Avenue%20Austin"
+    },
+    {
+      "tag": "D",
+      "name": "Ann W. Richards Congress Avenue Bridge",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "nature",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Ann%20W.%20Richards%20Congress%20Avenue%20Bridge%20Austin"
+    },
+    {
+      "tag": "E",
+      "name": "Veracruz All Natural",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "food",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Veracruz%20All%20Natural%20Austin"
+    },
+    {
+      "tag": "F",
+      "name": "Zilker Metropolitan Park",
+      "address": "2100 Barton Springs Rd, Austin, TX 78746",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "nature",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Zilker%20Metropolitan%20Park%20Austin"
+    },
+    {
+      "tag": "G",
+      "name": "Barton Springs Pool",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "nature",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Barton%20Springs%20Pool%20Austin"
+    },
+    {
+      "tag": "H",
+      "name": "Torchy's Tacos",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "food",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Torchy%27s%20Tacos%20Austin"
+    },
+    {
+      "tag": "I",
+      "name": "Home Slice Pizza",
+      "address": "1415 S Congress Ave, Austin, TX 78704",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "food",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Home%20Slice%20Pizza%20Austin"
+    },
+    {
+      "tag": "J",
+      "name": "The Continental Club",
+      "address": "1315 S Congress Ave, Austin, TX 78704",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "nightlife",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=The%20Continental%20Club%20Austin"
+    },
+    {
+      "tag": "K",
+      "name": "Bullock Texas State History Museum",
+      "address": "1800 Congress Ave, Austin, TX 78701",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "category": "museum",
+      "rating": null,
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=Bullock%20Texas%20State%20History%20Museum%20Austin"
+    }
+  ],
+  "lodging": [
+    {
+      "tag": "H1",
+      "name": "Hampton Inn & Suites Austin-Downtown/Convention Center",
+      "city": "Austin",
+      "address": null,
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "check_in": "2027-03-06",
+      "check_out": "2027-03-08",
+      "nights": 2,
+      "rating": null,
+      "price_per_night": null,
+      "total_price": null,
+      "price_as_of": null,
+      "price_source": "none",
+      "alternatives": [],
+      "links": []
+    }
+  ],
+  "days": [
+    {
+      "day_number": 1,
+      "date": "2027-03-06",
+      "title": "Arrival, barbecue and the Capitol",
+      "city": "Austin",
+      "lodging_tag": "H1",
+      "weather": null,
+      "items": [
+        {
+          "id": "d1-i1",
+          "kind": "transit",
+          "title": "Drive from College Station",
+          "description": "About two hours on TX-21 and US-290.",
+          "start_time": "08:30",
+          "end_time": "10:30",
+          "place_tag": null,
+          "est_cost": {
+            "amount": 10,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": "Leave early to beat the barbecue line."
+        },
+        {
+          "id": "d1-i3",
+          "kind": "activity",
+          "title": "Tour the Texas State Capitol",
+          "description": "Free self-guided tour of the pink granite capitol and its rotunda.",
+          "start_time": "13:00",
+          "end_time": "14:30",
+          "place_tag": "B",
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d1-i2",
+          "kind": "meal",
+          "title": "Lunch at Franklin Barbecue",
+          "description": "Austin's most famous brisket; the line is part of the experience.",
+          "start_time": "11:00",
+          "end_time": "12:30",
+          "place_tag": "A",
+          "est_cost": {
+            "amount": 30,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": "Bring a folding chair and water for the line."
+        },
+        {
+          "id": "d1-i4",
+          "kind": "lodging",
+          "title": "Check in at Hampton Inn & Suites",
+          "description": "Drop the bags and rest for an hour.",
+          "start_time": "15:00",
+          "end_time": "16:00",
+          "place_tag": "H1",
+          "est_cost": null,
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d1-i5",
+          "kind": "activity",
+          "title": "Stroll South Congress Avenue",
+          "description": "Vintage shops, murals and the 'I love you so much' wall.",
+          "start_time": "16:30",
+          "end_time": "18:30",
+          "place_tag": "C",
+          "est_cost": null,
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d1-i6",
+          "kind": "activity",
+          "title": "Watch the bats leave Congress Avenue Bridge",
+          "description": "Over a million bats fly out at dusk from spring to fall.",
+          "start_time": "19:15",
+          "end_time": "20:00",
+          "place_tag": "D",
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": "Watch from the lakeside path east of the bridge."
+        }
+      ]
+    },
+    {
+      "day_number": 2,
+      "date": "2027-03-07",
+      "title": "Zilker, Barton Springs and live music",
+      "city": "Austin",
+      "lodging_tag": "H1",
+      "weather": null,
+      "items": [
+        {
+          "id": "d2-i1",
+          "kind": "meal",
+          "title": "Breakfast tacos at Veracruz All Natural",
+          "description": "Try the migas taco.",
+          "start_time": "08:30",
+          "end_time": "09:30",
+          "place_tag": "E",
+          "est_cost": {
+            "amount": 12,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d2-i2",
+          "kind": "activity",
+          "title": "Walk around Zilker Park",
+          "description": "Big lawns, the botanical garden edge and skyline views.",
+          "start_time": "10:00",
+          "end_time": "11:30",
+          "place_tag": "F",
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d2-i3",
+          "kind": "activity",
+          "title": "Swim at Barton Springs Pool",
+          "description": "Spring-fed pool that stays around 68 °F all year.",
+          "start_time": "11:30",
+          "end_time": "13:00",
+          "place_tag": "Q",
+          "est_cost": {
+            "amount": 9,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": "Bring a towel; the water is brisk."
+        },
+        {
+          "id": "d2-i4",
+          "kind": "meal",
+          "title": "Late lunch at Torchy's Tacos",
+          "description": "Order the Trailer Park, 'trashy'.",
+          "start_time": "13:30",
+          "end_time": "14:30",
+          "place_tag": "H",
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d2-i5",
+          "kind": "free_time",
+          "title": "Downtime",
+          "description": "Rest before the evening.",
+          "start_time": "15:00",
+          "end_time": "18:00",
+          "place_tag": null,
+          "est_cost": null,
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d2-i6",
+          "kind": "meal",
+          "title": "Dinner at Home Slice Pizza",
+          "description": "New York-style slices on South Congress.",
+          "start_time": "18:30",
+          "end_time": "19:30",
+          "place_tag": "I",
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d2-i7",
+          "kind": "activity",
+          "title": "Live music at The Continental Club",
+          "description": "Classic Austin honky-tonk and rock club since 1955.",
+          "start_time": "21:00",
+          "end_time": "23:00",
+          "place_tag": "J",
+          "est_cost": {
+            "amount": 20,
+            "currency": "USD"
+          },
+          "booking_required": true,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": "Popular shows sell out; buy tickets ahead."
+        }
+      ]
+    },
+    {
+      "day_number": 3,
+      "date": "2027-03-08",
+      "title": "History museum and the drive home",
+      "city": "Austin",
+      "lodging_tag": null,
+      "weather": null,
+      "items": [
+        {
+          "id": "d3-i1",
+          "kind": "lodging",
+          "title": "Check out of Hampton Inn & Suites",
+          "description": "Leave the car in the hotel garage until after lunch.",
+          "start_time": "09:00",
+          "end_time": "09:30",
+          "place_tag": "H1",
+          "est_cost": null,
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d3-i2",
+          "kind": "activity",
+          "title": "Bullock Texas State History Museum",
+          "description": "Three floors of Texas history, from the La Belle shipwreck on.",
+          "start_time": "10:00",
+          "end_time": "12:00",
+          "place_tag": "K",
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d3-i3",
+          "kind": "meal",
+          "title": "Lunch tacos at Veracruz All Natural",
+          "description": "One more round before leaving town.",
+          "start_time": "12:30",
+          "end_time": "13:30",
+          "place_tag": "E",
+          "est_cost": {
+            "amount": 12,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        },
+        {
+          "id": "d3-i4",
+          "kind": "transit",
+          "title": "Drive home to College Station",
+          "description": "About two hours.",
+          "start_time": "14:00",
+          "end_time": "16:00",
+          "place_tag": null,
+          "est_cost": {
+            "amount": 10,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "checklist_item_id": null,
+          "transit_from_previous": null,
+          "tips": null
+        }
+      ]
+    }
+  ],
+  "checklist": [
+    {
+      "id": "chk-lodging-H1",
+      "category": "lodging",
+      "title": "Book Hampton Inn & Suites Austin-Downtown/Convention Center (H1)",
+      "details": "2 nights, Mar 6–8.",
+      "date": "2027-03-06",
+      "recommended_option": null,
+      "links": [],
+      "bookable_by_us": false,
+      "status": "todo"
+    },
+    {
+      "id": "chk-booking-d2-i7",
+      "category": "activities",
+      "title": "Book Live music at The Continental Club",
+      "details": null,
+      "date": "2027-03-07",
+      "recommended_option": null,
+      "links": [],
+      "bookable_by_us": false,
+      "status": "todo"
+    }
+  ],
+  "created_at": "2026-11-02T18:04:05Z"
+}

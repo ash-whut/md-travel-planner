@@ -51,6 +51,13 @@ MCP server or an LLM sub-agent without changing the API.
 - `app/main.py` — app factory, CORS (`http://localhost:5173`), routers under `/api`, create tables on startup.
 - `app/core/config.py` — `pydantic-settings` `Settings` from `.env` (variables in [setup-guide.md](setup-guide.md)).
 - `app/db/` — engine, tables (`Session`, `Message`, `Itinerary`, `ApiCache`), plain repository functions, `seed.py` (loads the same demo sessions as the frontend fixtures).
+  - `tables.py`: classes `SessionRow`, `MessageRow`, `ItineraryRow` (tables `session`, `message`,
+    `itinerary`; the `Row` suffix avoids clashing with SQLModel's `Session` and the DTOs).
+    `itinerary` is unique on `(session_id, version)`. JSON columns aren't change-tracked:
+    assign a new value instead of mutating in place.
+  - `engine.py`: `make_engine(url)` (SQLite: `check_same_thread=False` and
+    `PRAGMA foreign_keys=ON` on every connection, needed for cascade deletes), cached
+    `get_engine()`, `init_db()` (run by the FastAPI lifespan), `get_session()` dependency.
 - `app/schemas/` — Pydantic models from 03-contracts (`TripProfile`, `Itinerary`, `ItineraryDraft`, DTOs, SSE payloads) incl. validators.
 - `app/api/` — thin routes: validate → repo/orchestrator → respond/stream.
 - `app/llm/` — provider layer (§3).

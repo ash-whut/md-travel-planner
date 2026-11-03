@@ -13,6 +13,20 @@ Fields that are filled only from a later stage are nullable and are `null` befor
 > lookups (filled from Stage 2). `days[].weather` and `weather_summary` may be `null` (until
 > Stage 3). Frontend impact: render "not on map" / hide weather and transit when null.
 
+> **CONTRACT CHANGE (2026-11-02, S1.3):** found while writing the Pydantic models. Now
+> **nullable**: `cities[].lat/lng` (no coordinates in Stage 1; filled from Stage 2);
+> `cost_estimate` (whole object); `days[].lodging_tag` (departure day, or no lodging);
+> `days[].items[].tips`; `checklist[].details/date/recommended_option`;
+> `lodging[].alternatives[].rating`. Inside `days[].weather`: `high_f/low_f` are set for
+> `forecast`/`climate` and `null` for `unavailable`; `condition/precip_chance` may be `null`
+> (always `null` for `unavailable`). Validation rules gained: tags, item IDs and checklist IDs
+> are unique; `price_source: "none"` ⇒ prices and `price_as_of` are `null`; the weather rule
+> above. Every nullable field is marked `null` in the §2.2 example. Frontend impact (S1.11
+> types, S1.15 `PlanView`, S2.3 `MapView`): mark these fields nullable in `src/types/`; hide the
+> cost range, tips, checklist details/date/recommended option and an alternative's rating when
+> `null`; hide the weather chip when `high_f/low_f` are `null`; a day with no `lodging_tag`
+> shows no hotel; don't center the map on a city without coordinates.
+
 Conventions: JSON uses `snake_case`. IDs are UUID4 strings. Timestamps are ISO-8601 UTC
 (`2026-11-01T18:04:05Z`). Dates are `YYYY-MM-DD`; times are local `HH:MM` (24h; the UI
 formats as 12h). Money is `{ "amount": number, "currency": "USD" }`.
@@ -82,7 +96,7 @@ All fields optional; `missing_required` computed server-side.
   "rough_timing": null,                        // "a weekend in March" before exact dates are known
   "origin": "College Station, TX",
   "travelers": 3,                              // adults, 1–6
-  "budget_level": "budget",                    // budget | mid | splurge  (default budget)
+  "budget_level": "budget",                    // budget | mid | splurge  (default budget; null → budget)
   "interests": ["food", "live music"],
   "pace": "balanced",                          // relaxed | balanced | packed
   "transport": "car",                          // car | transit | walk | mixed
@@ -101,8 +115,8 @@ Places are stored once in `places` and referenced by `place_tag` from items.
   "summary": "One-paragraph overview.",
   "start_date": "2027-03-06", "end_date": "2027-03-08",
   "travelers": 3,
-  "cities": [ { "name": "Austin", "region": "TX", "country": "USA", "lat": 30.2672, "lng": -97.7431 } ],
-  "cost_estimate": {                                   // per person
+  "cities": [ { "name": "Austin", "region": "TX", "country": "USA", "lat": 30.2672, "lng": -97.7431 } ],  // 1–2; lat/lng null until Stage 2
+  "cost_estimate": {                                   // per person; whole object null if not estimated
     "currency": "USD", "low": 280, "high": 390,
     "breakdown": [ { "category": "lodging", "low": 120, "high": 120 } ]   // lodging|food|activities|local_transport|other (flights excluded)
   },
@@ -128,12 +142,12 @@ Places are stored once in `places` and referenced by `place_tag` from items.
       "name": "Example Inn Downtown", "city": "Austin",
       "address": "…", "lat": 30.26, "lng": -97.74, "place_id": "…",   // each null until found (Stage 2+)
       "check_in": "2027-03-06", "check_out": "2027-03-08", "nights": 2,
-      "rating": 4.1,
+      "rating": 4.1,                                   // null if unknown
       "price_per_night": { "amount": 89, "currency": "USD" },   // null if no pricing source
-      "total_price":     { "amount": 178, "currency": "USD" },  // whole stay, whole room
+      "total_price":     { "amount": 178, "currency": "USD" },  // whole stay, whole room; null if no pricing source
       "price_as_of": "2026-11-01T18:04:05Z",           // null when price_source is "none"
       "price_source": "serpapi_google_hotels",         // serpapi_google_hotels | none
-      "alternatives": [ { "name": "…", "total_price": { "amount": 199, "currency": "USD" }, "rating": 4.3, "link": "https://…" } ],
+      "alternatives": [ { "name": "…", "total_price": { "amount": 199, "currency": "USD" }, "rating": 4.3, "link": "https://…" } ],  // rating null if unknown
       "links": [ { "label": "Google Hotels", "url": "https://…" }, { "label": "Booking.com", "url": "https://…" } ]
     }
   ],
@@ -142,8 +156,8 @@ Places are stored once in `places` and referenced by `place_tag` from items.
     {
       "day_number": 1, "date": "2027-03-06", "title": "Arrival, East Side eats",
       "city": "Austin",
-      "lodging_tag": "H1",
-      "weather": { "high_f": 72, "low_f": 51, "condition": "sunny", "precip_chance": 10, "source": "forecast" },  // forecast|climate|unavailable; whole object null until Stage 3
+      "lodging_tag": "H1",                             // null if no hotel that night (e.g. departure day)
+      "weather": { "high_f": 72, "low_f": 51, "condition": "sunny", "precip_chance": 10, "source": "forecast" },  // source: forecast|climate|unavailable; high_f/low_f null only when unavailable; condition/precip_chance may be null (always null when unavailable); whole object null until Stage 3
       "items": [
         {
           "id": "d1-i1",
@@ -154,9 +168,9 @@ Places are stored once in `places` and referenced by `place_tag` from items.
           "place_tag": "A",                            // or "H1" for lodging items, or null (free_time / generic)
           "est_cost": { "amount": 25, "currency": "USD" },   // per person; null if unknown
           "booking_required": false,
-          "checklist_item_id": null,
+          "checklist_item_id": null,                   // null unless linked to a checklist item (required when booking_required)
           "transit_from_previous": { "mode": "drive", "duration_min": 12, "distance_mi": 3.4 },  // null for first item; mode: walk|transit|drive|rideshare|flight|train
-          "tips": "Line forms early; arrive by 10:30."
+          "tips": "Line forms early; arrive by 10:30."   // null if none
         }
       ]
     }
@@ -167,9 +181,9 @@ Places are stored once in `places` and referenced by `place_tag` from items.
       "id": "chk-lodging-H1",
       "category": "lodging",                           // flights|lodging|activities|local_transport|documents|packing
       "title": "Book Example Inn Downtown (H1)",
-      "details": "2 nights, Mar 6–8. $178 total as of Nov 1, 6:04 PM.",
-      "date": "2027-03-06",
-      "recommended_option": "Example Inn Downtown — $89/night",
+      "details": "2 nights, Mar 6–8. $178 total as of Nov 1, 6:04 PM.",   // null if none
+      "date": "2027-03-06",                            // null if not tied to a date
+      "recommended_option": "Example Inn Downtown — $89/night",          // null if none
       "links": [ { "label": "Booking.com", "url": "https://…" } ],
       "bookable_by_us": true,                          // "Book for me" → coming soon (MVP)
       "status": "todo"                                 // todo|done
@@ -192,6 +206,9 @@ Places are stored once in `places` and referenced by `place_tag` from items.
 - ≤ 2 cities; ≤ 2 lodging entries.
 - Items sorted by `start_time` within a day; every `place_tag`, `lodging_tag`, `checklist_item_id` resolves.
 - Every `booking_required: true` item has a checklist item.
+- Place tags, lodging tags, item IDs and checklist IDs are unique.
+- `price_source: "none"` ⇒ `price_per_night`, `total_price` and `price_as_of` are `null`.
+- Weather: `source: "unavailable"` ⇒ all four values `null`; `forecast`/`climate` ⇒ `high_f` and `low_f` set.
 - Lat/lng valid. Unknown values are `null`, never invented placeholders.
 
 ### 2.3 Session DTOs
