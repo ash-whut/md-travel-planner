@@ -122,7 +122,9 @@ async def test_generate_json_invalid_fixture_raises_llm_error(fake, tmp_path, co
 # --- factory ------------------------------------------------------------------------------
 
 
-def test_factory_returns_fake_by_default():
+def test_factory_returns_fake_by_default(monkeypatch):
+    for name in Settings.model_fields:  # code defaults only: ignore shell variables
+        monkeypatch.delenv(name.upper(), raising=False)
     provider = get_provider(Settings(_env_file=None))
 
     assert isinstance(provider, FakeProvider)

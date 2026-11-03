@@ -1,13 +1,14 @@
 # Backend dependencies (install from the repo root: pip install -r backend/requirements.txt)
-fastapi
-uvicorn[standard]
-pydantic-settings
-sqlmodel
-sse-starlette
-httpx
-openai
-anthropic
+# Ranges: lower bound = version the team tested; upper bound = next major (next minor for 0.x).
+fastapi>=0.162,<0.163
+uvicorn[standard]>=0.54,<0.55
+pydantic-settings>=2.16,<3
+sqlmodel>=0.0.48,<0.1
+sse-starlette>=3.6,<4
+httpx>=0.28.1,<0.29
+openai>=3.42,<4
+anthropic>=2.4,<3
 
 # tests
-pytest
-pytest-asyncio
+pytest>=9.2,<10
+pytest-asyncio>=1.4,<2

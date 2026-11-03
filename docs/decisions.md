@@ -122,6 +122,13 @@ Found while scaffolding S1.2 (frontend-dev, confirmed by code-reviewer):
 - Also from current shadcn defaults: Tailwind v4 (`@tailwindcss/vite`), Radix primitives,
   Nova preset (bundled Geist font), `shadcn` as a dependency (its CSS is imported).
 
+### D24 — Backend dependency pins (2026-11-02) · Final
+`backend/requirements.txt` uses compatible ranges from the tested versions: lower bound = the
+version the tests passed on; upper bound = next major, or next minor for 0.x packages (e.g.
+`fastapi>=0.162,<0.163`, `openai>=3.42,<4`). Why: four teammates installing on different days
+get the same behaviour. Bumping a pin is a deliberate change: update the range, reinstall, run
+`pytest backend/tests`, commit. Don't loosen pins to silence a resolver warning.
+
 ---
 
 ## Open questions

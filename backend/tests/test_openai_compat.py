@@ -144,6 +144,17 @@ async def test_error_event_mid_stream_raises_retryable_error():
     assert exc_info.value.retryable is True
 
 
+@pytest.mark.asyncio
+async def test_malformed_data_line_raises_retryable_error():
+    body = (chunk({"content": "Hel"}) + "data: {not json at all\n\n" + "data: [DONE]\n\n").encode()
+
+    with pytest.raises(LLMError, match="malformed") as exc_info:
+        await collect(make_provider(FakeEndpoint(sse_response(body))))
+
+    assert exc_info.value.retryable is True
+    assert isinstance(exc_info.value.__cause__, json.JSONDecodeError)
+
+
 # --- errors ------------------------------------------------------------------------------
 
 
@@ -233,11 +244,35 @@ async def test_generate_json_invalid_twice_raises_llm_error():
     assert exc_info.value.retryable is True
 
 
-def test_extract_json():
-    assert extract_json(PLAN) == PLAN
-    assert extract_json(f"```\n{PLAN}\n```") == PLAN
-    assert extract_json('Here: {"a": {"b": 1}} done') == '{"a": {"b": 1}}'
-    assert extract_json("no object") == "no object"
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [
+        (PLAN, PLAN),
+        (f"```\n{PLAN}\n```", PLAN),
+        (f"```json\n{PLAN}\n```", PLAN),
+        (f"Sure! Here is the plan:\n{PLAN}\nEnjoy.", PLAN),
+        ('Here: {"a": {"b": 1}} done', '{"a": {"b": 1}}'),
+        ('{"note": "use {x} and }"}', '{"note": "use {x} and }"}'),
+        ("no object", "no object"),
+        ('Note ```py\nx\n``` then {"a":1}', '{"a":1}'),  # non-JSON fence is skipped
+        ('Use {city}: {"a":1}', '{"a":1}'),  # brace in prose before the object
+        (f'Example {{"x": 1}} but the answer:\n```json\n{PLAN}\n```', PLAN),  # JSON fence wins
+    ],
+    ids=[
+        "plain",
+        "fenced",
+        "fenced-json",
+        "with-prose",
+        "nested",
+        "braces-in-string",
+        "no-object",
+        "non-json-fence",
+        "brace-in-prose",
+        "fence-preferred",
+    ],
+)
+def test_extract_json(reply, expected):
+    assert extract_json(reply) == expected
 
 
 # --- factory -----------------------------------------------------------------------------

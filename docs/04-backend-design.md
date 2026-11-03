@@ -113,8 +113,9 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   `reasoning_content` / `thinking_blocks`, stop at the first `[DONE]` (the SDK does this).
 - **`generate_json` (openai_compat):** don't rely on `response_format` (unverified on TAMU AI).
   Put the Pydantic model's JSON schema in the system prompt ("reply with only a JSON object
-  matching this schema"), stream and collect the full text, extract the outermost `{…}` (strip
-  code fences), validate with Pydantic; on failure retry once with the validation errors
+  matching this schema"), stream and collect the full text, extract the JSON object (a fenced
+  block only if it parses as an object, else the first `{` that decodes to a complete object),
+  validate with Pydantic; on failure retry once with the validation errors
   appended; then raise.
   TAMU AI facts (base URL, model IDs, JSON-schema support) are confirmed by a human (05 H1.2).
   Base URL `https://chat-api.tamu.ai/openai` (verified); default model `protected.Claude-Opus-5`
@@ -122,7 +123,8 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   from the backend. JSON-schema support is still to be confirmed — keep the prompt-JSON fallback.
   Details (S1.6): `OpenAICompatProvider(base_url, api_key, model, timeout=60, max_retries=2)`;
   the SDK retries connection errors/429/5xx itself. Only non-empty `delta.content` of choice 0
-  is yielded; a stream with no text at all raises `LLMError("empty reply", retryable=True)`.
+  is yielded; a stream with no text at all raises `LLMError("empty reply", retryable=True)`, and
+  a `data:` line that isn't JSON raises `LLMError("LLM stream was malformed.", retryable=True)`.
   The retry sends the bad reply back as an `assistant` message plus a `user` message listing the
   validation errors (`field: msg`). Prompt-based JSON verified live on `protected.Claude-Opus-5`
   (2026-11-02, `python -m app.llm.smoke`). The factory raises `LLMError(retryable=False)` naming

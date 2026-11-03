@@ -28,16 +28,35 @@ JSON_INSTRUCTION = (
 CODE_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
-def extract_json(text: str) -> str:
-    """The outermost `{...}` in a model reply, ignoring code fences and surrounding prose.
+def is_json_object(text: str) -> bool:
+    try:
+        return isinstance(json.loads(text), dict)
+    except ValueError:
+        return False
 
+
+def extract_json(text: str) -> str:
+    """The JSON object in a model reply, ignoring code fences and surrounding prose.
+
+    A fenced block wins only if its content is a JSON object; otherwise the first `{` that
+    decodes to a complete object is used (so `{placeholders}` in prose are skipped).
     Returns the text unchanged if there's no object, so Pydantic reports it as invalid JSON.
     """
-    fenced = CODE_FENCE.search(text)
-    if fenced:
-        text = fenced.group(1)
-    start, end = text.find("{"), text.rfind("}")
-    return text[start : end + 1] if 0 <= start < end else text
+    for fenced in CODE_FENCE.finditer(text):
+        content = fenced.group(1).strip()
+        if is_json_object(content):
+            return content
+    decoder = json.JSONDecoder()
+    for start, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, end = decoder.raw_decode(text, start)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            return text[start:end]
+    return text
 
 
 def describe_errors(err: ValidationError) -> str:
@@ -146,5 +165,7 @@ class OpenAICompatProvider:
                             yield text
         except openai.APIError as err:
             raise to_llm_error(err) from err
+        except ValueError as err:  # a `data:` line that isn't JSON (the SDK's json.JSONDecodeError)
+            raise LLMError("LLM stream was malformed.", retryable=True) from err
         if not got_text:
             raise LLMError("LLM returned an empty reply.", retryable=True)

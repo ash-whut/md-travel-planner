@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from app.core.config import Settings, get_settings
 from app.main import app
 
-ENV_VARS = ["LLM_PROVIDER", "TOOL_PROVIDER_MODE"]
+ENV_VARS = [name.upper() for name in Settings.model_fields]  # every variable Settings reads
 
 
 @pytest.fixture

@@ -1,11 +1,13 @@
 """Manual live check of the configured LLM provider (04-backend-design §3.0). Not run by pytest.
 
-Run from `backend/` with the venv active:
+Meant for real providers (e.g. `LLM_PROVIDER=openai_compat`). Run from `backend/` with the venv
+active:
 
     python -m app.llm.smoke
 
 It uses `LLM_*` settings from `backend/.env` (environment variables override them), streams one
-short reply, then asks for one small JSON object. It never prints the API key.
+short reply, then asks for one small JSON object. It never prints the API key. With the fake
+provider only the streaming step runs (the fake has no fixture for the JSON step's schema).
 """
 
 import asyncio
@@ -40,6 +42,9 @@ async def main() -> int:
             print(text, end="", flush=True)
         print()
 
+        if provider.name == "fake":
+            print("generate_json: skipped for the fake provider (no fixture for this schema).")
+            return 0
         place = await provider.generate_json(
             system="You are a travel planner.",
             messages=[{"role": "user", "content": "Name one city in Texas that is good for a weekend trip."}],
