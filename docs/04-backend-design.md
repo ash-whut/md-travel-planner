@@ -294,25 +294,49 @@ After the first user message (while `title_is_custom = false`): one `LLM_FAST_MO
 ## 5. Tags and post-processing [DECIDED]
 
 ### 5.0 Stage 1 baseline — `ItineraryDraft`, tags v1, postprocess v0
-`ItineraryDraft` (what the LLM fills; Pydantic in `app/schemas/`):
+`ItineraryDraft` (what the LLM fills; Pydantic in `app/schemas/itinerary_draft.py`):
 title, summary, start_date, end_date, travelers, cities[] `{name, region, country}`,
-cost_estimate (optional, per person), assumptions[], lodging[] (0–2) `{name, city, check_in,
-check_out, nights}`, days[] `{day_number, date, title, city, items[]}`; each item
+cost_estimate (per person, nullable), assumptions[], lodging[] (0–2) `{name, city, check_in,
+check_out}`, days[] `{day_number, date, title, city, items[]}`; each item
 `{kind, title, description, start_time, end_time, place: {name, category, address?} | null,
 lodging_ref: "<lodging name>" | null, est_cost?, booking_required, tips?}`.
-No tags, IDs, links, coordinates, prices or weather.
+No tags, IDs, links, coordinates, prices or weather (extra keys on nested objects are ignored).
+Details (S1.9):
+- Every top-level field is required with no default (`cost_estimate` must be present, may be
+  `null`) and `extra="forbid"`, so an inner object that `extract_json` pulls out of a truncated
+  reply fails validation. Nested optional fields (`place`, `lodging_ref`, `est_cost`, `tips`,
+  `address`) default to `null`, `booking_required` to `false`.
+- `nights` is not asked of the LLM; code computes it from `check_out − check_in`.
+- The draft's own validator checks everything the LLM can get wrong, so `generate_json`'s one
+  retry covers it and postprocess can assume a consistent draft: day count/dates/`day_number`
+  (the same `day_problems` helper `Itinerary` uses), `check_out > check_in`, distinct hotel
+  names, and every `lodging_ref` matching a hotel name (normalized, as for tags).
+- The fake provider's fixture `app/llm/fixtures/itinerary_draft.json` is the draft of
+  `tests/fixtures/itinerary_austin.json`; postprocess turns one into the other exactly.
 
-`tags.py` v1 + `postprocess.py` v0:
-1. Tags: walk days/items in order; each new place (matched by normalized name) gets the next
-   letter A…Z, AA…; lodging in check-in order gets H1/H2. Items referencing lodging get its tag.
-2. IDs `d{day}-i{n}`, version number, `created_at`.
-3. `maps_url` = Google Maps search link from `name + city` (03 §5 format without
+`tags.py` v1 + `postprocess.py` v0 (`draft_to_itinerary(draft, *, version=1, itinerary_id=None,
+created_at=None) -> Itinerary`, raises `ValidationError`):
+1. Tags: items within a day are sorted by `start_time` (stable); walk days/items in order; each
+   new place (matched by normalized name: casefold, punctuation dropped, whitespace collapsed)
+   gets the next letter A…Z, AA…; lodging in check-in order gets H1/H2. Items with a
+   `lodging_ref`, or whose `place` name matches a hotel, get the hotel's tag (not a letter).
+   A place's first mention sets its name/category; a later mention may fill a missing address.
+   `days[].lodging_tag` = the hotel with `check_in ≤ date < check_out` (null on departure day).
+2. IDs `d{day}-i{n}` (after sorting), version number, `created_at`; itinerary `id` = new uuid
+   unless given.
+3. `maps_url` = Google Maps search link from `name + day city` (03 §5 format without
    `query_place_id`).
 4. Null: lat/lng, place_id, rating, address if not given; lodging prices null with
    `price_source: "none"`, no `price_as_of`; `days[].weather = null`;
    `transit_from_previous = null`; `weather_summary = null`.
-5. Checklist: one `lodging` item per hotel and one `activities` item per
-   `booking_required` item (title "Book …", no links, `bookable_by_us: false`, `status: todo`).
+5. Checklist (hotels first, then bookings in day order; no links, `bookable_by_us: false`,
+   `status: todo`):
+   - per hotel: `id: "chk-lodging-<tag>"` (e.g. `chk-lodging-H1`), category `lodging`, title
+     "Book <name> (<tag>)", details "<n> night(s), Mar 6–8." (or "Mar 30–Apr 1"), date = check-in.
+   - per `booking_required` item: `id: "chk-booking-<item id>"` (e.g. `chk-booking-d2-i7`),
+     category `activities`, title "Book <item title>", date = the day's date; the item's
+     `checklist_item_id` points to it. A booking-required item on a hotel links to that hotel's
+     `chk-lodging-<tag>` instead of adding a second entry.
 6. Validate per 03 §2.2.
 
 Stage 2 adds place lookups (§6.3) between steps 3 and 4. Stage 3 replaces this with the full

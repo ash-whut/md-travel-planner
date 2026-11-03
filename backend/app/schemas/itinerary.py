@@ -8,8 +8,9 @@ where, because the generate step (S1.10) sends them back to the LLM for one retr
 import datetime as dt  # module import: fields named `date` would shadow a bare `date` type
 import re
 from collections import Counter
+from collections.abc import Sequence
 from itertools import pairwise
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
@@ -184,23 +185,7 @@ class Itinerary(BaseModel):
     @model_validator(mode="after")
     def _check_consistency(self) -> "Itinerary":
         """Cross-field rules from 03 §2.2. Collects every problem into one error."""
-        problems: list[str] = []
-
-        # Days line up with the date range.
-        span = (self.end_date - self.start_date).days + 1
-        if span < 1:
-            problems.append(f"end_date {self.end_date} is before start_date {self.start_date}")
-        elif len(self.days) != span:
-            problems.append(
-                f"{len(self.days)} days given, but {self.start_date} to {self.end_date} "
-                f"is {span} days"
-            )
-        for i, day in enumerate(self.days):
-            if day.day_number != i + 1:
-                problems.append(f"days[{i}]: day_number is {day.day_number}, expected {i + 1}")
-            expected_date = self.start_date + dt.timedelta(days=i)
-            if day.date != expected_date:
-                problems.append(f"day {day.day_number}: date is {day.date}, expected {expected_date}")
+        problems: list[str] = day_problems(self.start_date, self.end_date, self.days)
 
         # Tags and IDs are unique.
         place_tags = {p.tag for p in self.places}
@@ -243,6 +228,28 @@ class Itinerary(BaseModel):
         if problems:
             raise ValueError("; ".join(problems))
         return self
+
+
+class _DayLike(Protocol):
+    day_number: int
+    date: dt.date
+
+
+def day_problems(start_date: dt.date, end_date: dt.date, days: Sequence[_DayLike]) -> list[str]:
+    """Days line up with the date range. Shared with `ItineraryDraft`, so a bad draft fails early."""
+    problems: list[str] = []
+    span = (end_date - start_date).days + 1
+    if span < 1:
+        problems.append(f"end_date {end_date} is before start_date {start_date}")
+    elif len(days) != span:
+        problems.append(f"{len(days)} days given, but {start_date} to {end_date} is {span} days")
+    for i, day in enumerate(days):
+        if day.day_number != i + 1:
+            problems.append(f"days[{i}]: day_number is {day.day_number}, expected {i + 1}")
+        expected_date = start_date + dt.timedelta(days=i)
+        if day.date != expected_date:
+            problems.append(f"day {day.day_number}: date is {day.date}, expected {expected_date}")
+    return problems
 
 
 def _is_lodging_tag(tag: str) -> bool:

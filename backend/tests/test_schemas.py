@@ -11,6 +11,7 @@ from app.schemas import (
     DoneData,
     ErrorData,
     Itinerary,
+    ItineraryDraft,
     Message,
     MessageStartData,
     SessionDetail,
@@ -300,3 +301,115 @@ def test_sse_payload_shapes():
 def test_status_state_is_limited():
     with pytest.raises(ValidationError):
         StatusData(label="x", state="running")
+
+
+# --- ItineraryDraft (04 §5.0) -----------------------------------------------------------------
+
+
+def test_draft_fixture_is_valid(draft):
+    parsed = ItineraryDraft.model_validate(draft)
+
+    assert parsed.days[0].items[1].place.name == "Franklin Barbecue"
+
+
+@pytest.mark.parametrize(
+    "inner",
+    [
+        {"name": "Franklin Barbecue", "category": "food", "address": "900 E 11th St"},
+        {"day_number": 1, "date": "2027-03-06", "title": "Arrival", "city": "Austin", "items": []},
+        {"currency": "USD", "low": 230, "high": 340, "breakdown": []},
+    ],
+    ids=["place", "day", "cost-estimate"],
+)
+def test_bare_inner_object_is_not_a_draft(inner):
+    """`extract_json` can return an inner object from a truncated reply; it must not pass."""
+    with pytest.raises(ValidationError):
+        ItineraryDraft.model_validate(inner)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "title", "summary", "start_date", "end_date", "travelers",
+        "cities", "cost_estimate", "assumptions", "lodging", "days",
+    ],
+)
+def test_draft_top_level_fields_are_required(draft, field):
+    del draft[field]
+
+    with pytest.raises(ValidationError, match=field):
+        ItineraryDraft.model_validate(draft)
+
+
+def test_draft_rejects_unknown_top_level_keys(draft):
+    draft["places"] = []
+
+    with pytest.raises(ValidationError, match="places"):
+        ItineraryDraft.model_validate(draft)
+
+
+def test_draft_cost_estimate_may_be_null(draft):
+    draft["cost_estimate"] = None
+
+    assert ItineraryDraft.model_validate(draft).cost_estimate is None
+
+
+def test_draft_nested_optional_fields_default_to_null(draft):
+    terse = {
+        "kind": "free_time", "title": "Rest", "description": "Downtime.", "start_time": "15:00", "end_time": "18:00"
+    }
+    draft["days"][1]["items"][4] = terse
+
+    parsed = ItineraryDraft.model_validate(draft).days[1].items[4]
+
+    assert (parsed.place, parsed.lodging_ref, parsed.est_cost, parsed.booking_required, parsed.tips) == (
+        None, None, None, False, None
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda d: d["days"].pop(), "2 days given, but 2027-03-06 to 2027-03-08 is 3 days"),
+        (lambda d: d["days"][1].update(date="2027-03-09"), "day 2: date is 2027-03-09, expected 2027-03-07"),
+        (
+            lambda d: d["days"][0]["items"][3].update(lodging_ref="Motel 6"),
+            "day 1 items[3]: lodging_ref 'Motel 6' does not match the name of any lodging entry",
+        ),
+        (
+            lambda d: d["lodging"][0].update(check_out="2027-03-06"),
+            "check_out 2027-03-06 must be after check_in 2027-03-06",
+        ),
+        (lambda d: d["lodging"].append(dict(d["lodging"][0])), "lodging entries must have different names"),
+        (lambda d: d["days"][0]["items"][0].update(start_time="8:30"), "start_time"),
+    ],
+    ids=["day-count", "day-date", "lodging-ref", "check-out", "duplicate-hotel", "time-format"],
+)
+def test_draft_consistency_errors_say_what_and_where(draft, mutate, message):
+    mutate(draft)
+
+    with pytest.raises(ValidationError, match=re.escape(message)):
+        ItineraryDraft.model_validate(draft)
+
+
+def test_draft_schema_has_no_code_owned_fields():
+    """Hard rule 5: tags, IDs, links, coordinates, prices and weather never come from the LLM."""
+    names: set[str] = set()
+
+    def collect(node):
+        if isinstance(node, dict):
+            names.update(node.get("properties", {}))
+            for value in node.values():
+                collect(value)
+        elif isinstance(node, list):
+            for value in node:
+                collect(value)
+
+    collect(ItineraryDraft.model_json_schema())
+
+    code_owned = {
+        "id", "tag", "place_tag", "lodging_tag", "checklist_item_id", "maps_url", "links", "lat", "lng",
+        "place_id", "rating", "price_per_night", "total_price", "price_as_of", "weather", "checklist",
+    }
+    assert names & code_owned == set()
+    assert {"place", "lodging_ref", "booking_required"} <= names

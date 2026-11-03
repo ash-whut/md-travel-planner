@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.core.config import Settings, get_settings
 from app.db.engine import get_engine, get_session, init_db, make_engine
+from app.llm.fake_provider import FIXTURES_DIR as LLM_FIXTURES
 from app.main import app
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -27,6 +28,12 @@ def austin() -> dict:
 def austin_bad() -> dict:
     """The Austin itinerary with four cross-field errors (day count, order, tag, booking)."""
     return load_fixture("itinerary_austin_bad.json")
+
+
+@pytest.fixture
+def draft() -> dict:
+    """The fake provider's ItineraryDraft (app/llm/fixtures); postprocess turns it into `austin`."""
+    return json.loads((LLM_FIXTURES / "itinerary_draft.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture

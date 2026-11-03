@@ -15,6 +15,14 @@ from app.schemas.itinerary import (
     Transit,
     Weather,
 )
+from app.schemas.itinerary_draft import (
+    DraftCity,
+    DraftDay,
+    DraftItem,
+    DraftLodging,
+    DraftPlace,
+    ItineraryDraft,
+)
 from app.schemas.session import Message, MessageCreate, SessionDetail, SessionSummary
 from app.schemas.sse import DoneData, ErrorData, MessageStartData, StatusData, TokenData
 from app.schemas.trip_profile import TripProfile
@@ -26,9 +34,15 @@ __all__ = [
     "CostEstimate",
     "Day",
     "DoneData",
+    "DraftCity",
+    "DraftDay",
+    "DraftItem",
+    "DraftLodging",
+    "DraftPlace",
     "ErrorData",
     "Item",
     "Itinerary",
+    "ItineraryDraft",
     "Link",
     "Lodging",
     "LodgingAlternative",
