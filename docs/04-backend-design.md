@@ -124,7 +124,18 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   route Claude through an OpenAI-compatible shim.
 - **fake:** streams a fixed reply in ~30-char chunks; `generate_json` returns an
   `ItineraryDraft` loaded from a fixture so the whole flow (tags, validation, UI) runs with no key.
-- Errors from any adapter surface as SSE `error` with a friendly message (§9).
+  Details (S1.5): the reply is deterministic — it quotes the last user message and asks the next
+  of a few fixed follow-ups (by user-message count), ending with "click **Generate plan**";
+  `FakeProvider(chunk_size=30, delay=0.03)` sleeps `delay` s between chunks (tests pass `0`).
+  `generate_json` is generic: it loads `app/llm/fixtures/<snake_case schema name>.json`
+  (`ItineraryDraft` → `itinerary_draft.json`, added in S1.9; `fixtures_dir` is overridable for
+  tests) and validates it with the schema.
+- **Errors:** adapters raise only `LLMError(message, retryable=True)` from `base.py` — including
+  invalid model output after the retry (the Pydantic `ValidationError` is chained as `__cause__`)
+  and misconfiguration (`retryable=False`: missing fake fixture, provider not built yet). Routes
+  map it to SSE `error` `{message, retryable}` with a friendly message (§9), never `str(err)`.
+- **`factory.py`:** `get_provider(settings)` plus a tiny FastAPI dependency `get_llm()` (uses
+  `get_settings`, so tests pick the provider by overriding `get_settings`).
 
 ### Full design — tool calling (Stage 3) [PROPOSED → RQ-1, RQ-2]
 
