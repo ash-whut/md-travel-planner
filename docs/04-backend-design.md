@@ -58,6 +58,18 @@ MCP server or an LLM sub-agent without changing the API.
   - `engine.py`: `make_engine(url)` (SQLite: `check_same_thread=False` and
     `PRAGMA foreign_keys=ON` on every connection, needed for cascade deletes), cached
     `get_engine()`, `init_db()` (run by the FastAPI lifespan), `get_session()` dependency.
+  - `repositories.py`: plain functions taking an open `Session` and committing their own
+    writes — `create_session(db, llm_provider, greeting)` (session + greeting message),
+    `get_session_row`, `list_messages` (by `created_at`, ties by SQLite `rowid` = insertion
+    order), `get_latest_itinerary` (highest `version`), `get_session_detail(db, id,
+    current_provider)` → `SessionDetail | None` (`chat_enabled` = stored `llm_provider` equals
+    the configured one). With no `relationship()` between tables, flush a parent row before
+    adding children in the same transaction.
+- `app/api/sessions.py` (Stage 1): `POST /sessions` → `200` + `SessionDetail` whose only
+  message is the fixed greeting (`app/agent/fixed_messages.py: GREETING`, no LLM call);
+  `GET /sessions/{id}` → `SessionDetail` or `404 {"detail": "Session not found"}`. Until
+  profile extraction (Stage 3) `trip_profile` is stored as `{}` and returned with
+  `missing_required: []`.
 - `app/schemas/` — Pydantic models from 03-contracts (`TripProfile`, `Itinerary`, `ItineraryDraft`, DTOs, SSE payloads) incl. validators.
 - `app/api/` — thin routes: validate → repo/orchestrator → respond/stream.
 - `app/llm/` — provider layer (§3).
