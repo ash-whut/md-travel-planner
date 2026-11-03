@@ -33,12 +33,13 @@ app.add_middleware(
 )
 
 
-
 @app.exception_handler(RequestValidationError)
 async def validation_error_as_400(_request: Request, exc: RequestValidationError) -> JSONResponse:
     """First validation error as one readable line, e.g. "content: String should have at least 1 character"."""
     error = exc.errors()[0]
-    field = ".".join(str(part) for part in error["loc"] if part != "body")
+    if error["type"] == "json_invalid":  # loc is ("body", <character position>), not a field
+        return JSONResponse(status_code=400, content={"detail": "Request body is not valid JSON"})
+    field = ".".join(part for part in error["loc"] if isinstance(part, str) and part != "body")
     return JSONResponse(status_code=400, content={"detail": f"{field}: {error['msg']}" if field else error["msg"]})
 
 

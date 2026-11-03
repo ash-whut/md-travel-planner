@@ -9,7 +9,8 @@ import datetime as dt
 import uuid
 from urllib.parse import quote
 
-from app.agent.tags import assign_place_tags, lodging_tag, normalize_name
+from app.agent.tags import assign_place_tags, lodging_tag
+from app.core.text import normalize_name
 from app.schemas import (
     ChecklistItem,
     City,
@@ -48,7 +49,7 @@ def draft_to_itinerary(
 
     def hotel_tag_of(item: DraftItem) -> str | None:
         """H1/H2 if the item is about a hotel: via `lodging_ref`, or a place named like the hotel."""
-        if item.lodging_ref is not None:
+        if item.lodging_ref is not None:  # a hotel item uses the hotel and ignores `place`
             return hotel_tags[normalize_name(item.lodging_ref)]  # the draft checked it resolves
         if item.place is not None:
             return hotel_tags.get(normalize_name(item.place.name))

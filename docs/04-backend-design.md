@@ -50,6 +50,8 @@ MCP server or an LLM sub-agent without changing the API.
 
 - `app/main.py` — app factory, CORS (`http://localhost:5173`), routers under `/api`, create tables on startup.
 - `app/core/config.py` — `pydantic-settings` `Settings` from `.env` (variables in [setup-guide.md](setup-guide.md)).
+- `app/core/text.py` — `normalize_name` (place/hotel matching key, §5.0), shared by `schemas/` and
+  `agent/` so schemas never import from the agent layer.
 - `app/db/` — engine, tables (`Session`, `Message`, `Itinerary`, `ApiCache`), plain repository functions, `seed.py` (loads the same demo sessions as the frontend fixtures).
   - `tables.py`: classes `SessionRow`, `MessageRow`, `ItineraryRow` (tables `session`, `message`,
     `itinerary`; the `Row` suffix avoids clashing with SQLModel's `Session` and the DTOs).
@@ -225,8 +227,8 @@ teammates without keys run the full stack.
   (including "provider not configured" from the factory) or unexpected exception → log it and
   send `error` instead of `done`, with a fixed friendly message (never `str(err)`):
   `retryable=true` → "couldn't get a reply… try again"; `retryable=false` → "the AI model isn't
-  set up correctly… check backend/.env". A failed turn saves nothing, so Retry re-sends the same
-  text. The provider is built per turn (not cached), so an SDK client is never reused across
+  set up correctly… check backend/.env". A reply with no text (empty or whitespace only) is a
+  retryable `LLMError` too. A failed turn saves nothing, so Retry re-sends the same text. The provider is built per turn (not cached), so an SDK client is never reused across
   event loops.
 - **Generate** (`run_generation`): `status` "Drafting your itinerary…" →
   `generate_json(system=prompts/generate.md, messages=history, schema=ItineraryDraft)` →
@@ -309,15 +311,19 @@ Details (S1.9):
 - `nights` is not asked of the LLM; code computes it from `check_out − check_in`.
 - The draft's own validator checks everything the LLM can get wrong, so `generate_json`'s one
   retry covers it and postprocess can assume a consistent draft: day count/dates/`day_number`
-  (the same `day_problems` helper `Itinerary` uses), `check_out > check_in`, distinct hotel
-  names, and every `lodging_ref` matching a hotel name (normalized, as for tags).
+  (the same `day_problems` helper `Itinerary` uses), `check_out > check_in`, hotel stays within
+  the trip (`check_in ≥ start_date`, `check_out ≤ end_date`: the last day is the departure day
+  with no hotel night, matching `days[].lodging_tag` below), hotel stays not overlapping
+  (back-to-back is fine), distinct hotel names, and every `lodging_ref` matching a hotel name
+  (normalized, as for tags).
 - The fake provider's fixture `app/llm/fixtures/itinerary_draft.json` is the draft of
   `tests/fixtures/itinerary_austin.json`; postprocess turns one into the other exactly.
 
 `tags.py` v1 + `postprocess.py` v0 (`draft_to_itinerary(draft, *, version=1, itinerary_id=None,
 created_at=None) -> Itinerary`, raises `ValidationError`):
 1. Tags: items within a day are sorted by `start_time` (stable); walk days/items in order; each
-   new place (matched by normalized name: casefold, punctuation dropped, whitespace collapsed)
+   new place (matched by `core/text.normalize_name`: casefold, apostrophes `'`/`’` dropped, other
+   punctuation turned into a space, whitespace collapsed)
    gets the next letter A…Z, AA…; lodging in check-in order gets H1/H2. Items with a
    `lodging_ref`, or whose `place` name matches a hotel, get the hotel's tag (not a letter).
    A place's first mention sets its name/category; a later mention may fill a missing address.

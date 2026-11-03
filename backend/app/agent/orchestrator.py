@@ -60,7 +60,7 @@ async def run_chat_turn(engine: Engine, settings: Settings, session_id: str, tex
     """One chat turn: `message_start` → `token`* → `done`, or `error` in place of `done`.
 
     The user and assistant messages are saved together once the reply is complete, so a
-    failed or aborted turn saves nothing and the client can simply re-send the same text.
+    failed, aborted or empty turn saves nothing and the client can simply re-send the same text.
     """
     user_message = MessageRow(session_id=session_id, role="user", content=text)
     assistant_id = new_id()
@@ -76,8 +76,11 @@ async def run_chat_turn(engine: Engine, settings: Settings, session_id: str, tex
         async for chunk in llm.stream_text(system=load_prompt("system.md"), messages=history):
             chunks.append(chunk)
             yield sse("token", TokenData(text=chunk))
+        reply = "".join(chunks)
+        if not reply.strip():  # e.g. TAMU streamed only filler chunks, which openai_compat drops
+            raise LLMError("model streamed no reply text", retryable=True)
 
-        assistant_message = MessageRow(id=assistant_id, session_id=session_id, role="assistant", content="".join(chunks))
+        assistant_message = MessageRow(id=assistant_id, session_id=session_id, role="assistant", content=reply)
         with Session(engine) as db:
             repositories.add_messages(db, session_id, [user_message, assistant_message])
     except LLMError as err:

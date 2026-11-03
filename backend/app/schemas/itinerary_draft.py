@@ -19,7 +19,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from app.agent.tags import normalize_name
+from app.core.text import normalize_name
 from app.schemas.common import Money, TimeHHMM
 from app.schemas.itinerary import CostEstimate, ItemKind, PlaceCategory, day_problems
 
@@ -90,6 +90,19 @@ class ItineraryDraft(BaseModel):
             if hotel.check_out <= hotel.check_in:
                 problems.append(
                     f"lodging '{hotel.name}': check_out {hotel.check_out} must be after check_in {hotel.check_in}"
+                )
+            # The last trip day is the departure day (no hotel night), so check_out <= end_date.
+            if hotel.check_in < self.start_date or hotel.check_out > self.end_date:
+                problems.append(
+                    f"lodging '{hotel.name}': stay {hotel.check_in} to {hotel.check_out} must be within the trip "
+                    f"(check_in on or after {self.start_date}, check_out on or before {self.end_date})"
+                )
+        hotels = sorted(self.lodging, key=lambda h: h.check_in)
+        for first, second in zip(hotels, hotels[1:]):
+            if second.check_in < first.check_out:
+                problems.append(
+                    f"lodging '{second.name}': check_in {second.check_in} is before check_out {first.check_out} "
+                    f"of '{first.name}'; hotel stays must not overlap"
                 )
         names = Counter(normalize_name(h.name) for h in self.lodging)
         if any(count > 1 for count in names.values()):

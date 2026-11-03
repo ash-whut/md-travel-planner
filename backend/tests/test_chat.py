@@ -146,6 +146,18 @@ def test_llm_error_mid_stream_sends_retryable_error_and_saves_nothing(client, ne
     assert stored_messages(client, new_session["id"]) == [("assistant", GREETING)]
 
 
+@pytest.mark.parametrize("chunks", [(), (" ", "\n")], ids=["no-chunks", "whitespace-only"])
+def test_empty_reply_sends_retryable_error_and_saves_nothing(client, new_session, use_provider, chunks):
+    # openai_compat drops filler chunks, so a TAMU reply can stream no text at all.
+    use_provider(RecordingProvider(chunks=chunks))
+
+    events = send(client, new_session["id"], "Austin for 3 days")
+
+    assert [name for name, _ in events] == ["message_start"] + ["token"] * len(chunks) + ["error"]
+    assert events[-1][1] == {"message": orchestrator.RETRY_MESSAGE, "retryable": True}
+    assert stored_messages(client, new_session["id"]) == [("assistant", GREETING)]
+
+
 def test_unexpected_exception_becomes_error_event(client, new_session, use_provider):
     use_provider(RecordingProvider(error=RuntimeError("boom")))
 
@@ -174,6 +186,17 @@ def test_invalid_body_is_400_with_detail(client, engine, body):
 
     assert response.status_code == 400
     assert response.json()["detail"].startswith("content: ")
+
+
+def test_malformed_json_is_400_with_readable_detail(client, new_session):
+    response = client.post(
+        f"/api/sessions/{new_session['id']}/messages",
+        content='{"content": "hi"',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Request body is not valid JSON"}
 
 
 def test_4000_characters_is_accepted(client, new_session):

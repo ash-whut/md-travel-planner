@@ -4,17 +4,9 @@ v1 (Stage 1, 04-backend-design §5.0): first-time assignment only. Places are ma
 normalized name. Keeping tags stable across itinerary versions comes in a later stage.
 """
 
-import re
 import string
 
-
-def normalize_name(name: str) -> str:
-    """Matching key for a place: case-insensitive, punctuation dropped, whitespace collapsed.
-
-    "Torchy's  Tacos" and "torchys tacos" are the same place.
-    """
-    without_punctuation = re.sub(r"[^\w\s]", "", name.casefold())
-    return " ".join(without_punctuation.split())
+from app.core.text import normalize_name
 
 
 def letter_tag(index: int) -> str:

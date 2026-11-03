@@ -382,14 +382,42 @@ def test_draft_nested_optional_fields_default_to_null(draft):
         ),
         (lambda d: d["lodging"].append(dict(d["lodging"][0])), "lodging entries must have different names"),
         (lambda d: d["days"][0]["items"][0].update(start_time="8:30"), "start_time"),
+        (
+            lambda d: d["lodging"][0].update(check_in="2027-03-05"),
+            "stay 2027-03-05 to 2027-03-08 must be within the trip "
+            "(check_in on or after 2027-03-06, check_out on or before 2027-03-08)",
+        ),
+        (
+            lambda d: d["lodging"][0].update(check_out="2027-03-09"),  # no hotel night after the departure day
+            "stay 2027-03-06 to 2027-03-09 must be within the trip",
+        ),
+        (
+            lambda d: d["lodging"].append(dict(d["lodging"][0], name="Second Inn", check_in="2027-03-07")),
+            "lodging 'Second Inn': check_in 2027-03-07 is before check_out 2027-03-08 of "
+            "'Hampton Inn & Suites Austin-Downtown/Convention Center'; hotel stays must not overlap",
+        ),
     ],
-    ids=["day-count", "day-date", "lodging-ref", "check-out", "duplicate-hotel", "time-format"],
+    ids=[
+        "day-count", "day-date", "lodging-ref", "check-out", "duplicate-hotel", "time-format",
+        "check-in-before-trip", "check-out-after-trip", "overlapping-stays",
+    ],
 )
 def test_draft_consistency_errors_say_what_and_where(draft, mutate, message):
     mutate(draft)
 
     with pytest.raises(ValidationError, match=re.escape(message)):
         ItineraryDraft.model_validate(draft)
+
+
+def test_draft_allows_back_to_back_hotels(draft):
+    draft["lodging"] = [
+        {"name": "First Inn", "city": "Austin", "check_in": "2027-03-06", "check_out": "2027-03-07"},
+        {"name": "Second Inn", "city": "Austin", "check_in": "2027-03-07", "check_out": "2027-03-08"},
+    ]
+    draft["days"][0]["items"][3]["lodging_ref"] = "First Inn"
+    draft["days"][2]["items"][0]["lodging_ref"] = "Second Inn"
+
+    assert len(ItineraryDraft.model_validate(draft).lodging) == 2
 
 
 def test_draft_schema_has_no_code_owned_fields():

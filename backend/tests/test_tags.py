@@ -2,7 +2,8 @@
 
 import pytest
 
-from app.agent.tags import assign_place_tags, letter_tag, lodging_tag, normalize_name
+from app.agent.tags import assign_place_tags, letter_tag, lodging_tag
+from app.core.text import normalize_name
 
 
 @pytest.mark.parametrize(
@@ -22,8 +23,22 @@ def test_lodging_tags_are_h1_h2():
     assert [lodging_tag(i) for i in range(2)] == ["H1", "H2"]
 
 
-def test_normalize_name_ignores_case_punctuation_and_spacing():
+def test_normalize_name_ignores_case_apostrophes_and_spacing():
     assert normalize_name("  Torchy's   Tacos ") == normalize_name("TORCHYS TACOS") == "torchys tacos"
+    assert normalize_name("Torchy’s Tacos") == "torchys tacos"  # curly apostrophe
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "Hampton Inn & Suites Austin-Downtown/Convention Center",
+        "Hampton Inn Suites Austin Downtown/Convention Center",
+        "hampton inn & suites austin downtown / convention center",
+        "Hampton Inn & Suites, Austin Downtown Convention Center.",
+    ],
+)
+def test_normalize_name_turns_other_punctuation_into_spaces(variant):
+    assert normalize_name(variant) == "hampton inn suites austin downtown convention center"
 
 
 def test_assign_place_tags_in_first_appearance_order():
