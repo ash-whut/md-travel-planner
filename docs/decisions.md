@@ -136,5 +136,9 @@ get the same behaviour. Bumping a pin is a deliberate change: update the range, 
   non-streaming calls return no usable response, so the adapter always streams (setup-guide
   §6.2). Still unknown: JSON-schema output (S1.6 uses prompt-JSON instead) and tool calling
   (needed before Stage 3).
+- LLM cost estimates vs AGENTS.md hard rule 5 ("prices are produced by code"): Stage 1 lets the LLM fill
+  rough per-item `est_cost` and the trip `cost_estimate` (both nullable in 03); hotel prices come only
+  from code/tools. Reviewer (S1.10) sees no violation. Team to confirm; if yes, record as a D-entry
+  ("rough LLM cost estimates allowed, labelled as estimates; hotel prices only from tools").
 - Who owns the shared Google Cloud project (needed from Stage 2) and the Claude Console
   workspace (only if we use the Claude backup)?
