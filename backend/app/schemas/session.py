@@ -1,8 +1,8 @@
 """Session DTOs (03-contracts §2.3). `from_attributes` lets routes build them from DB rows."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas.common import UtcDatetime
 from app.schemas.itinerary import Itinerary
@@ -19,6 +19,13 @@ class Message(BaseModel):
     content: str  # markdown
     itinerary_version: int | None = None  # set on the assistant message that produced a version
     created_at: UtcDatetime
+
+
+class MessageCreate(BaseModel):
+    """Body of POST /sessions/{id}/messages. Surrounding whitespace is trimmed, so a blank
+    message is rejected."""
+
+    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
 class SessionSummary(BaseModel):

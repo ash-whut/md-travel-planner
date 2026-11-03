@@ -242,7 +242,8 @@ Places are stored once in `places` and referenced by `place_tag` from items.
 | PATCH | `/sessions/{id}/checklist/{item_id}` | `{ "status": "todo" \| "done" }` | updated item | 3 |
 | GET | `/health` | — | `{ "ok": true, "llm_provider": "fake", "tool_mode": "mock" }` | 1 |
 
-Errors: `{ "detail": "message" }` with 400/404/409/500. A second stream on a session that is
+Errors: `{ "detail": "message" }` with 400/404/409/500 (an invalid request body is `400`, e.g.
+`{ "detail": "content: String should have at least 1 character" }`, not FastAPI's 422). A second stream on a session that is
 already streaming → `409` (Stage 3; before that there is no lock).
 
 ---
@@ -265,6 +266,15 @@ already streaming → `409` (Stage 3; before that there is no lock).
 Order: `message_start` first; `done` or `error` last; `itinerary` only after it's persisted.
 Client abort (Stage 3) → server stops the LLM call and saves partial text with "*(stopped)*".
 Before Stage 3 an aborted stream saves nothing partial.
+
+> **CONTRACT CHANGE (2026-11-02, S1.8) — clarification:** a chat turn
+> (`POST /sessions/{id}/messages`) saves the user message and the assistant message together,
+> only when it reaches `done`. If it ends in `error` (or is aborted, before Stage 3) **nothing
+> from the turn is saved**, so the client's Retry simply re-sends the same `content`.
+> `message_start` is always sent first, even when the very next event is `error` (e.g. the LLM
+> provider isn't configured: `retryable: false`). Frontend impact (S1.11 `sendMessage`, S1.13
+> `ChatPanel`): keep the user's bubble on screen after an error and resend its text on Retry;
+> don't assume the server kept it.
 
 ---
 

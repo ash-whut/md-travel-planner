@@ -3,34 +3,11 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-import pytest
-from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.agent.fixed_messages import GREETING
-from app.core.config import Settings, get_settings
-from app.db.engine import get_session
 from app.db.tables import ItineraryRow, MessageRow, SessionRow
-from app.main import app
 from app.schemas import SessionDetail
-
-
-@pytest.fixture
-def client(engine):
-    """TestClient on the tmp-file DB with LLM_PROVIDER=fake; ignores backend/.env.
-
-    Not used as a context manager, so the app lifespan (which would create backend/travel.db)
-    never runs.
-    """
-
-    def tmp_session():
-        with Session(engine) as db:
-            yield db
-
-    app.dependency_overrides[get_session] = tmp_session
-    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, llm_provider="fake")
-    yield TestClient(app)
-    app.dependency_overrides.clear()
 
 
 def add_session(engine, **fields) -> str:

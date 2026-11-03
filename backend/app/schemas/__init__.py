@@ -15,7 +15,7 @@ from app.schemas.itinerary import (
     Transit,
     Weather,
 )
-from app.schemas.session import Message, SessionDetail, SessionSummary
+from app.schemas.session import Message, MessageCreate, SessionDetail, SessionSummary
 from app.schemas.sse import DoneData, ErrorData, MessageStartData, StatusData, TokenData
 from app.schemas.trip_profile import TripProfile
 
@@ -33,6 +33,7 @@ __all__ = [
     "Lodging",
     "LodgingAlternative",
     "Message",
+    "MessageCreate",
     "MessageStartData",
     "Money",
     "Place",

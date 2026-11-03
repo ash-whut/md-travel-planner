@@ -65,11 +65,19 @@ MCP server or an LLM sub-agent without changing the API.
     current_provider)` → `SessionDetail | None` (`chat_enabled` = stored `llm_provider` equals
     the configured one). With no `relationship()` between tables, flush a parent row before
     adding children in the same transaction.
+    `add_messages(db, session_id, messages)` saves display messages and bumps the session's
+    `updated_at` in one commit.
 - `app/api/sessions.py` (Stage 1): `POST /sessions` → `200` + `SessionDetail` whose only
   message is the fixed greeting (`app/agent/fixed_messages.py: GREETING`, no LLM call);
   `GET /sessions/{id}` → `SessionDetail` or `404 {"detail": "Session not found"}`. Until
   profile extraction (Stage 3) `trip_profile` is stored as `{}` and returned with
   `missing_required: []`.
+- `app/api/chat.py` (Stage 1, S1.8): `POST /sessions/{id}/messages` with body
+  `MessageCreate {content}` (trimmed, 1–4000 chars) → `404` if the session doesn't exist, else
+  `EventSourceResponse(orchestrator.run_chat_turn(engine, settings, id, content))`. The route
+  takes `get_engine` as a dependency (tests override it with a tmp DB) and holds no DB session
+  while streaming. `main.py` turns request validation errors into `400 {"detail": "field: msg"}`
+  (03 §3) instead of FastAPI's 422.
 - `app/schemas/` — Pydantic models from 03-contracts (`TripProfile`, `Itinerary`, `ItineraryDraft`, DTOs, SSE payloads) incl. validators.
 - `app/api/` — thin routes: validate → repo/orchestrator → respond/stream.
 - `app/llm/` — provider layer (§3).
@@ -209,8 +217,17 @@ teammates without keys run the full stack.
 ## 4. Orchestrator phases
 
 ### 4.0 Stage 1 baseline — chat and generate without tools [DECIDED]
-- **Chat** (`run_chat_turn`): save the user message → `stream_text(system=prompts/system.md,
-  messages=history)` → `token` events → save the assistant message → `done`.
+- **Chat** (`run_chat_turn`): `message_start` → build the provider (`get_provider`) →
+  `stream_text(system=prompts/system.md, messages=history + new user message)` → `token`
+  events → save the user **and** assistant messages together (`add_messages`) → `done`.
+  Details (S1.8): history is `list_messages` minus the code-written greeting(s) before the first
+  user message, so every provider sees a conversation that starts with the user. Any `LLMError`
+  (including "provider not configured" from the factory) or unexpected exception → log it and
+  send `error` instead of `done`, with a fixed friendly message (never `str(err)`):
+  `retryable=true` → "couldn't get a reply… try again"; `retryable=false` → "the AI model isn't
+  set up correctly… check backend/.env". A failed turn saves nothing, so Retry re-sends the same
+  text. The provider is built per turn (not cached), so an SDK client is never reused across
+  event loops.
 - **Generate** (`run_generation`): `status` "Drafting your itinerary…" →
   `generate_json(system=prompts/generate.md, messages=history, schema=ItineraryDraft)` →
   §5.0 postprocess → validate → persist next `itinerary.version`, `session.status = planned` →
@@ -368,11 +385,11 @@ Pure functions building deep links per 03 §5 (formats to be re-verified). Unit-
 
 ### 7.0 Stage 1 baseline [DECIDED]
 - SSE via `sse-starlette` `EventSourceResponse`; events per 03 §4 (Stage 1 subset).
-- Sync SQLModel: open short `with Session(engine)` blocks inside the stream generator (save
-  user message, then save assistant message/itinerary at the end) — never hold a DB session
+- Sync SQLModel: open short `with Session(engine)` blocks inside the stream generator (read
+  history; at the end save the user + assistant messages / itinerary together) — never hold a DB session
   across LLM awaits.
 - No per-session lock and no server-side cancellation yet; the client may abort its fetch.
-  If the generator is cancelled, nothing partial is saved.
+  If the generator is cancelled, or the turn ends in `error`, nothing from it is saved.
 
 ### 7.1 Full design (Stage 3) [PROPOSED → RQ-6]
 

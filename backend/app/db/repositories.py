@@ -7,7 +7,7 @@ Each function takes an open `Session` (from the `get_session` dependency or a sh
 from sqlalchemy import text
 from sqlmodel import Session, select
 
-from app.db.tables import ItineraryRow, MessageRow, SessionRow
+from app.db.tables import ItineraryRow, MessageRow, SessionRow, utc_now
 from app.schemas import Itinerary, Message, SessionDetail, TripProfile
 
 
@@ -38,6 +38,17 @@ def list_messages(db: Session, session_id: str) -> list[MessageRow]:
         .order_by(MessageRow.created_at, text("message.rowid"))
     )
     return list(db.exec(statement).all())
+
+
+def add_messages(db: Session, session_id: str, messages: list[MessageRow]) -> None:
+    """Save display messages and bump the session's `updated_at`, in one commit."""
+    session_row = db.get(SessionRow, session_id)
+    if session_row is None:
+        raise ValueError(f"Session {session_id} not found")
+    db.add_all(messages)
+    session_row.updated_at = utc_now()
+    db.add(session_row)
+    db.commit()
 
 
 def get_latest_itinerary(db: Session, session_id: str) -> ItineraryRow | None:
