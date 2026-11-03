@@ -120,6 +120,13 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   Base URL `https://chat-api.tamu.ai/openai` (verified); default model `protected.Claude-Opus-5`
   (also `protected.gpt-5.5`). `chat.tamu.ai` itself is behind a NetID login and can't be called
   from the backend. JSON-schema support is still to be confirmed — keep the prompt-JSON fallback.
+  Details (S1.6): `OpenAICompatProvider(base_url, api_key, model, timeout=60, max_retries=2)`;
+  the SDK retries connection errors/429/5xx itself. Only non-empty `delta.content` of choice 0
+  is yielded; a stream with no text at all raises `LLMError("empty reply", retryable=True)`.
+  The retry sends the bad reply back as an `assistant` message plus a `user` message listing the
+  validation errors (`field: msg`). Prompt-based JSON verified live on `protected.Claude-Opus-5`
+  (2026-11-02, `python -m app.llm.smoke`). The factory raises `LLMError(retryable=False)` naming
+  any missing `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`.
 - **anthropic:** official `anthropic` SDK per §3.1 (load the `claude-api` skill first); never
   route Claude through an OpenAI-compatible shim.
 - **fake:** streams a fixed reply in ~30-char chunks; `generate_json` returns an
@@ -132,7 +139,10 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   tests) and validates it with the schema.
 - **Errors:** adapters raise only `LLMError(message, retryable=True)` from `base.py` — including
   invalid model output after the retry (the Pydantic `ValidationError` is chained as `__cause__`)
-  and misconfiguration (`retryable=False`: missing fake fixture, provider not built yet). Routes
+  and misconfiguration (`retryable=False`: missing fake fixture, provider not built yet, missing
+  `LLM_*` settings, HTTP 401/403 "check LLM_API_KEY", HTTP 400/404/422 "check LLM_BASE_URL and
+  LLM_MODEL"). HTTP 429/5xx, timeouts, connection errors and invalid real-model output are
+  `retryable=True`. Routes
   map it to SSE `error` `{message, retryable}` with a friendly message (§9), never `str(err)`.
 - **`factory.py`:** `get_provider(settings)` plus a tiny FastAPI dependency `get_llm()` (uses
   `get_settings`, so tests pick the provider by overriding `get_settings`).

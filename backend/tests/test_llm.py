@@ -133,7 +133,7 @@ def test_get_llm_dependency_uses_settings():
     assert get_llm(Settings(_env_file=None, llm_provider="fake")).name == "fake"
 
 
-@pytest.mark.parametrize(("provider", "item"), [("openai_compat", "S1.6"), ("anthropic", "S1.7")])
+@pytest.mark.parametrize(("provider", "item"), [("anthropic", "S1.7")])
 def test_factory_errors_clearly_for_providers_not_built_yet(provider, item):
     with pytest.raises(LLMError, match=f"not implemented yet \\({item}\\)") as exc_info:
         get_provider(Settings(_env_file=None, llm_provider=provider))

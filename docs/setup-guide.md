@@ -179,10 +179,11 @@ paid thing — §6.1.)
 | Streaming works? | **Yes** (test d, 2026-11-02). Quirks: many empty filler chunks, extra `reasoning_content` / `thinking_blocks` fields, and `data: [DONE]` can appear twice — the adapter yields only non-empty `delta.content` and stops at the first `[DONE]`. |
 | Non-streaming chat works? | **No usable response** (tests b/c returned no `choices`) — the adapter always uses `stream=True` |
 | JSON-schema `response_format` supported? | Unknown (could not test without non-streaming) — S1.6 uses prompt-based JSON + Pydantic validation |
-
-Run step 4 top to bottom in one PowerShell window; `$base` and `$model` must be set before tests b–d.
+| Prompt-based JSON works? | **Yes** — `python -m app.llm.smoke` with `protected.Claude-Opus-5` streamed a reply and returned a valid `{city, state}` object via the schema-in-system-prompt path (2026-11-02, S1.6) |
 | Tool/function calling supported? (needed in Stage 3) | _to fill later_ |
 | Daily allowance / rate limits | _to fill_ |
+
+Run step 4 top to bottom in one PowerShell window; `$base` and `$model` must be set before tests b–d.
 
 Sessions created with one provider become read-only after switching (Stage 4 banner); start a new trip.
 
