@@ -1,19 +1,17 @@
-import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { useEffect } from "react"
+import { AppShell } from "@/components/layout/AppShell"
+import { useTripStore } from "@/store/tripStore"
 
-// Placeholder screen for S1.2; replaced by AppShell in S1.12.
 function App() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-3xl font-semibold tracking-tight">
-        md-travel-planner
-      </h1>
-      <p className="text-muted-foreground">Stage 1 skeleton</p>
-      <Button onClick={() => toast("Frontend skeleton is running")}>
-        Say hello
-      </Button>
-    </main>
-  )
+  const init = useTripStore((s) => s.init)
+
+  // Every page load starts a new trip (02 §5). init() ignores the second call that
+  // React StrictMode makes in development.
+  useEffect(() => {
+    void init()
+  }, [init])
+
+  return <AppShell />
 }
 
 export default App
