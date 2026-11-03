@@ -5,6 +5,7 @@ Each phase is an async generator of SSE events (03-contracts §4) that the route
 across an LLM await (04 §7.0).
 """
 
+import datetime as dt
 import logging
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -15,11 +16,13 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlmodel import Session
 
+from app.agent.fixed_messages import PLAN_READY
+from app.agent.postprocess import draft_to_itinerary
 from app.core.config import Settings
 from app.db import repositories
 from app.db.tables import MessageRow, new_id
 from app.llm import ChatMessage, LLMError, get_provider
-from app.schemas import DoneData, ErrorData, MessageStartData, TokenData
+from app.schemas import DoneData, ErrorData, ItineraryDraft, MessageStartData, StatusData, TokenData
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,8 @@ SETUP_MESSAGE = (
     "The AI model isn't set up correctly on the server, so I can't reply. "
     "Check LLM_PROVIDER and the LLM_* settings in backend/.env (see docs/setup-guide.md)."
 )
+
+DRAFTING_LABEL = "Drafting your itinerary…"
 
 SseEvent = dict[str, str]  # {"event": name, "data": JSON}, as EventSourceResponse expects
 
@@ -93,3 +98,56 @@ async def run_chat_turn(engine: Engine, settings: Settings, session_id: str, tex
         return
 
     yield sse("done", DoneData(message_id=assistant_id))
+
+
+def generation_request(today: dt.date) -> str:
+    """The user turn that asks for the draft. It carries today's date (so "next weekend" can be
+    resolved) and keeps `generate.md` byte-stable; it also makes the conversation end with the
+    user, which every provider accepts."""
+    return f"Today is {today:%A}, {today.isoformat()}. Draft the itinerary now from our conversation above."
+
+
+async def run_generation(engine: Engine, settings: Settings, session_id: str) -> AsyncIterator[SseEvent]:
+    """Generate a plan: `message_start` → `status` → `itinerary` → `token` → `done`, or `error`.
+
+    One `generate_json` call drafts an `ItineraryDraft` from the chat history; the provider
+    retries once itself if the reply isn't a valid draft (04 §4.0), so there is no second retry
+    here. Postprocess turns the draft into an `Itinerary`; the new version, the fixed assistant
+    message and `status = planned` are saved together before the `itinerary` event. On any
+    failure nothing is saved and the previous version stays current.
+    """
+    message_id = new_id()
+    yield sse("message_start", MessageStartData(message_id=message_id))
+
+    try:
+        llm = get_provider(settings)  # raises LLMError if the provider isn't configured
+        with Session(engine) as db:
+            history = chat_history(repositories.list_messages(db, session_id))
+        history.append(ChatMessage(role="user", content=generation_request(dt.date.today())))
+
+        yield sse("status", StatusData(label=DRAFTING_LABEL, tool=None, state="start"))
+        draft = await llm.generate_json(system=load_prompt("generate.md"), messages=history, schema=ItineraryDraft)
+
+        with Session(engine) as db:
+            latest = repositories.get_latest_itinerary(db, session_id)
+            itinerary = draft_to_itinerary(draft, version=latest.version + 1 if latest else 1)
+            message = MessageRow(
+                id=message_id,
+                session_id=session_id,
+                role="assistant",
+                content=PLAN_READY,
+                itinerary_version=itinerary.version,
+            )
+            repositories.add_itinerary(db, session_id, itinerary, message)
+    except LLMError as err:
+        logger.warning("Generation failed (session %s, retryable=%s): %s", session_id, err.retryable, err)
+        yield error_event(err.retryable)
+        return
+    except Exception:  # e.g. postprocess ValidationError: a bug, since the draft was validated
+        logger.exception("Generation crashed (session %s)", session_id)
+        yield error_event(retryable=True)
+        return
+
+    yield sse("itinerary", itinerary)
+    yield sse("token", TokenData(text=PLAN_READY))
+    yield sse("done", DoneData(message_id=message_id))

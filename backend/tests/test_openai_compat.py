@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from helpers import API_KEY, FakeEndpoint, chunk, make_provider, sse_response, stream_of
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
@@ -16,54 +17,12 @@ from app.llm import ChatMessage, LLMError, get_provider
 from app.llm.openai_compat_provider import OpenAICompatProvider, extract_json
 
 RECORDED_STREAM = (Path(__file__).parent / "fixtures" / "tamu_stream_count.txt").read_bytes()
-API_KEY = "test-key-123"
 CHAT: list[ChatMessage] = [{"role": "user", "content": "Count to ten."}]
 
 
 class TinyPlan(BaseModel):
     city: str
     days: int
-
-
-def chunk(delta: dict, **extra) -> str:
-    """One SSE line in TAMU's "real chunk" shape."""
-    body = {"id": "chatcmpl-1", "object": "chat.completion.chunk", "created": 1, "model": "Claude-Opus-5"}
-    return "data: " + json.dumps({**body, "choices": [{"index": 0, "delta": delta}], **extra}) + "\n\n"
-
-
-def stream_of(*texts: str) -> bytes:
-    """A stream whose content pieces are `texts`, with filler chunks around them, then [DONE]."""
-    filler = chunk({"content": ""})
-    return (filler + "".join(chunk({"content": t}) + filler for t in texts) + "data: [DONE]\n\n").encode()
-
-
-def sse_response(body: bytes) -> httpx.Response:
-    return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body)
-
-
-class FakeEndpoint:
-    """MockTransport handler: replies with the queued responses in order and records requests."""
-
-    def __init__(self, *replies: httpx.Response | Exception):
-        self.replies = list(replies)
-        self.requests: list[dict] = []
-
-    def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(json.loads(request.content))
-        reply = self.replies.pop(0)
-        if isinstance(reply, Exception):
-            raise reply
-        return reply
-
-
-def make_provider(endpoint: FakeEndpoint) -> OpenAICompatProvider:
-    return OpenAICompatProvider(
-        base_url="https://llm.test/openai",
-        api_key=API_KEY,
-        model="test-model",
-        max_retries=0,  # tests check our error mapping, not the SDK's backoff
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(endpoint)),
-    )
 
 
 async def collect(provider: OpenAICompatProvider) -> list[str]:
@@ -242,6 +201,19 @@ async def test_generate_json_invalid_twice_raises_llm_error():
     assert len(endpoint.requests) == 2
     assert isinstance(exc_info.value.__cause__, ValidationError)
     assert exc_info.value.retryable is True
+
+
+@pytest.mark.parametrize("pieces", [(" ",), ("\n", "  ")], ids=["space", "newline-and-spaces"])
+@pytest.mark.asyncio
+async def test_generate_json_whitespace_reply_raises_without_retry(pieces):
+    # A blank reply is not sent back as an empty assistant turn; the caller shows "try again".
+    endpoint = FakeEndpoint(sse_response(stream_of(*pieces)))
+
+    with pytest.raises(LLMError, match="empty reply") as exc_info:
+        await make_provider(endpoint).generate_json(system="Draft.", messages=CHAT, schema=TinyPlan)
+
+    assert exc_info.value.retryable is True
+    assert len(endpoint.requests) == 1
 
 
 @pytest.mark.parametrize(

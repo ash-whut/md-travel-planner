@@ -276,6 +276,17 @@ Before Stage 3 an aborted stream saves nothing partial.
 > `ChatPanel`): keep the user's bubble on screen after an error and resend its text on Retry;
 > don't assume the server kept it.
 
+> **CONTRACT CHANGE (2026-11-02, S1.10) — clarification:** generate
+> (`POST /sessions/{id}/generate`) sends `message_start` → `status` (`tool: null`,
+> `state: "start"`; no `end`) → `itinerary` → one `token` with a short fixed text → `done`. The
+> new itinerary version, `session.status = "planned"` and one assistant message (`id` =
+> `message_id`, `content` = the `token` text, `itinerary_version` = the new version) are saved
+> together before the `itinerary` event; no user message is saved. On `error` nothing is saved
+> and the previous version stays current. The `{}` body is ignored. Frontend impact (S1.11
+> `generate`, S1.12 store, S1.14/S1.15): clear the status line on `itinerary` or `error`; show
+> the `token` text as an assistant bubble (it is in `SessionDetail.messages` after a reload);
+> on `error` keep the plan already on screen.
+
 ---
 
 ## 5. Deep-link formats (`tools/links.py`, deterministic)

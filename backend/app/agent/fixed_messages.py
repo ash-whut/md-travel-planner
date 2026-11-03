@@ -7,3 +7,10 @@ GREETING = (
     "Once I know the destination and trip length, click **Generate plan** and I'll draft "
     "an itinerary. You can keep chatting to change it afterwards."
 )
+
+# Saved and streamed after each generated itinerary version (POST /api/sessions/{id}/generate).
+# Stage 1 doesn't edit plans from chat, so it points back to the button.
+PLAN_READY = (
+    "Here's a draft itinerary. Tell me what you'd like to change, then click **Regenerate** "
+    "to update it."
+)

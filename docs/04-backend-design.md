@@ -68,7 +68,9 @@ MCP server or an LLM sub-agent without changing the API.
     the configured one). With no `relationship()` between tables, flush a parent row before
     adding children in the same transaction.
     `add_messages(db, session_id, messages)` saves display messages and bumps the session's
-    `updated_at` in one commit.
+    `updated_at` in one commit. `add_itinerary(db, session_id, itinerary, message)` (S1.10) saves
+    an itinerary version (row `id` = `itinerary.id`) with the assistant message announcing it,
+    sets `status = planned` and bumps `updated_at`, in one commit.
 - `app/api/sessions.py` (Stage 1): `POST /sessions` → `200` + `SessionDetail` whose only
   message is the fixed greeting (`app/agent/fixed_messages.py: GREETING`, no LLM call);
   `GET /sessions/{id}` → `SessionDetail` or `404 {"detail": "Session not found"}`. Until
@@ -80,12 +82,17 @@ MCP server or an LLM sub-agent without changing the API.
   takes `get_engine` as a dependency (tests override it with a tmp DB) and holds no DB session
   while streaming. `main.py` turns request validation errors into `400 {"detail": "field: msg"}`
   (03 §3) instead of FastAPI's 422.
+  `POST /sessions/{id}/generate` (S1.10, same file) → same `404`, else
+  `EventSourceResponse(orchestrator.run_generation(engine, settings, id))`; the `{}` body is not
+  read (an empty body works too).
 - `app/schemas/` — Pydantic models from 03-contracts (`TripProfile`, `Itinerary`, `ItineraryDraft`, DTOs, SSE payloads) incl. validators.
 - `app/api/` — thin routes: validate → repo/orchestrator → respond/stream.
 - `app/llm/` — provider layer (§3).
 - `app/agent/orchestrator.py` — tool loop and phases; exposes
   `run_chat_turn(session_id, text) -> AsyncIterator[SseEvent]` and
-  `run_generation(session_id, change_request) -> AsyncIterator[SseEvent]`.
+  `run_generation(session_id, change_request) -> AsyncIterator[SseEvent]` (Stage 1:
+  `run_chat_turn(engine, settings, session_id, text)` and `run_generation(engine, settings,
+  session_id)`, no `change_request`).
 - `app/agent/tags.py` — letter-tag assignment (03 §2.2 tag rules).
 - `app/agent/postprocess.py` — `ItineraryDraft` → `Itinerary`.
 - `app/agent/prompts/` — system prompt `.md` files (byte-stable for prompt caching).
@@ -135,6 +142,10 @@ ChatMessage = {"role": "user" | "assistant", "content": str}
   the SDK retries connection errors/429/5xx itself. Only non-empty `delta.content` of choice 0
   is yielded; a stream with no text at all raises `LLMError("empty reply", retryable=True)`, and
   a `data:` line that isn't JSON raises `LLMError("LLM stream was malformed.", retryable=True)`.
+  In `generate_json` a whitespace-only reply raises `LLMError("LLM returned an empty reply.",
+  retryable=True)` at once (S1.10): it is not sent back as a blank `assistant` turn, which some
+  endpoints reject with HTTP 400 (that would surface as the misleading "check LLM_BASE_URL"
+  error). No `max_tokens` is sent, so the endpoint's own default output limit applies.
   The retry sends the bad reply back as an `assistant` message plus a `user` message listing the
   validation errors (`field: msg`). Prompt-based JSON verified live on `protected.Claude-Opus-5`
   (2026-11-02, `python -m app.llm.smoke`). The factory raises `LLMError(retryable=False)` naming
@@ -233,9 +244,32 @@ teammates without keys run the full stack.
 - **Generate** (`run_generation`): `status` "Drafting your itinerary…" →
   `generate_json(system=prompts/generate.md, messages=history, schema=ItineraryDraft)` →
   §5.0 postprocess → validate → persist next `itinerary.version`, `session.status = planned` →
-  `itinerary` event → short fixed assistant message ("Here's a first draft — ask me to change
-  anything.") streamed as `token` and saved → `done`. Validation failure → one retry with the
+  `itinerary` event → short fixed assistant message (`PLAN_READY`, text in Details below)
+  streamed as `token` and saved → `done`. Validation failure → one retry with the
   errors → `error`, previous version kept.
+  Details (S1.10):
+  - **Retry = the provider's one built-in retry, nothing more.** `ItineraryDraft`'s validator
+    checks everything the LLM can get wrong (§5.0), so `generate_json`'s retry (bad reply + its
+    validation errors sent back once) is the "retry once"; the orchestrator adds no retry of its
+    own. At most 2 LLM calls per click. A truncated reply fails draft validation the same way
+    (`extra="forbid"`, required top-level fields), so it takes the retry → `error` path. If
+    postprocess still raises, that is a code bug: log it and send `error` (no extra LLM call).
+  - Messages: history as in chat (greeting dropped) plus a final code-written `user` turn,
+    `generation_request(today)` = "Today is Monday, 2026-11-02. Draft the itinerary now from our
+    conversation above." It carries today's date (for "next weekend") while `generate.md` stays
+    byte-stable, and makes the conversation end with the user, as every provider requires.
+  - Events: `message_start` → (provider built; misconfiguration → `error`, as in chat) →
+    `status {label: "Drafting your itinerary…", tool: null, state: "start"}` (no `end`: the
+    `itinerary` or `error` event ends the phase) → `generate_json` → postprocess with version =
+    latest + 1 (Stage 1 regenerates from scratch; no tag carry-over yet) → `add_itinerary` saves
+    the version, the assistant message (`id` = `message_start.message_id`, `content` =
+    `fixed_messages.PLAN_READY`, `itinerary_version` set) and `status = planned` together →
+    `itinerary` → one `token` with the same fixed text → `done`.
+  - The fixed text is "Here's a draft itinerary. Tell me what you'd like to change, then click
+    **Regenerate** to update it." (Stage 1 chat doesn't edit the plan; Stage 3 replaces
+    it with an LLM change summary.) No user message is saved: the button isn't a chat message.
+  - Any `LLMError` or exception → log it, send `error` with the same fixed friendly texts as
+    chat (never `str(err)`); nothing is saved, the previous version and status stay.
 - No trip-profile extraction yet (`trip_profile` stays empty); the user clicks **Generate plan**.
 - **`prompts/system.md` v0:** friendly, concise planner for budget travelers aged 15–35;
   scope 2–4 days (max 7) and 1–2 cities; ≤ 2 questions per turn, priority destination →
@@ -244,8 +278,15 @@ teammates without keys run the full stack.
   **Generate plan**; don't paste a full itinerary in chat.
 - **`prompts/generate.md` v0:** compose an `ItineraryDraft` from the conversation; dates
   missing → assume the upcoming weekend and say so in `assumptions`; real, well-known places
-  only, by name (and address if confident); no prices or coordinates; cheap options, one hotel
-  per city, ≈ 3–4 main stops per day, sensible meal times.
+  only, by name (and address if confident); no hotel prices or coordinates; cheap options, one hotel
+  per city, ≈ 3–4 main stops per day, sensible meal times. Details (S1.10): other gaps get
+  stated defaults (3 days, 1 traveler, budget; no destination → a popular budget-friendly US
+  city), all listed in `assumptions`; the prompt spells out the day rules and the lodging date
+  rules the draft validator enforces (check-in ≥ start, check-out ≤ end with the last day as
+  departure, check-out > check-in, no overlaps, distinct names) and how to use `lodging_ref`, so
+  the single retry is rarely spent on them. `est_cost` / `cost_estimate` are rough per-person
+  LLM estimates or `null` (the Stage 1 header shows the range, S1.15); hotel prices come only
+  from the hotel tool (Stage 3). The JSON schema itself is added by the provider, not the prompt.
 
 The phases below (§4.1–4.5) are the full design for Stage 3+ [DECIDED].
 

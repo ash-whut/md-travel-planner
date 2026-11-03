@@ -145,7 +145,12 @@ class OpenAICompatProvider:
             ) from err
 
     async def _collect(self, system: str, messages: list[ChatMessage]) -> str:
-        return "".join([text async for text in self._stream(system, messages)])
+        """The whole reply; whitespace only counts as empty, so it is never sent back as a
+        blank `assistant` turn in the retry (some endpoints reject that with HTTP 400)."""
+        reply = "".join([text async for text in self._stream(system, messages)])
+        if not reply.strip():
+            raise LLMError("LLM returned an empty reply.", retryable=True)
+        return reply
 
     async def _stream(self, system: str, messages: list[ChatMessage]) -> AsyncIterator[str]:
         """Yield the non-empty text pieces of one streamed reply; raise `LLMError` on failure."""

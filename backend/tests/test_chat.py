@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 
 import pytest
+from helpers import parse_sse
 from sqlmodel import Session
 
 from app.agent import orchestrator
@@ -13,16 +14,6 @@ from app.db.tables import SessionRow
 from app.llm import ChatMessage, LLMError
 from app.llm.fake_provider import canned_reply
 from app.main import app
-
-
-def parse_sse(text: str) -> list[tuple[str, dict]]:
-    """`event:` / `data:` blocks of an SSE body as (event, data) pairs; pings are skipped."""
-    events = []
-    for block in text.replace("\r\n", "\n").split("\n\n"):
-        fields = dict(line.split(": ", 1) for line in block.split("\n") if ": " in line and not line.startswith(":"))
-        if "event" in fields:
-            events.append((fields["event"], json.loads(fields["data"])))
-    return events
 
 
 def send(client, session_id: str, content: str) -> list[tuple[str, dict]]:

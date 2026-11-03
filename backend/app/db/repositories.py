@@ -51,6 +51,28 @@ def add_messages(db: Session, session_id: str, messages: list[MessageRow]) -> No
     db.commit()
 
 
+def add_itinerary(db: Session, session_id: str, itinerary: Itinerary, message: MessageRow) -> None:
+    """Save a new itinerary version with the assistant message that announces it, set the
+    session's status to `planned` and bump `updated_at`, all in one commit."""
+    session_row = db.get(SessionRow, session_id)
+    if session_row is None:
+        raise ValueError(f"Session {session_id} not found")
+    db.add(
+        ItineraryRow(
+            id=itinerary.id,
+            session_id=session_id,
+            version=itinerary.version,
+            data=itinerary.model_dump(mode="json"),
+            created_at=itinerary.created_at,
+        )
+    )
+    db.add(message)
+    session_row.status = "planned"
+    session_row.updated_at = utc_now()
+    db.add(session_row)
+    db.commit()
+
+
 def get_latest_itinerary(db: Session, session_id: str) -> ItineraryRow | None:
     statement = (
         select(ItineraryRow)
