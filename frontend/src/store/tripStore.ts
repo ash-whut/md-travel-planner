@@ -33,6 +33,8 @@ interface TripState {
   itinerary: Itinerary | null // latest version
 
   streaming: StreamKind | null // a stream is open; at most one at a time
+  /** A generate stream is open and its `itinerary` hasn't arrived yet (plan skeleton). */
+  draftingPlan: boolean
   streamingText: string // assistant text arriving in the open stream ("" when none)
   statusLabel: string | null // e.g. "Drafting your itinerary…"; cleared on itinerary/error/done
   error: StreamError | null // the last stream's error, until the next stream starts
@@ -89,7 +91,13 @@ export const useTripStore = create<TripState>()((set, get) => {
     let messageId: string | null = null // from this stream's `message_start` event
     let itineraryVersion: number | null = null // set by this stream's `itinerary` event
 
-    set({ streaming: kind, streamingText: "", statusLabel: null, error: null })
+    set({
+      streaming: kind,
+      draftingPlan: kind === "generate",
+      streamingText: "",
+      statusLabel: null,
+      error: null,
+    })
 
     const handlers: StreamHandlers = {
       onMessageStart: ({ message_id }) => {
@@ -108,6 +116,7 @@ export const useTripStore = create<TripState>()((set, get) => {
         itineraryVersion = itinerary.version
         set((s) => ({
           itinerary,
+          draftingPlan: false,
           statusLabel: null,
           session: s.session && { ...s.session, status: "planned" },
         }))
@@ -129,6 +138,7 @@ export const useTripStore = create<TripState>()((set, get) => {
           ],
           pendingUserMessage: null,
           streaming: null,
+          draftingPlan: false,
           streamingText: "",
           statusLabel: null,
         }))
@@ -153,6 +163,7 @@ export const useTripStore = create<TripState>()((set, get) => {
                   ]
                 : s.messages,
             streaming: null,
+            draftingPlan: false,
             streamingText: "",
             statusLabel: null,
             error: { kind, message: PLAN_SAVED_MESSAGE, retryable: false },
@@ -163,6 +174,7 @@ export const useTripStore = create<TripState>()((set, get) => {
         // message (pendingUserMessage) for Retry and keep the itinerary already shown.
         set({
           streaming: null,
+          draftingPlan: false,
           streamingText: "",
           statusLabel: null,
           error: { kind, message, retryable },
@@ -188,6 +200,7 @@ export const useTripStore = create<TripState>()((set, get) => {
     pendingUserMessage: null,
     itinerary: null,
     streaming: null,
+    draftingPlan: false,
     streamingText: "",
     statusLabel: null,
     error: null,
@@ -246,3 +259,16 @@ export const useTripStore = create<TripState>()((set, get) => {
     },
   }
 })
+
+/**
+ * Generate plan / Regenerate is enabled once the server has saved a user message and no
+ * stream is open. A pending (unsent or failed) message doesn't count: the server hasn't
+ * saved it, so the plan couldn't use it, and generate() drops it.
+ */
+export function selectCanGenerate(s: TripState): boolean {
+  return (
+    s.session !== null &&
+    s.streaming === null &&
+    s.messages.some((m) => m.role === "user")
+  )
+}

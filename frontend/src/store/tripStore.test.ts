@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { api, ApiError, type StreamHandlers } from "@/api"
-import { useTripStore } from "@/store/tripStore"
+import { selectCanGenerate, useTripStore } from "@/store/tripStore"
 import type { Itinerary, SessionDetail } from "@/types"
 
 // The real ApiError, a mocked `api`. Each test scripts the SSE events a stream delivers.
@@ -222,8 +222,10 @@ describe("generate", () => {
         state: "start",
       })
       expect(state().statusLabel).toBe("Drafting your itinerary…")
+      expect(state().draftingPlan).toBe(true)
       h.onItinerary?.(plan(1))
       expect(state().statusLabel).toBeNull()
+      expect(state().draftingPlan).toBe(false) // the plan replaces the skeleton
       expect(state().itinerary?.version).toBe(1)
       h.onToken?.({ text: "Here's your plan." })
       h.onDone?.({ message_id: "m-sum" })
@@ -257,6 +259,7 @@ describe("generate", () => {
     await state().generate()
 
     expect(state().itinerary).toEqual(plan(1))
+    expect(state().draftingPlan).toBe(false)
     expect(state().statusLabel).toBeNull()
     expect(state().streaming).toBeNull()
     expect(state().messages).toEqual([GREETING])
@@ -293,5 +296,39 @@ describe("generate", () => {
 
     await state().retry()
     expect(api.generate).toHaveBeenCalledTimes(1) // no extra version
+  })
+})
+
+describe("selectCanGenerate", () => {
+  const USER_MESSAGE = {
+    ...GREETING,
+    id: "m-user",
+    role: "user" as const,
+    content: "Austin, 3 days",
+  }
+
+  it("needs a session and a saved user message", async () => {
+    expect(selectCanGenerate(state())).toBe(false) // before init
+
+    await startSession()
+    expect(selectCanGenerate(state())).toBe(false) // only the greeting
+
+    useTripStore.setState({ messages: [GREETING, USER_MESSAGE] })
+    expect(selectCanGenerate(state())).toBe(true)
+  })
+
+  it("ignores a pending (failed) user message", async () => {
+    await startSession()
+    useTripStore.setState({ pendingUserMessage: USER_MESSAGE })
+    expect(selectCanGenerate(state())).toBe(false)
+  })
+
+  it("is false while any stream is open", async () => {
+    await startSession()
+    useTripStore.setState({ messages: [GREETING, USER_MESSAGE] })
+    for (const kind of ["chat", "generate"] as const) {
+      useTripStore.setState({ streaming: kind })
+      expect(selectCanGenerate(state())).toBe(false)
+    }
   })
 })

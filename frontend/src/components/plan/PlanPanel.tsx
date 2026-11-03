@@ -1,3 +1,6 @@
+import { PlanEmptyState } from "@/components/plan/PlanEmptyState"
+import { PlanSkeleton } from "@/components/plan/PlanSkeleton"
+import { formatDateRange } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -5,6 +8,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useTripStore } from "@/store/tripStore"
+import type { Itinerary } from "@/types"
 
 // Map arrives in Stage 2 and Checklist in Stage 3; until then both tabs are disabled.
 const COMING_SOON_TABS = [
@@ -43,12 +48,37 @@ export function PlanPanel({ className }: { className?: string }) {
           </TabsList>
         </div>
         <TabsContent value="plan" className="min-h-0 overflow-y-auto p-6">
-          {/* PLACEHOLDER: S1.14 (empty state, Generate plan, skeleton) and S1.15 (PlanView) go here. */}
-          <p className="text-muted-foreground">
-            Your trip plan will appear here.
-          </p>
+          <PlanContent />
         </TabsContent>
       </Tabs>
     </section>
+  )
+}
+
+/**
+ * The Plan tab: the skeleton while a plan is drafted (it hides the previous version, which
+ * comes back if generation fails), else the plan, else the empty state.
+ */
+function PlanContent() {
+  const draftingPlan = useTripStore((s) => s.draftingPlan)
+  const statusLabel = useTripStore((s) => s.statusLabel)
+  const itinerary = useTripStore((s) => s.itinerary)
+
+  if (draftingPlan) return <PlanSkeleton statusLabel={statusLabel} />
+  if (itinerary) return <PlanSummaryPlaceholder itinerary={itinerary} />
+  return <PlanEmptyState />
+}
+
+// PLACEHOLDER: S1.15 replaces this with PlanView (header, LodgingCard, DayCards).
+function PlanSummaryPlaceholder({ itinerary }: { itinerary: Itinerary }) {
+  const dayCount = itinerary.days.length
+  return (
+    <div className="space-y-1">
+      <h2 className="text-lg font-semibold">{itinerary.title}</h2>
+      <p className="text-sm text-muted-foreground">
+        {formatDateRange(itinerary.start_date, itinerary.end_date)} · {dayCount}{" "}
+        {dayCount === 1 ? "day" : "days"}
+      </p>
+    </div>
   )
 }
