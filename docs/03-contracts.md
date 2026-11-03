@@ -86,23 +86,30 @@ in place). On regeneration, carry over `status` for checklist items whose `id` s
 ## 2. Schemas
 
 ### 2.1 `TripProfile`
-All fields optional; `missing_required` computed server-side.
+Every field is always present: an unknown scalar is `null` (never missing), an empty list is `[]`.
+`budget_level` is never `null` (defaults to `budget`). `missing_required` is computed server-side
+and stays `[]` until Stage 3 (the chat fills the profile from Stage 3; in Stage 1 it is empty).
+
+> **CONTRACT CHANGE (2026-11-02, S1.11) — clarification:** the example below now marks every
+> field that can be `null`, matching `backend/app/schemas/trip_profile.py` (no behavior change).
+> Frontend impact: `src/types/tripProfile.ts` types these scalars as `T | null`. Backend impact: none.
+
 ```jsonc
 {
   "cities": ["Austin"],                       // 0–2 entries
-  "vibe": null,                               // when user wants suggestions: "beach, ≤4h drive"
-  "start_date": "2027-03-06", "end_date": "2027-03-08",
-  "duration_days": 3,                          // 1–7
-  "rough_timing": null,                        // "a weekend in March" before exact dates are known
-  "origin": "College Station, TX",
-  "travelers": 3,                              // adults, 1–6
+  "vibe": null,                               // string or null; when user wants suggestions: "beach, ≤4h drive"
+  "start_date": "2027-03-06", "end_date": "2027-03-08",   // each null if unknown
+  "duration_days": 3,                          // 1–7; null if unknown
+  "rough_timing": null,                        // string or null; "a weekend in March" before exact dates are known
+  "origin": "College Station, TX",             // null if unknown
+  "travelers": 3,                              // adults, 1–6; null if unknown
   "budget_level": "budget",                    // budget | mid | splurge  (default budget; null → budget)
   "interests": ["food", "live music"],
-  "pace": "balanced",                          // relaxed | balanced | packed
-  "transport": "car",                          // car | transit | walk | mixed
-  "must_see": [], "avoid": [], "dietary": null, "hotel_area": null,
-  "notes": null,
-  "missing_required": []                       // subset of: destination, dates, origin, travelers, interests
+  "pace": "balanced",                          // relaxed | balanced | packed; null if unknown
+  "transport": "car",                          // car | transit | walk | mixed; null if unknown
+  "must_see": [], "avoid": [], "dietary": null, "hotel_area": null,   // dietary, hotel_area: string or null
+  "notes": null,                               // string or null
+  "missing_required": []                       // subset of: destination, dates, origin, travelers, interests; [] until Stage 3
 }
 ```
 
