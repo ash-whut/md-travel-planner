@@ -1,0 +1,46 @@
+"""Database tables (contracts §1). Later steps add `itinerary` and `api_cache`."""
+
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
+from sqlalchemy import JSON, Column, ForeignKey, String
+from sqlmodel import Field, SQLModel
+
+
+def new_id() -> str:
+    return str(uuid.uuid4())
+
+
+def utcnow() -> datetime:
+    # Timezone-aware UTC: SQLModel rejects naive datetimes in datetime columns.
+    return datetime.now(timezone.utc)
+
+
+class SessionRow(SQLModel, table=True):
+    __tablename__ = "session"
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    title: str = "New trip"
+    title_is_custom: bool = False
+    status: str = "intake"  # intake | planned
+    trip_profile: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class MessageRow(SQLModel, table=True):
+    __tablename__ = "message"
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    session_id: str = Field(
+        sa_column=Column(
+            String, ForeignKey("session.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    role: str  # user | assistant
+    content: str
+    itinerary_version: int | None = None
+    created_at: datetime = Field(default_factory=utcnow)

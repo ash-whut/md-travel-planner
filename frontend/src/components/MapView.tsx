@@ -1,14 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
-import { trip } from '@/fixtures'
 import { demo } from '@/demoParams'
-import type { PlanItem } from '@/types'
-import { DAY_COLORS, TagBadge, tagColor } from './TagBadge'
+import { formatTime } from '@/lib/format'
+import type { Itinerary } from '@/types'
+import { TagBadge, dayColor, firstDayByTag } from './TagBadge'
 
-type Located = PlanItem & { lat: number; lng: number; day: number }
+// One visit to a stop that has coordinates.
+interface Located {
+  tag: string
+  name: string
+  lat: number
+  lng: number
+  day: number
+  startTime: string
+}
 
-function pinIcon(tag: string, active: boolean) {
+const US_CENTER: [number, number] = [39.8, -98.6]
+
+function pinIcon(tag: string, color: string, active: boolean) {
   const size = active ? 34 : 28
   return L.divIcon({
     className: 'tag-pin',
@@ -16,10 +26,10 @@ function pinIcon(tag: string, active: boolean) {
     iconAnchor: [size / 2, size + 8],
     popupAnchor: [0, -size],
     html: `<div style="display:flex;flex-direction:column;align-items:center">
-      <div style="width:${size}px;height:${size}px;border-radius:9999px;background:${tagColor(tag)};
+      <div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};
         color:white;font-weight:700;font-size:${active ? 15 : 13}px;display:flex;align-items:center;
         justify-content:center;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.35)">${tag}</div>
-      <div style="width:2px;height:8px;background:${tagColor(tag)}"></div></div>`,
+      <div style="width:2px;height:8px;background:${color}"></div></div>`,
   })
 }
 
@@ -45,22 +55,29 @@ function FitAndFocus({ points, focus }: { points: Located[]; focus: Located | nu
 }
 
 interface Props {
+  itinerary: Itinerary
   selectedTag: string | null
   onTagClick: (tag: string) => void
 }
 
-export function MapView({ selectedTag, onTagClick }: Props) {
+export function MapView({ itinerary, selectedTag, onTagClick }: Props) {
   const [day, setDay] = useState<number | 'all'>(demo.day ? Number(demo.day) : 'all')
+  const firstDay = useMemo(() => firstDayByTag(itinerary), [itinerary])
+  const colorOf = (tag: string) => dayColor(firstDay.get(tag) ?? 1)
 
-  const located = useMemo<Located[]>(
-    () =>
-      trip.days.flatMap((d) =>
-        d.items
-          .filter((i): i is PlanItem & { lat: number; lng: number } => i.lat !== undefined && i.lng !== undefined)
-          .map((i) => ({ ...i, day: d.dayNumber })),
-      ),
-    [],
-  )
+  const located = useMemo<Located[]>(() => {
+    const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
+    const result: Located[] = []
+    for (const d of itinerary.days) {
+      for (const item of d.items) {
+        const stop = item.stop_tag ? stopsByTag.get(item.stop_tag) : undefined
+        if (stop && stop.lat !== null && stop.lng !== null) {
+          result.push({ tag: stop.tag, name: stop.name, lat: stop.lat, lng: stop.lng, day: d.day_number, startTime: item.start_time })
+        }
+      }
+    }
+    return result
+  }, [itinerary])
   const visible = useMemo(() => located.filter((p) => day === 'all' || p.day === day), [located, day])
   const markers = useMemo(() => {
     const seen = new Map<string, Located>()
@@ -68,37 +85,49 @@ export function MapView({ selectedTag, onTagClick }: Props) {
     return [...seen.values()]
   }, [visible])
   const focus = markers.find((m) => m.tag === selectedTag) ?? null
-  const offMap = trip.days.flatMap((d) => d.items).filter((i) => i.lat === undefined)
+
+  // Tags of the shown days whose stop has no coordinates.
+  const offMap = new Set<string>()
+  for (const d of itinerary.days) {
+    if (day !== 'all' && d.day_number !== day) continue
+    for (const item of d.items) {
+      const stop = itinerary.stops.find((s) => s.tag === item.stop_tag)
+      if (stop && (stop.lat === null || stop.lng === null)) offMap.add(stop.tag)
+    }
+  }
+
+  const city = itinerary.cities[0]
+  const center: [number, number] = city && city.lat !== null && city.lng !== null ? [city.lat, city.lng] : US_CENTER
 
   return (
     <div className="relative h-full">
-      <MapContainer center={[37.335, -121.9]} zoom={12} className="h-full w-full" zoomControl={false}>
+      <MapContainer center={center} zoom={12} className="h-full w-full" zoomControl={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {trip.days
-          .filter((d) => day === 'all' || d.dayNumber === day)
+        {itinerary.days
+          .filter((d) => day === 'all' || d.day_number === day)
           .map((d) => (
             <Polyline
-              key={d.dayNumber}
-              positions={located.filter((p) => p.day === d.dayNumber).map((p) => [p.lat, p.lng])}
-              pathOptions={{ color: DAY_COLORS[d.dayNumber - 1], weight: 4, opacity: 0.75, dashArray: '8 8' }}
+              key={d.day_number}
+              positions={located.filter((p) => p.day === d.day_number).map((p) => [p.lat, p.lng])}
+              pathOptions={{ color: dayColor(d.day_number), weight: 4, opacity: 0.75, dashArray: '8 8' }}
             />
           ))}
         {markers.map((m) => (
           <Marker
             key={m.tag}
             position={[m.lat, m.lng]}
-            icon={pinIcon(m.tag, m.tag === selectedTag)}
+            icon={pinIcon(m.tag, colorOf(m.tag), m.tag === selectedTag)}
             eventHandlers={{ click: () => onTagClick(m.tag) }}
           >
             <Popup>
               <b>
-                {m.tag} · {m.place}
+                {m.tag} · {m.name}
               </b>
               <br />
-              Day {m.day} · {m.startTime}
+              Day {m.day} · {formatTime(m.startTime)}
             </Popup>
           </Marker>
         ))}
@@ -106,7 +135,7 @@ export function MapView({ selectedTag, onTagClick }: Props) {
       </MapContainer>
 
       <div className="absolute top-3 left-3 z-[1000] flex gap-1.5">
-        {(['all', ...trip.days.map((d) => d.dayNumber)] as const).map((d) => (
+        {(['all', ...itinerary.days.map((d) => d.day_number)] as const).map((d) => (
           <button
             key={d}
             type="button"
@@ -132,17 +161,17 @@ export function MapView({ selectedTag, onTagClick }: Props) {
                   m.tag === selectedTag ? 'bg-amber-50' : ''
                 }`}
               >
-                <TagBadge tag={m.tag} size="sm" />
-                <span className="truncate">{m.place}</span>
+                <TagBadge tag={m.tag} day={firstDay.get(m.tag) ?? 1} size="sm" />
+                <span className="truncate">{m.name}</span>
               </button>
             </li>
           ))}
         </ul>
-        {day === 'all' || day === 1 ? (
+        {offMap.size > 0 && (
           <div className="border-t border-gray-100 px-3 py-2 text-[11px] text-gray-400">
-            Off map (Houston): {offMap.map((i) => i.tag).join(', ')}
+            Off map: {[...offMap].join(', ')}
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   )

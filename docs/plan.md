@@ -36,16 +36,16 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## A. Foundation
 
-### 1 · Env templates — ☐
+### 1 · Env templates — ☑
 - **Builds:** `backend/.env.example` and `frontend/.env.example` with every variable from
   [architecture §9](architecture.md), a comment per variable, and safe defaults
   (`LLM_PROVIDER=fake`, `TOOL_PROVIDER_MODE=mock`). The root `.gitignore` already exists.
 - **Files:** `backend/.env.example`, `frontend/.env.example`
 - **Tests:** none (config only).
 - **Done when:** both templates exist; `git status` doesn't list `backend/.env` or `*.db`.
-- **Notes:** —
+- **Notes:** Both templates added; the local backend/.env is stale (old Google Maps keys), so copy the new template over it.
 
-### 2 · Backend skeleton — ☐ *BE*
+### 2 · Backend skeleton — ☑ *BE*
 - **Builds:** `requirements.txt`, a FastAPI app factory with CORS for `http://localhost:5173`,
   a `Settings` class reading `backend/.env`, and `GET /api/health`.
 - **Files:** `backend/requirements.txt` (fastapi, uvicorn[standard], pydantic,
@@ -55,9 +55,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `pyproject.toml` (sets `pythonpath`, registers the `live` marker and skips it by default)
 - **Tests:** health returns `{ok, llm_provider, tool_mode}`; conftest forces fake/mock settings.
 - **Done when:** `uvicorn app.main:app --app-dir backend` serves `/api/health`; `pytest` is green.
-- **Notes:** —
+- **Notes:** App factory, Settings (extra=ignore, env beats .env) and health are in; 20 tests. A stray pytest-asyncio in .venv only causes a warning.
 
-### 3 · Database tables + repository — ☐ *BE*
+### 3 · Database tables + repository — ☑ *BE*
 - **Builds:** a SQLite engine (default file `backend/travel.db`), `session` + `message`
   tables (contracts §1), tables created on startup, and plain repository functions.
 - **Files:** `backend/app/db/engine.py`, `db/tables.py`, `db/repo.py` (`create_session`,
@@ -66,9 +66,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** create/get session; messages come back in order; profile update saved;
   `updated_at` bumps on a new message.
 - **Done when:** repo tests pass on a temp DB; the app starts and creates the file.
-- **Notes:** —
+- **Notes:** SQLModel tables + repo with tz-aware UTC and FK cascade; autouse temp DB in conftest. The old prototype backend/travel.db has a different schema, so delete it.
 
-### 4 · Sessions API (create + get) — ☐ *BE*
+### 4 · Sessions API (create + get) — ☑ *BE*
 - **Builds:** `POST /api/sessions` (new session + a fixed greeting assistant message
   "Hi, where do you want to go?") and `GET /api/sessions/{id}` returning `SessionDetail`
   (contracts §2.6, `itinerary: null` for now).
@@ -76,9 +76,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `schemas/dto.py`, `api/sessions.py`, `tests/test_sessions_api.py`
 - **Tests:** create → 200 with greeting; get → same data; unknown id → 404.
 - **Done when:** both routes work in `/docs`; tests green.
-- **Notes:** —
+- **Notes:** POST/GET sessions + TripProfile; budget_level is stored as null (budget is assumed at compose time), and missing_required stays [] until step 16.
 
-### 5 · LLM layer + fake provider — ☐ *BE*
+### 5 · LLM layer + fake provider — ☑ *BE*
 - **Builds:** the `LLMProvider` protocol (architecture §6), a fake provider whose
   `stream_text` yields canned chunks and whose `complete_json` raises a clear error for
   schemas it doesn't know yet, and `get_provider(settings)`.
@@ -87,9 +87,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** fake streams several chunks that join to the canned text; the factory returns
   fake for `LLM_PROVIDER=fake` and errors clearly on an unknown name.
 - **Done when:** tests green; no provider SDK is imported outside `app/llm/`.
-- **Notes:** —
+- **Notes:** LLMProvider protocol + word-chunk FakeProvider; the factory rejects openai_compat until step 12. Async tests use asyncio.run (no pytest-asyncio).
 
-### 6 · Frontend test + lint tooling — ☐ *FE*
+### 6 · Frontend test + lint tooling — ☑ *FE*
 - **Builds:** Vitest + React Testing Library + jsdom, ESLint (typescript-eslint +
   react-hooks), `npm test` and `npm run lint` scripts, and a test setup that mocks
   `react-leaflet`.
@@ -98,9 +98,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** smoke test: `<App/>` renders the Plan tab and the Chat header.
 - **Done when:** `npm test`, `npm run lint`, `npm run build` all pass (fix lint errors in the
   v0 code if any).
-- **Notes:** —
+- **Notes:** Vitest+RTL+jsdom and ESLint flat config; setup.ts mocks react-leaflet and stubs scrollIntoView and ResizeObserver. The v0 code had no lint errors. Known warning: a button nested in a button (TagBadge in the MapView stop list).
 
-### 7 · Contract types + format helpers — ☐ *FE*
+### 7 · Contract types + format helpers — ☑ *FE*
 - **Builds:** TypeScript types mirroring contracts §2 + the SSE event types, and the formatting
   helpers the UI uses everywhere.
 - **Files:** `frontend/src/types/index.ts`, `frontend/src/lib/format.ts`,
@@ -108,9 +108,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** `formatTime("09:15")` → "9:15 AM"; `formatDate("2027-03-05")` → "Fri, Mar 5";
   date range "Mar 5–7"; money "$300"; duration 90 → "1.5 hr"; nights; °F; miles.
 - **Done when:** tests green; types compile.
-- **Notes:** —
+- **Notes:** types/index.ts mirrors contracts §2, §4 and §5 (checked with satisfies); format.ts parses dates by hand so the timezone can never shift the day.
 
-### 8 · Contract-shaped fixtures; v0 components use contract types — ☐ *FE*
+### 8 · Contract-shaped fixtures; v0 components use contract types — ☑ *FE*
 - **Builds:** the v0 San Jose trip rewritten as contract JSON (`sanjose-v1.json`, and
   `sanjose-v2.json` where F is replaced and has `updated_in_version: 2`). PlanView, MapView,
   BookView, ChatPanel and TagBadge take contract-typed props. The old `src/types.ts` and
@@ -118,13 +118,13 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `?tab=…` demo params keep working.
 - **Files:** `frontend/src/fixtures/*.json`, `frontend/src/components/*.tsx`,
   `frontend/src/App.tsx`, component tests
-- **Tests:** PlanView renders letters A–K and "Updated in v2" from v2; BookView renders 4 cards;
+- **Tests:** PlanView renders letters A–E, G–L (F retired, its replacement is L per D9) and "Updated in v2" from v2; BookView renders 4 cards;
   MapView lists stops and "off map" stops.
 - **Done when:** tests green; the UI looks like the screenshots. These fixtures are also loaded
   by backend tests (one shared copy).
-- **Notes:** —
+- **Notes:** Fixtures are in frontend/src/fixtures/ (the shared copy). Following D9 (human choice), v2 replaces F with [L]; the preview still shows F. Off-map line now reads "Off map: A, B". Version dividers render above the message (step 26 says after, so settle it there).
 
-### 9 · ApiClient + Zustand store; app loads a real session — ☐ *FE*
+### 9 · ApiClient + Zustand store; app loads a real session — ☑ *FE*
 - **Builds:** an `ApiClient` interface + `http.ts` (`createSession`, `getSession` for now) and
   `useTripStore` (session, messages, profile, itinerary, streaming flag, status lines, an
   `applyEvent` reducer). On start, the app reads the session id from localStorage → `getSession`,
@@ -136,11 +136,11 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   stored and reuses a stored id.
 - **Done when:** with the backend running, the page shows the greeting from the backend;
   `?demo=1` shows the full v0 trip.
-- **Notes:** —
+- **Notes:** ApiClient + httpClient, useTripStore with a pure reduceEvent for all §5 events; a stored id that 404s creates a new session. Demo params need ?demo=1 to show the fixture. Not yet tried in a browser against uvicorn.
 
 ## B. Chat
 
-### 10 · [HUMAN] Verify the TAMU AI API — ☐
+### 10 · [HUMAN] Verify the TAMU AI API — ☑
 - **Builds:** nothing in code. A teammate with a TAMU login confirms:
   - the base URL (`https://chat-api.tamu.ai`?);
   - the exact model id;
@@ -149,7 +149,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   They fill in `backend/.env` and write the findings into [decisions.md](decisions.md).
 - **Done when:** a short `openai` SDK snippet streams a reply and returns valid JSON for a tiny
   schema.
-- **Notes:** —
+- **Notes:** All 4 checks pass (plain reply, streaming, JSON mode, strict JSON schema); details in decisions D16. Non-streamed calls must pass `stream=False` explicitly.
 
 ### 11 · Chat endpoint over SSE (fake LLM) — ☐ *BE*
 - **Builds:** `POST /api/sessions/{id}/messages`. It saves the user message, emits
@@ -160,7 +160,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** event order `message_start → token… → done`; both messages are in the DB; unknown
   session → 404; a provider that raises → an `error` event.
 - **Done when:** tests green; curl shows the stream.
-- **Notes:** —
+- **Notes:** `repo.add_message` raises ValueError for an unknown session, so check `get_session` and return 404 before the stream opens.
 
 ### 12 · OpenAI-compatible provider (TAMU AI) — ☐ *BE* (needs 10)
 - **Builds:** `openai_compat_provider.py` with `stream_text` (`stream=True`) and
@@ -171,7 +171,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** with a stubbed client object (no network): stream chunks joined; JSON parsed into
   a model; a bad JSON then a good JSON → success after the retry. One `@pytest.mark.live` test.
 - **Done when:** tests green; a manual chat with `LLM_PROVIDER=openai_compat` streams a real reply.
-- **Notes:** —
+- **Notes:** `Settings` already accepts `openai_compat`; add it to `SUPPORTED_PROVIDERS` and the branch in `llm/factory.py`. Per D16: always pass `stream=False` on non-streamed calls (`complete_json`), skip empty stream deltas, and use `response_format` json_schema (it works).
 
 ### 13 · System prompt + per-turn context — ☐ *BE*
 - **Builds:** `prompts/system.md` (friendly budget planner; intake rules; ≤ 2 questions per turn;
@@ -195,7 +195,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the reducer builds the assistant message from a token sequence; error → error
   bubble; the input is disabled while streaming; Retry resends.
 - **Done when:** chatting in the browser with the fake LLM works; a reload shows the history.
-- **Notes:** —
+- **Notes:** `startSession` sets `retryable: true` on load errors, but nothing retries yet. ChatPanel only gives canned replies in demo mode.
 
 ### 15 · Stop button — ☐ *BE+FE*
 - **Builds:** Stop aborts the stream (AbortController). The backend notices the disconnect or
@@ -222,7 +222,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   emitted only on change; the profile is saved to the DB.
 - **Done when:** tests green; with the real LLM, telling it "San Jose, first weekend of March"
   fills those fields.
-- **Notes:** —
+- **Notes:** Save the profile with `model_dump(mode="json")` (the JSON column can't hold dates). Fill `missing_required`, and decide whether `budget_level` stays null or defaults to "budget" (the contract says "default budget").
 
 ### 17 · Profile chips + chat-header stepper — ☐ *FE* (needs 16)
 - **Builds:** `lib/profile.ts` (`stepperState(profile, hasPlan)`, `profileChips(profile)`). The
@@ -244,7 +244,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** `frontend/src/fixtures/sanjose-v1.json` and `-v2.json` validate. Each of these
   fails: a day gap, unsorted items, an unknown `stop_tag`, > 2 cities, > 7 days, bad lat/lng.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Schema tests load the shared fixtures from `frontend/src/fixtures/*.json`.
 
 ### 19 · Letter tags — ☐ *BE*
 - **Builds:** `tags.py`: the letter sequence (A…Z, AA…), name normalization, and
@@ -263,7 +263,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `backend/app/db/tables.py`, `db/repo.py`, `api/sessions.py`, tests
 - **Tests:** versions increment per session; latest is returned; GET includes it.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Change `SessionDetail.itinerary` in `schemas/dto.py` from `None` to `Itinerary | None`.
 
 ### 21 · Postprocess (draft → itinerary) — ☐ *BE*
 - **Builds:** `build_itinerary(draft, previous_versions, profile)`:
@@ -349,7 +349,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** markers render at the right places; only changed items are highlighted; there is no
   highlight on v1.
 - **Done when:** tests green; it matches the preview.
-- **Notes:** —
+- **Notes:** Step 8 draws the version divider above the message, but this step says after; settle it here. Also replace the hard-coded "updated just now" badge in PlanView.
 
 ### 27 · Tag chips in chat + stop picker — ☐ *FE*
 - **Builds:**
@@ -362,7 +362,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the parser handles `[A]`, `[AA]` and adjacent tags, and ignores `[abc]` and
   markdown links; the picker inserts at the cursor; a chip click sets the selected tag.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Move `dayColor`/`firstDayByTag` from TagBadge.tsx into `lib/tags.ts`, and replace `withTagChips` in ChatPanel. `?picker=1` still works without `?demo=1`; gate it when the picker is rewritten.
 
 ## E. Weather (first real tool)
 

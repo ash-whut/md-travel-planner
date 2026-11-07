@@ -1,0 +1,604 @@
+{
+  "id": "8f6c2a1e-3b7d-4c5e-9a10-5d2f6e7a8b01",
+  "version": 1,
+  "title": "San Jose — Tech, Tacos & Gardens",
+  "summary": "A budget long weekend in San Jose: a hands-on tech museum, a mansion tour, food halls and a rose garden.",
+  "start_date": "2027-03-05",
+  "end_date": "2027-03-07",
+  "travelers": 1,
+  "cities": [
+    {
+      "name": "San Jose",
+      "region": "CA",
+      "country": "USA",
+      "lat": 37.3382,
+      "lng": -121.8863
+    }
+  ],
+  "cost_estimate": {
+    "low": 780,
+    "high": 910,
+    "currency": "USD",
+    "source": "ai_estimate"
+  },
+  "weather_summary": "Mild and sunny, 48–68 °F",
+  "assumptions": [
+    "Budget level assumed (none given)",
+    "Rideshare for local trips"
+  ],
+  "stops": [
+    {
+      "tag": "A",
+      "name": "Home",
+      "kind": "home",
+      "address": "College Station, TX",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "rating": null,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Home%2C%20College%20Station%2C%20TX"
+    },
+    {
+      "tag": "B",
+      "name": "IAH",
+      "kind": "airport",
+      "address": "2800 N Terminal Rd, Houston, TX",
+      "lat": null,
+      "lng": null,
+      "place_id": null,
+      "rating": null,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=IAH%2C%202800%20N%20Terminal%20Rd%2C%20Houston%2C%20TX"
+    },
+    {
+      "tag": "C",
+      "name": "San Jose Airport",
+      "kind": "airport",
+      "address": "1701 Airport Blvd, San Jose, CA",
+      "lat": 37.3639,
+      "lng": -121.9289,
+      "place_id": null,
+      "rating": null,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=San%20Jose%20Airport%2C%201701%20Airport%20Blvd%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "D",
+      "name": "San Jose Marriott",
+      "kind": "lodging",
+      "address": "301 S Market St, San Jose, CA",
+      "lat": 37.3299,
+      "lng": -121.8889,
+      "place_id": null,
+      "rating": 4.3,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=San%20Jose%20Marriott%2C%20301%20S%20Market%20St%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "E",
+      "name": "San Pedro Square",
+      "kind": "food",
+      "address": "87 N San Pedro St, San Jose, CA",
+      "lat": 37.3364,
+      "lng": -121.8945,
+      "place_id": null,
+      "rating": 4.5,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=San%20Pedro%20Square%2C%2087%20N%20San%20Pedro%20St%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "F",
+      "name": "Baconhouse",
+      "kind": "food",
+      "address": "15 S 1st St, San Jose, CA",
+      "lat": 37.3355,
+      "lng": -121.8893,
+      "place_id": null,
+      "rating": 4.3,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Baconhouse%2C%2015%20S%201st%20St%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "G",
+      "name": "The Tech Interactive",
+      "kind": "museum",
+      "address": "201 S Market St, San Jose, CA",
+      "lat": 37.3315,
+      "lng": -121.8901,
+      "place_id": null,
+      "rating": 4.6,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=The%20Tech%20Interactive%2C%20201%20S%20Market%20St%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "H",
+      "name": "Winchester Mystery House",
+      "kind": "sight",
+      "address": "525 S Winchester Blvd, San Jose, CA",
+      "lat": 37.3184,
+      "lng": -121.9511,
+      "place_id": null,
+      "rating": 4.4,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Winchester%20Mystery%20House%2C%20525%20S%20Winchester%20Blvd%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "I",
+      "name": "Santana Row",
+      "kind": "shopping",
+      "address": "377 Santana Row, San Jose, CA",
+      "lat": 37.3209,
+      "lng": -121.9478,
+      "place_id": null,
+      "rating": 4.6,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Santana%20Row%2C%20377%20Santana%20Row%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "J",
+      "name": "Japantown",
+      "kind": "sight",
+      "address": "Jackson St, San Jose, CA",
+      "lat": 37.3483,
+      "lng": -121.8949,
+      "place_id": null,
+      "rating": 4.5,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Japantown%2C%20Jackson%20St%2C%20San%20Jose%2C%20CA"
+    },
+    {
+      "tag": "K",
+      "name": "Guadalupe River Park",
+      "kind": "nature",
+      "address": "438 Coleman Ave, San Jose, CA",
+      "lat": 37.3405,
+      "lng": -121.899,
+      "place_id": null,
+      "rating": 4.6,
+      "map_url": "https://www.google.com/maps/search/?api=1&query=Guadalupe%20River%20Park%2C%20438%20Coleman%20Ave%2C%20San%20Jose%2C%20CA"
+    }
+  ],
+  "lodging": [
+    {
+      "stop_tag": "D",
+      "check_in": "2027-03-05",
+      "check_out": "2027-03-07",
+      "nights": 2,
+      "price_per_night": {
+        "amount": 120,
+        "currency": "USD"
+      },
+      "total_price": {
+        "amount": 240,
+        "currency": "USD"
+      },
+      "price_source": "serpapi_google_hotels",
+      "price_as_of": "2026-11-01T18:04:05Z",
+      "links": [
+        {
+          "label": "Booking.com",
+          "url": "https://www.booking.com/searchresults.html?ss=San%20Jose%20Marriott%2C%20San%20Jose&checkin=2027-03-05&checkout=2027-03-07&group_adults=1"
+        },
+        {
+          "label": "Google Hotels",
+          "url": "https://www.google.com/travel/hotels?q=San%20Jose%20Marriott%20San%20Jose"
+        }
+      ]
+    }
+  ],
+  "days": [
+    {
+      "day_number": 1,
+      "date": "2027-03-05",
+      "title": "Travel day",
+      "city": "San Jose",
+      "weather": {
+        "high_f": 66,
+        "low_f": 48,
+        "condition": "sunny",
+        "icon": "☀️",
+        "source": "forecast"
+      },
+      "items": [
+        {
+          "id": "d1-i1",
+          "kind": "transit",
+          "stop_tag": "A",
+          "description": "Leave from home to Houston IAH airport via Uber.",
+          "start_time": "06:00",
+          "duration_min": 120,
+          "nights": null,
+          "est_cost": {
+            "amount": 100,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Cheapest door-to-door option; no long-term airport parking for 3 days.",
+          "source": "Estimate · Uber fare range",
+          "transit_from_previous": null,
+          "updated_in_version": null
+        },
+        {
+          "id": "d1-i2",
+          "kind": "flight",
+          "stop_tag": "B",
+          "description": "Board your flight to San Jose.",
+          "start_time": "09:15",
+          "duration_min": 360,
+          "nights": null,
+          "est_cost": {
+            "amount": 300,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": true,
+          "booking_id": "bk-flight",
+          "why": "Lowest fare with one stop that lands before 2 PM local time.",
+          "source": "Google Flights search link",
+          "transit_from_previous": {
+            "mode": "rideshare",
+            "duration_min": 120,
+            "distance_mi": 98,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d1-i3",
+          "kind": "transit",
+          "stop_tag": "C",
+          "description": "Head to the Marriott Hotel via Uber.",
+          "start_time": "13:30",
+          "duration_min": 30,
+          "nights": null,
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Hotel is 4 miles away; rideshare beats the shuttle by ~25 min.",
+          "source": "Estimate",
+          "transit_from_previous": {
+            "mode": "flight",
+            "duration_min": 360,
+            "distance_mi": 1609,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d1-i4",
+          "kind": "lodging",
+          "stop_tag": "D",
+          "description": "Check in — 2 nights downtown.",
+          "start_time": "14:15",
+          "duration_min": null,
+          "nights": 2,
+          "est_cost": {
+            "amount": 120,
+            "currency": "USD"
+          },
+          "cost_source": "tool",
+          "booking_required": true,
+          "booking_id": "bk-hotel",
+          "why": "Cheapest 4★ option within walking distance of downtown food.",
+          "source": "SerpApi Google Hotels · as of Nov 1, 6:04 PM",
+          "transit_from_previous": {
+            "mode": "rideshare",
+            "duration_min": 12,
+            "distance_mi": 4.1,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d1-i5",
+          "kind": "meal",
+          "stop_tag": "E",
+          "description": "Dinner at the food hall — lots of vegan stalls.",
+          "start_time": "18:30",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 20,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Matches \"food\" interest; 8 min walk from the hotel.",
+          "source": "Geoapify",
+          "transit_from_previous": {
+            "mode": "walk",
+            "duration_min": 8,
+            "distance_mi": 0.4,
+            "estimated": true
+          },
+          "updated_in_version": null
+        }
+      ]
+    },
+    {
+      "day_number": 2,
+      "date": "2027-03-06",
+      "title": "Tech & mystery",
+      "city": "San Jose",
+      "weather": {
+        "high_f": 68,
+        "low_f": 50,
+        "condition": "partly cloudy",
+        "icon": "⛅",
+        "source": "forecast"
+      },
+      "items": [
+        {
+          "id": "d2-i1",
+          "kind": "meal",
+          "stop_tag": "F",
+          "description": "Brunch, then head to the first tourist spot at 1 PM.",
+          "start_time": "11:00",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 20,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Popular brunch spot two blocks from the hotel.",
+          "source": "Geoapify",
+          "transit_from_previous": null,
+          "updated_in_version": null
+        },
+        {
+          "id": "d2-i2",
+          "kind": "activity",
+          "stop_tag": "G",
+          "description": "Hands-on science & tech museum.",
+          "start_time": "13:00",
+          "duration_min": 150,
+          "nights": null,
+          "est_cost": {
+            "amount": 32,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": true,
+          "booking_id": "bk-tech",
+          "why": "Matches \"tech\" interest; indoor in case of afternoon clouds.",
+          "source": "Geoapify",
+          "transit_from_previous": {
+            "mode": "walk",
+            "duration_min": 6,
+            "distance_mi": 0.3,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d2-i3",
+          "kind": "activity",
+          "stop_tag": "H",
+          "description": "Guided mansion tour.",
+          "start_time": "16:00",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 46,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": true,
+          "booking_id": "bk-winchester",
+          "why": "Most-visited sight in San Jose; tours sell out on weekends.",
+          "source": "Geoapify",
+          "transit_from_previous": {
+            "mode": "rideshare",
+            "duration_min": 15,
+            "distance_mi": 4.2,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d2-i4",
+          "kind": "meal",
+          "stop_tag": "I",
+          "description": "Walk the row, dinner at a plant-based bistro.",
+          "start_time": "18:30",
+          "duration_min": 120,
+          "nights": null,
+          "est_cost": {
+            "amount": 25,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Across the street from H — no extra travel.",
+          "source": "Geoapify",
+          "transit_from_previous": {
+            "mode": "walk",
+            "duration_min": 5,
+            "distance_mi": 0.2,
+            "estimated": true
+          },
+          "updated_in_version": null
+        }
+      ]
+    },
+    {
+      "day_number": 3,
+      "date": "2027-03-07",
+      "title": "Gardens & home",
+      "city": "San Jose",
+      "weather": {
+        "high_f": 67,
+        "low_f": 49,
+        "condition": "sunny",
+        "icon": "☀️",
+        "source": "forecast"
+      },
+      "items": [
+        {
+          "id": "d3-i1",
+          "kind": "meal",
+          "stop_tag": "J",
+          "description": "Breakfast and a stroll through the farmers market.",
+          "start_time": "09:30",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Sunday market only; matches \"food\".",
+          "source": "Geoapify",
+          "transit_from_previous": null,
+          "updated_in_version": null
+        },
+        {
+          "id": "d3-i2",
+          "kind": "activity",
+          "stop_tag": "K",
+          "description": "Rose garden walk before heading out.",
+          "start_time": "11:15",
+          "duration_min": 60,
+          "nights": null,
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Matches \"gardens\"; free; on the way to the airport.",
+          "source": "Geoapify",
+          "transit_from_previous": {
+            "mode": "rideshare",
+            "duration_min": 8,
+            "distance_mi": 1.1,
+            "estimated": true
+          },
+          "updated_in_version": null
+        },
+        {
+          "id": "d3-i3",
+          "kind": "flight",
+          "stop_tag": "C",
+          "description": "Fly back to Houston IAH.",
+          "start_time": "14:40",
+          "duration_min": 330,
+          "nights": null,
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "cost_source": "ai_estimate",
+          "booking_required": false,
+          "booking_id": null,
+          "why": "Return leg of the round trip booked in B.",
+          "source": "Google Flights search link",
+          "transit_from_previous": {
+            "mode": "rideshare",
+            "duration_min": 10,
+            "distance_mi": 2.6,
+            "estimated": true
+          },
+          "updated_in_version": null
+        }
+      ]
+    }
+  ],
+  "bookings": [
+    {
+      "id": "bk-flight",
+      "kind": "flight",
+      "tags": [
+        "B",
+        "C"
+      ],
+      "title": "Flight Booking",
+      "details": "IAH → SJC round trip · Mar 5 – Mar 7",
+      "estimate": {
+        "amount": 300,
+        "currency": "USD"
+      },
+      "price_as_of": null,
+      "links": [
+        {
+          "label": "Google Flights",
+          "url": "https://www.google.com/travel/flights?q=Flights%20from%20IAH%20to%20SJC%20on%202027-03-05%20returning%202027-03-07"
+        }
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "bk-hotel",
+      "kind": "lodging",
+      "tags": [
+        "D"
+      ],
+      "title": "Hotel Booking",
+      "details": "San Jose Marriott · 2 nights · as of Nov 1, 6:04 PM",
+      "estimate": {
+        "amount": 240,
+        "currency": "USD"
+      },
+      "price_as_of": "2026-11-01T18:04:05Z",
+      "links": [
+        {
+          "label": "Booking.com",
+          "url": "https://www.booking.com/searchresults.html?ss=San%20Jose%20Marriott%2C%20San%20Jose&checkin=2027-03-05&checkout=2027-03-07&group_adults=1"
+        },
+        {
+          "label": "Google Hotels",
+          "url": "https://www.google.com/travel/hotels?q=San%20Jose%20Marriott%20San%20Jose"
+        }
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "bk-tech",
+      "kind": "activity",
+      "tags": [
+        "G"
+      ],
+      "title": "Tourist Spot 1 Booking",
+      "details": "The Tech Interactive · Sat 1:00 PM entry",
+      "estimate": {
+        "amount": 32,
+        "currency": "USD"
+      },
+      "price_as_of": null,
+      "links": [
+        {
+          "label": "thetech.org",
+          "url": "https://www.thetech.org/"
+        }
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "bk-winchester",
+      "kind": "activity",
+      "tags": [
+        "H"
+      ],
+      "title": "Tourist Spot 2 Booking",
+      "details": "Winchester Mystery House · Sat 4:00 PM tour",
+      "estimate": {
+        "amount": 46,
+        "currency": "USD"
+      },
+      "price_as_of": null,
+      "links": [
+        {
+          "label": "winchestermysteryhouse.com",
+          "url": "https://winchestermysteryhouse.com/"
+        }
+      ],
+      "status": "todo"
+    }
+  ],
+  "created_at": "2026-11-01T18:06:40Z"
+}

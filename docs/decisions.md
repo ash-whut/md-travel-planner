@@ -21,7 +21,8 @@ replaces.
 | D13 | **No stored provider transcripts;** context is rebuilt each turn from messages + profile + compact itinerary. | Provider-neutral, simpler DB. |
 | D14 | **No separate frontend mock mode;** run the backend with `LLM_PROVIDER=fake` + `TOOL_PROVIDER_MODE=mock`. `?demo=1` loads the fixture trip for screenshots. | One code path for the UI. |
 | D15 | **MVP audience & scope:** ages 15–35, adults, 2–4 day trips (max 7), 1–2 cities, budget by default, one hotel per city, °F / miles. | Covers the common case. |
+| D16 | **TAMU AI settings (verified 2026-11-06, step 10):** base URL `https://chat-api.tamu.ai/openai`, model `protected.Claude-Opus-5`, key starts with `sk-`. Streaming is truly incremental. JSON mode (`response_format: json_object`) and strict `json_schema` both work. **The adapter must send `stream=False` explicitly for non-streamed calls:** if `stream` is left out, the server streams anyway, and the `openai` SDK returns a raw string. Stream chunks can have empty `content` (two interleaved chunk ids), so skip empty deltas. | Found by a throwaway SDK check; step 12 builds on it. |
 
 ## Open questions
-- TAMU AI: exact model id, whether JSON / JSON-schema output is supported, and its rate limits (step 10).
+- TAMU AI rate limits (not measured in step 10).
 - Geoapify free-plan limits and attribution wording (step 32); SerpApi current free quota (step 37).

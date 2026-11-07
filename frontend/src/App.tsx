@@ -1,11 +1,14 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
+import type { ApiClient } from './api/client'
+import { httpClient } from './api/http'
 import { HistoryRail } from './components/HistoryRail'
 import { PlanView } from './components/PlanView'
 import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
 import { demo } from './demoParams'
+import { useTripStore } from './store/useTripStore'
 
 type Tab = 'plan' | 'map' | 'book'
 
@@ -15,7 +18,34 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'book', label: 'Book' },
 ]
 
-export default function App() {
+const EMPTY_TEXT: Record<Tab, string> = {
+  plan: 'Your trip plan will appear here',
+  map: 'Your stops will show on the map once there is a plan',
+  book: 'What to book will appear here once there is a plan',
+}
+
+interface Props {
+  api?: ApiClient // tests pass a fake
+}
+
+export default function App({ api = httpClient }: Props) {
+  const messages = useTripStore((s) => s.messages)
+  const profile = useTripStore((s) => s.profile)
+  const itinerary = useTripStore((s) => s.itinerary)
+  const statusLines = useTripStore((s) => s.statusLines)
+  const error = useTripStore((s) => s.error)
+  const started = useRef(false)
+
+  // Load the fixture trip (?demo=1) or open a backend session, once. The ref survives
+  // StrictMode's double effect run, so a new session is never created twice.
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+    const store = useTripStore.getState()
+    if (demo.enabled) store.loadDemo()
+    else void store.startSession(api)
+  }, [api])
+
   const [historyOpen, setHistoryOpen] = useState(demo.history)
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === demo.tab) ? (demo.tab as Tab) : 'plan')
   const [split, setSplit] = useState(56) // plan pane width, % of the main area
@@ -91,9 +121,19 @@ export default function App() {
               )}
             </header>
             <div className="min-h-0 flex-1" key={tab === 'plan' ? flashKey : tab}>
-              {tab === 'plan' && <PlanView selectedTag={selectedTag} onTagClick={onTagClick} />}
-              {tab === 'map' && <MapView selectedTag={selectedTag} onTagClick={onTagClick} />}
-              {tab === 'book' && <BookView onTagClick={onTagClick} />}
+              {/* No plan yet (fresh session): a placeholder. Step 24 adds Generate + skeletons. */}
+              {!itinerary && (
+                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
+                  <p>{EMPTY_TEXT[tab]}</p>
+                </div>
+              )}
+              {itinerary && tab === 'plan' && profile && (
+                <PlanView itinerary={itinerary} profile={profile} selectedTag={selectedTag} onTagClick={onTagClick} />
+              )}
+              {itinerary && tab === 'map' && (
+                <MapView itinerary={itinerary} selectedTag={selectedTag} onTagClick={onTagClick} />
+              )}
+              {itinerary && tab === 'book' && <BookView itinerary={itinerary} onTagClick={onTagClick} />}
             </div>
           </div>
         </section>
@@ -108,8 +148,15 @@ export default function App() {
           </span>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <ChatPanel onTagClick={onTagClick} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          {error && (
+            <p role="alert" className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-700">
+              {error.message}
+            </p>
+          )}
+          <div className="min-h-0 flex-1">
+            <ChatPanel messages={messages} itinerary={itinerary} statusLines={statusLines} onTagClick={onTagClick} />
+          </div>
         </div>
       </div>
     </div>

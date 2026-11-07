@@ -1,17 +1,15 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Plus, SendHorizontal } from 'lucide-react'
-import { allTags, initialMessages, trip } from '@/fixtures'
 import { demo } from '@/demoParams'
-import type { ChatMessage } from '@/types'
-import { TagBadge } from './TagBadge'
+import type { Itinerary, Message } from '@/types'
+import { TagBadge, firstDayByTag } from './TagBadge'
 
-// Single capital letters that match a plan tag render as chips. "A" and "I" are
-// skipped because they are usually words, not references.
-function withTagChips(text: string, onTagClick: (t: string) => void): ReactNode[] {
-  return text.split(/\b([A-Z])\b/).map((part, i) =>
-    i % 2 === 1 && allTags.has(part) && part !== 'A' && part !== 'I' ? (
+// "[C]" tokens (contracts §2.5) render as tag chips. Step 27 replaces this with lib/tags.ts.
+function withTagChips(text: string, firstDay: Map<string, number>, onTagClick: (t: string) => void): ReactNode[] {
+  return text.split(/\[([A-Z]{1,2})\]/).map((part, i) =>
+    i % 2 === 1 ? (
       <span key={i} className="mx-0.5 inline-block align-middle">
-        <TagBadge tag={part} size="sm" onClick={() => onTagClick(part)} />
+        <TagBadge tag={part} day={firstDay.get(part) ?? 1} size="sm" onClick={() => onTagClick(part)} />
       </span>
     ) : (
       <Fragment key={i}>{part}</Fragment>
@@ -19,43 +17,61 @@ function withTagChips(text: string, onTagClick: (t: string) => void): ReactNode[
   )
 }
 
+function versionLabel(version: number) {
+  return version === 1 ? 'Plan created · v1' : `Plan updated · v${version}`
+}
+
+function demoMessage(role: Message['role'], content: string, id: string): Message {
+  return { id, role, content, itinerary_version: null, created_at: new Date().toISOString() }
+}
+
 interface Props {
+  messages: Message[]
+  itinerary: Itinerary | null
+  statusLines?: Record<string, string[]> // labels shown just above the message with that id
   onTagClick: (tag: string) => void
 }
 
-export function ChatPanel({ onTagClick }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
+export function ChatPanel({ messages: savedMessages, itinerary, statusLines = {}, onTagClick }: Props) {
+  // v0 canned replies live only here, after the messages from the store (step 14 replaces this).
+  const [demoMessages, setMessages] = useState<Message[]>([])
+  const [demoStatus, setStatusBefore] = useState<Record<string, string[]>>({})
+  const messages = [...savedMessages, ...demoMessages]
+  const statusBefore = { ...statusLines, ...demoStatus }
   const [draft, setDraft] = useState('')
   const [picker, setPicker] = useState(demo.picker)
   const bottom = useRef<HTMLDivElement>(null)
+  const firstDay = firstDayByTag(itinerary)
+  const stops = itinerary?.stops ?? []
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [savedMessages, demoMessages])
 
+  // Shows the user's message; the canned v0 reply only appears in ?demo=1 mode (step 14 sends to the backend).
   function send() {
     const text = draft.trim()
     if (!text) return
-    const mentioned = text.match(/\b([B-HJ-Z])\b/)?.[1]
+    const match = text.match(/\[([A-Z]{1,2})\]|\b([B-HJ-Z])\b/)
+    const mentioned = match?.[1] ?? match?.[2]
     const id = Date.now().toString()
-    setMessages((m) => [...m, { id, role: 'user', text }])
+    setMessages((m) => [...m, demoMessage('user', text, id)])
     setDraft('')
+    if (!demo.enabled) return
     setTimeout(() => {
+      setStatusBefore((s) => ({ ...s, [id + 'a']: [mentioned ? `Re-planning ${mentioned} only` : 'Thinking…'] }))
       setMessages((m) => [
         ...m,
-        { id: id + 's', role: 'status', text: mentioned ? `Re-planning ${mentioned} only` : 'Thinking…' },
-        {
-          id: id + 'a',
-          role: 'assistant',
-          text: mentioned
-            ? `On it — I’ll swap ${mentioned} and keep every other letter the same. (v0 demo: canned data, no agent connected yet.)`
+        demoMessage(
+          'assistant',
+          mentioned
+            ? `On it — I’ll swap [${mentioned}] and keep every other letter the same. (v0 demo: canned data, no agent connected yet.)`
             : 'Got it! (v0 demo: canned data, no agent connected yet.)',
-        },
+          id + 'a',
+        ),
       ])
     }, 600)
   }
-
-  const stops = trip.days.flatMap((d) => d.items).filter((it, i, arr) => arr.findIndex((x) => x.tag === it.tag) === i)
 
   return (
     <section className="flex h-full min-w-0 flex-col bg-white">
@@ -75,31 +91,30 @@ export function ChatPanel({ onTagClick }: Props) {
 
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
         {messages.map((m) => {
-          if (m.role === 'status') {
-            return (
-              <p key={m.id} className="flex items-center gap-1.5 pl-1 text-xs text-gray-400">
-                <Check size={12} className="text-emerald-500" /> {m.text}
-              </p>
-            )
-          }
-          if (m.role === 'version') {
-            return (
-              <div key={m.id} className="flex items-center gap-3 py-1 text-[11px] font-medium text-accent">
-                <span className="h-px flex-1 bg-indigo-100" /> {m.text} <span className="h-px flex-1 bg-indigo-100" />
-              </div>
-            )
-          }
           const mine = m.role === 'user'
           return (
-            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-              <p
-                className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-                  mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-gray-100 text-gray-800'
-                }`}
-              >
-                {withTagChips(m.text, onTagClick)}
-              </p>
-            </div>
+            <Fragment key={m.id}>
+              {(statusBefore[m.id] ?? []).map((label, i) => (
+                <p key={i} className="flex items-center gap-1.5 pl-1 text-xs text-gray-400">
+                  <Check size={12} className="text-emerald-500" /> {label}
+                </p>
+              ))}
+              {m.itinerary_version !== null && (
+                <div className="flex items-center gap-3 py-1 text-[11px] font-medium text-accent">
+                  <span className="h-px flex-1 bg-indigo-100" /> {versionLabel(m.itinerary_version)}{' '}
+                  <span className="h-px flex-1 bg-indigo-100" />
+                </div>
+              )}
+              <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <p
+                  className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                    mine ? 'rounded-br-md bg-accent text-white' : 'rounded-bl-md bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {withTagChips(m.content, firstDay, onTagClick)}
+                </p>
+              </div>
+            </Fragment>
           )
         })}
         <div ref={bottom} />
@@ -115,12 +130,12 @@ export function ChatPanel({ onTagClick }: Props) {
                   key={s.tag}
                   type="button"
                   onClick={() => {
-                    setDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}${s.tag} `)
+                    setDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}[${s.tag}] `)
                     setPicker(false)
                   }}
                   className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm hover:bg-gray-50"
                 >
-                  <TagBadge tag={s.tag} size="sm" /> <span className="truncate">{s.place}</span>
+                  <TagBadge tag={s.tag} day={firstDay.get(s.tag) ?? 1} size="sm" /> <span className="truncate">{s.name}</span>
                 </button>
               ))}
             </div>
