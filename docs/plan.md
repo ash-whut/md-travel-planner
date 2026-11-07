@@ -151,7 +151,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   schema.
 - **Notes:** All 4 checks pass (plain reply, streaming, JSON mode, strict JSON schema); details in decisions D16. Non-streamed calls must pass `stream=False` explicitly.
 
-### 11 · Chat endpoint over SSE (fake LLM) — ☐ *BE*
+### 11 · Chat endpoint over SSE (fake LLM) — ☑ *BE*
 - **Builds:** `POST /api/sessions/{id}/messages`. It saves the user message, emits
   `message_start`, streams `token`s from `stream_text`, saves the assistant message, and emits
   `done`. Any exception → an `error` event (the user message is kept).
@@ -160,9 +160,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** event order `message_start → token… → done`; both messages are in the DB; unknown
   session → 404; a provider that raises → an `error` event.
 - **Done when:** tests green; curl shows the stream.
-- **Notes:** `repo.add_message` raises ValueError for an unknown session, so check `get_session` and return 404 before the stream opens.
+- **Notes:** SSE chat in; `get_llm` is a dependency (override it in tests), and `add_message` takes an optional id. A bad or blank body gives 422 (now in contracts §4).
 
-### 12 · OpenAI-compatible provider (TAMU AI) — ☐ *BE* (needs 10)
+### 12 · OpenAI-compatible provider (TAMU AI) — ☑ *BE* (needs 10)
 - **Builds:** `openai_compat_provider.py` with `stream_text` (`stream=True`) and
   `complete_json` (uses `response_format` if step 10 said it's supported, else a "JSON only"
   instruction; parses with Pydantic and retries once). Registered in the factory.
@@ -171,9 +171,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** with a stubbed client object (no network): stream chunks joined; JSON parsed into
   a model; a bad JSON then a good JSON → success after the retry. One `@pytest.mark.live` test.
 - **Done when:** tests green; a manual chat with `LLM_PROVIDER=openai_compat` streams a real reply.
-- **Notes:** `Settings` already accepts `openai_compat`; add it to `SUPPORTED_PROVIDERS` and the branch in `llm/factory.py`. Per D16: always pass `stream=False` on non-streamed calls (`complete_json`), skip empty stream deltas, and use `response_format` json_schema (it works).
+- **Notes:** Provider takes an injectable `client=`; the json_schema is non-strict because Pydantic schemas don't meet strict rules, and the reply is validated anyway. The live test (`pytest -m live`) passes against TAMU AI.
 
-### 13 · System prompt + per-turn context — ☐ *BE*
+### 13 · System prompt + per-turn context — ☑ *BE*
 - **Builds:** `prompts/system.md` (friendly budget planner; intake rules; ≤ 2 questions per turn;
   scope limits; short replies; use `[C]` tags; never claim to book) and `context.py`, which
   builds the system text with today's date and the current profile.
@@ -181,9 +181,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `tests/test_context.py`
 - **Tests:** the context contains today's date and known profile fields; the prompt file loads.
 - **Done when:** tests green; with the real LLM the agent asks about destination/dates naturally.
-- **Notes:** —
+- **Notes:** `build_system(profile, today=)` adds a "# Context" block. The prompt already mentions the Generate button (step 23), and the real-LLM tone hasn't been checked by hand yet.
 
-### 14 · Frontend chat wired to the backend — ☐ *FE* (needs 9, 11)
+### 14 · Frontend chat wired to the backend — ☑ *FE* (needs 9, 11)
 - **Builds:**
   - `sendMessage` in `http.ts` via `@microsoft/fetch-event-source`;
   - the store handles `message_start`, `token`, `done` and `error`;
@@ -195,18 +195,18 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the reducer builds the assistant message from a token sequence; error → error
   bubble; the input is disabled while streaming; Retry resends.
 - **Done when:** chatting in the browser with the fake LLM works; a reload shows the history.
-- **Notes:** `startSession` sets `retryable: true` on load errors, but nothing retries yet. ChatPanel only gives canned replies in demo mode.
+- **Notes:** SSE via fetch-event-source (auto-retry off) and react-markdown. Retry resends the text, so the backend saves the user message twice (open decision). Not yet tried in a browser.
 
-### 15 · Stop button — ☐ *BE+FE*
+### 15 · Stop button — ☑ *BE+FE*
 - **Builds:** Stop aborts the stream (AbortController). The backend notices the disconnect or
   cancellation and saves the partial text with " *(stopped)*".
 - **Files:** `components/ChatPanel.tsx`, `api/http.ts`, `backend/app/agent/turn.py`, tests
 - **Tests:** BE: closing the turn generator early saves partial text + the marker. FE: Stop
   calls abort and re-enables the input.
 - **Done when:** Stop works mid-reply in the browser.
-- **Notes:** —
+- **Notes:** `turn.py` saves partial + marker on close/cancel; the store's `stop()` adds the same marker locally. Not yet tried in a browser.
 
-### 16 · Understand step + trip profile — ☐ *BE*
+### 16 · Understand step + trip profile — ☑ *BE*
 - **Builds:**
   - full `TripProfile` + `missing_required()`;
   - `TurnAnalysis` (contracts §2.4);
@@ -222,9 +222,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   emitted only on change; the profile is saved to the DB.
 - **Done when:** tests green; with the real LLM, telling it "San Jose, first weekend of March"
   fills those fields.
-- **Notes:** Save the profile with `model_dump(mode="json")` (the JSON column can't hold dates). Fill `missing_required`, and decide whether `budget_level` stays null or defaults to "budget" (the contract says "default budget").
+- **Notes:** Per D17, `budget_level` stays null and a failed understand call falls back to plain chat. `missing_required` is recomputed whenever a profile is returned (`load_profile`), and the fake LLM scripts the San Jose demo by keywords.
 
-### 17 · Profile chips + chat-header stepper — ☐ *FE* (needs 16)
+### 17 · Profile chips + chat-header stepper — ☑ *FE* (needs 16)
 - **Builds:** `lib/profile.ts` (`stepperState(profile, hasPlan)`, `profileChips(profile)`). The
   stepper (Profile — Trip details — Plan) in the chat header, and profile chips in the plan
   header / empty state, all driven by `profile` events.
@@ -233,7 +233,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** stepper states for empty/partial/full profile; chip labels; missing items shown
   muted.
 - **Done when:** the stepper ticks as you chat.
-- **Notes:** —
+- **Notes:** The stepper reads the server's `missing_required` instead of re-deriving the field rules; `ProfileChips` is exported from PlanView. Not yet tried in a browser.
 
 ## C. Plan view (LLM only, no external tools yet)
 
@@ -306,7 +306,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** SSE order (`itinerary` before `done`); v1 saved; status `planned`; on failure no
   version is saved and `error` is emitted.
 - **Done when:** tests green; "just make the plan" in chat produces a plan with the fake LLM.
-- **Notes:** —
+- **Notes:** `TurnAnalysis.action` `generate`/`edit` are parsed by step 16 but every action runs as chat; route them in `turn.py` here (edit in step 25). `prompts/system.md` now says making the plan "is not available in the app yet", so the model stops faking it. Replace that bullet here with the real flow ("click **Generate** or say 'make the plan'"), and put the current plan in the context so the "a plan exists only if the context includes one" rule holds.
 
 ### 24 · Plan tab from real data — ☐ *FE* (needs 14, 23)
 - **Builds:**
@@ -362,7 +362,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the parser handles `[A]`, `[AA]` and adjacent tags, and ignores `[abc]` and
   markdown links; the picker inserts at the cursor; a chip click sets the selected tag.
 - **Done when:** tests green.
-- **Notes:** Move `dayColor`/`firstDayByTag` from TagBadge.tsx into `lib/tags.ts`, and replace `withTagChips` in ChatPanel. `?picker=1` still works without `?demo=1`; gate it when the picker is rewritten.
+- **Notes:** Move `dayColor`/`firstDayByTag` from TagBadge.tsx into `lib/tags.ts`, and replace `withTagChips` in ChatPanel (it and `AssistantMarkdown` duplicate the tag regex; fold both into `lib/tags.ts`, and handle LLM text that is already a link like `[A](url)`, which today becomes a chip plus a stray "(url)"). `?picker=1` still works without `?demo=1`; gate it when the picker is rewritten.
 
 ## E. Weather (first real tool)
 
@@ -598,7 +598,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** —
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**

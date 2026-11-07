@@ -46,19 +46,21 @@ describe('ChatPanel send', () => {
     vi.useRealTimers()
   })
 
-  function sendMessage(text: string) {
-    render(<ChatPanel messages={[]} itinerary={sanJoseV2} statusLines={{}} onTagClick={() => {}} />)
+  function sendMessage(text: string, onSend = vi.fn()) {
+    render(<ChatPanel messages={[]} itinerary={sanJoseV2} statusLines={{}} onSend={onSend} onTagClick={() => {}} />)
     const input = screen.getByPlaceholderText(/Edit by letter/)
     fireEvent.change(input, { target: { value: text } })
     fireEvent.keyDown(input, { key: 'Enter' })
     act(() => {
       vi.advanceTimersByTime(2000)
     })
+    return onSend
   }
 
-  it('shows the user message but no canned reply or status line outside demo mode', () => {
-    sendMessage('replace [H] with a park')
-    expect(screen.getByText(/with a park/)).toBeTruthy()
+  // Outside demo mode the message goes to the store (onSend), which shows it and streams the reply.
+  it('hands the message to onSend and adds no canned reply or status line outside demo mode', () => {
+    const onSend = sendMessage('replace [H] with a park')
+    expect(onSend).toHaveBeenCalledWith('replace [H] with a park')
     expect(screen.queryByText(/v0 demo: canned data/)).toBeNull()
     expect(screen.queryByText(/Re-planning|Thinking…/)).toBeNull()
   })

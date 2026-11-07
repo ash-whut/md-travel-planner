@@ -4,8 +4,9 @@ import {
 } from 'lucide-react'
 import { demo } from '@/demoParams'
 import {
-  formatCostRange, formatDate, formatDateRange, formatDuration, formatMoney, formatNights, formatTime,
+  formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatTime,
 } from '@/lib/format'
+import { profileChips } from '@/lib/profile'
 import type { ItemKind, Itinerary, ItineraryItem, Stop, TripProfile } from '@/types'
 import { TagBadge, firstDayByTag } from './TagBadge'
 
@@ -22,16 +23,27 @@ function travelersLabel(n: number) {
   return `${n} ${n === 1 ? 'traveler' : 'travelers'}`
 }
 
-// Header chips for the known profile fields. Step 17 moves this to lib/profile.ts.
-function profileChips(profile: TripProfile): string[] {
-  const chips: string[] = []
-  if (profile.cities.length) chips.push(`📍 ${profile.cities.join(' + ')}`)
-  if (profile.origin) chips.push(`🏠 ${profile.origin}`)
-  if (profile.start_date && profile.end_date) chips.push(`📅 ${formatDateRange(profile.start_date, profile.end_date)}`)
-  if (profile.travelers) chips.push(`👤 ${travelersLabel(profile.travelers)}`)
-  if (profile.dietary) chips.push(`🌱 ${profile.dietary.charAt(0).toUpperCase()}${profile.dietary.slice(1)}`)
-  if (profile.interests.length) chips.push(`🎯 ${profile.interests.join(', ')}`)
-  return chips
+/** Profile chips (plan header and empty state). Missing required details show muted and dashed. */
+export function ProfileChips({ profile }: { profile: TripProfile }) {
+  return (
+    <>
+      {profileChips(profile).map((chip) =>
+        chip.missing ? (
+          <span
+            key={chip.field}
+            title="Not given yet — tell me in the chat"
+            className="rounded-full border border-dashed border-gray-300 px-2.5 py-1 text-xs text-gray-400"
+          >
+            {chip.label}
+          </span>
+        ) : (
+          <span key={chip.field} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
+            {chip.label}
+          </span>
+        ),
+      )}
+    </>
+  )
 }
 
 interface Props {
@@ -63,11 +75,7 @@ export function PlanView({ itinerary, profile, selectedTag, onTagClick }: Props)
           </span>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {profileChips(profile).map((label) => (
-            <span key={label} className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-700">
-              {label}
-            </span>
-          ))}
+          <ProfileChips profile={profile} />
           {itinerary.weather_summary && (
             <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700">☀️ {itinerary.weather_summary}</span>
           )}

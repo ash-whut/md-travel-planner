@@ -22,6 +22,7 @@ function fakeApi(overrides: Partial<ApiClient> = {}) {
   return {
     createSession: vi.fn(async () => fresh),
     getSession: vi.fn(async (id: string) => ({ ...stored, id })),
+    sendMessage: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -37,6 +38,7 @@ describe('useTripStore (smoke)', () => {
     await useTripStore.getState().startSession({
       createSession: async () => (calls.push('create'), fresh),
       getSession: async (id) => (calls.push(`get ${id}`), fresh),
+      sendMessage: async () => {},
     })
     expect(calls).toEqual(['create'])
     expect(localStorage.getItem(SESSION_KEY)).toBe('s-new')

@@ -14,6 +14,9 @@ function unusedApi() {
     createSession: vi.fn(async () => {
       throw new Error('createSession must not be called in demo mode')
     }),
+    sendMessage: vi.fn(async () => {
+      throw new Error('sendMessage must not be called in demo mode')
+    }),
     getSession: vi.fn(async () => {
       throw new Error('getSession must not be called in demo mode')
     }),

@@ -74,7 +74,7 @@ All fields are optional. The server computes `missing_required`.
   "rough_timing": null,                // "first weekend of March" before exact dates
   "origin": "College Station, TX",
   "travelers": 1,                      // adults, 1–6
-  "budget_level": "budget",            // budget | mid | splurge (default budget)
+  "budget_level": "budget",            // budget | mid | splurge; null until stated, plans then assume budget (D17)
   "interests": ["tech", "food", "gardens"],
   "dietary": "vegan",
   "pace": "balanced",                  // relaxed | balanced | packed
@@ -253,7 +253,7 @@ the previous item's value.
 | PATCH | `/sessions/{id}` | `{ "title": "1–80 chars" }` | `SessionSummary` (sets `title_is_custom`) | 44 |
 | DELETE | `/sessions/{id}` | — | `204`, cascades | 44 |
 
-Errors are `{ "detail": "message" }` with status 400/404/500.
+Errors are `{ "detail": "message" }` with status 400/404/500, or 422 (invalid body).
 
 ---
 

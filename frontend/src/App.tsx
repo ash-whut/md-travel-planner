@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import type { ApiClient } from './api/client'
 import { httpClient } from './api/http'
 import { HistoryRail } from './components/HistoryRail'
-import { PlanView } from './components/PlanView'
+import { PlanView, ProfileChips } from './components/PlanView'
 import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
@@ -33,6 +33,8 @@ export default function App({ api = httpClient }: Props) {
   const profile = useTripStore((s) => s.profile)
   const itinerary = useTripStore((s) => s.itinerary)
   const statusLines = useTripStore((s) => s.statusLines)
+  const streaming = useTripStore((s) => s.streaming)
+  const streamingMessageId = useTripStore((s) => s.streamingMessageId)
   const error = useTripStore((s) => s.error)
   const started = useRef(false)
 
@@ -123,8 +125,13 @@ export default function App({ api = httpClient }: Props) {
             <div className="min-h-0 flex-1" key={tab === 'plan' ? flashKey : tab}>
               {/* No plan yet (fresh session): a placeholder. Step 24 adds Generate + skeletons. */}
               {!itinerary && (
-                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-gray-500">
                   <p>{EMPTY_TEXT[tab]}</p>
+                  {tab === 'plan' && profile && (
+                    <div className="flex max-w-lg flex-wrap justify-center gap-1.5">
+                      <ProfileChips profile={profile} />
+                    </div>
+                  )}
                 </div>
               )}
               {itinerary && tab === 'plan' && profile && (
@@ -149,13 +156,20 @@ export default function App({ api = httpClient }: Props) {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {error && (
-            <p role="alert" className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-700">
-              {error.message}
-            </p>
-          )}
           <div className="min-h-0 flex-1">
-            <ChatPanel messages={messages} itinerary={itinerary} statusLines={statusLines} onTagClick={onTagClick} />
+            <ChatPanel
+              messages={messages}
+              itinerary={itinerary}
+              profile={profile}
+              statusLines={statusLines}
+              streaming={streaming}
+              streamingMessageId={streamingMessageId}
+              error={error}
+              onSend={(text) => void useTripStore.getState().sendMessage(api, text)}
+              onRetry={() => void useTripStore.getState().retry(api)}
+              onStop={() => useTripStore.getState().stop()}
+              onTagClick={onTagClick}
+            />
           </div>
         </div>
       </div>

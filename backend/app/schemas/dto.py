@@ -3,10 +3,22 @@
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.tables import MessageRow, SessionRow
-from app.schemas.profile import TripProfile
+from app.schemas.profile import TripProfile, load_profile
+
+
+class SendMessageBody(BaseModel):
+    """Body of POST /api/sessions/{id}/messages."""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def strip_content(cls, value: object) -> object:
+        # Strip first, so whitespace-only content fails min_length (422).
+        return value.strip() if isinstance(value, str) else value
 
 
 class MessageOut(BaseModel):
@@ -50,7 +62,7 @@ def session_detail(session_row: SessionRow, messages: list[MessageRow]) -> Sessi
         id=session_row.id,
         title=session_row.title,
         status=session_row.status,  # type: ignore[arg-type]  (stored values are always intake|planned)
-        trip_profile=TripProfile.model_validate(session_row.trip_profile),
+        trip_profile=load_profile(session_row.trip_profile),
         messages=[message_out(row) for row in messages],
         itinerary=None,
         created_at=as_utc(session_row.created_at),

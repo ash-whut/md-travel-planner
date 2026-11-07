@@ -70,7 +70,10 @@ def test_create_returns_an_empty_trip_profile(client: TestClient) -> None:
     assert set(profile) == TRIP_PROFILE_KEYS
     assert profile["cities"] == []
     assert profile["interests"] == []
-    assert profile["missing_required"] == []
+    # Step 16: the server computes missing_required (contracts §2.1), so a new session lists all.
+    assert set(profile["missing_required"]) == {
+        "destination", "dates", "origin", "travelers", "interests",
+    }
     for key in TRIP_PROFILE_KEYS - {"cities", "interests", "missing_required"}:
         assert profile[key] is None, key
 

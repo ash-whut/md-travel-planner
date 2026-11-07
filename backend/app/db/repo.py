@@ -28,11 +28,15 @@ def add_message(
     role: Role,
     content: str,
     itinerary_version: int | None = None,
+    message_id: str | None = None,
 ) -> MessageRow:
     session_row = _require_session(db, session_id)
     message = MessageRow(
         session_id=session_id, role=role, content=content, itinerary_version=itinerary_version
     )
+    # A chat turn announces the assistant message id (SSE message_start) before saving it.
+    if message_id is not None:
+        message.id = message_id
     # A new message moves the session to the top of the history list.
     session_row.updated_at = message.created_at
     db.add(message)
