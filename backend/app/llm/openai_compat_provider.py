@@ -4,12 +4,16 @@ Endpoint quirks are recorded in decisions D16.
 """
 
 import json
+import logging
 from collections.abc import AsyncIterator
+from typing import Any
 
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from app.llm.base import Message, T
+from app.llm.base import Message, T, ToolCall, ToolRound, ToolSpec
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAICompatProvider:
@@ -59,6 +63,57 @@ class OpenAICompatProvider:
             response_format={"type": "json_object"},
         )
         return response.choices[0].message.content or ""
+
+    async def tool_turn(
+        self, system: str, messages: list[Message], rounds: list[ToolRound], tools: list[ToolSpec]
+    ) -> list[ToolCall]:
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[*_with_system(system, messages), *_round_messages(rounds)],
+            tools=[_openai_tool(tool) for tool in tools],
+            stream=False,  # must be explicit, or TAMU AI streams anyway (D16)
+        )
+        calls: list[ToolCall] = []
+        for tool_call in response.choices[0].message.tool_calls or []:
+            try:
+                arguments = json.loads(tool_call.function.arguments or "{}")
+            except json.JSONDecodeError:
+                arguments = None
+            if not isinstance(arguments, dict):
+                logger.warning("Skipping tool call %s: bad arguments JSON", tool_call.function.name)
+                continue
+            calls.append(ToolCall(id=tool_call.id, name=tool_call.function.name, arguments=arguments))
+        return calls
+
+
+def _openai_tool(tool: ToolSpec) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {"name": tool.name, "description": tool.description, "parameters": tool.parameters},
+    }
+
+
+def _round_messages(rounds: list[ToolRound]) -> list[dict[str, Any]]:
+    """Each earlier round as OpenAI messages: the assistant's `tool_calls`, then one
+    `role: "tool"` message per result, in the same order as the calls."""
+    chat: list[dict[str, Any]] = []
+    for tool_round in rounds:
+        chat.append({
+            "role": "assistant",
+            # TAMU AI rejects null or missing content here (422); an empty string works.
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "type": "function",
+                    "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
+                }
+                for call in tool_round.calls
+            ],
+        })
+        for call, result in zip(tool_round.calls, tool_round.results, strict=True):
+            chat.append({"role": "tool", "tool_call_id": call.id, "content": result})
+    return chat
 
 
 def _with_system(system: str, messages: list[Message]) -> list[Message]:

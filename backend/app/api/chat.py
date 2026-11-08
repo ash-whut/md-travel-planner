@@ -10,24 +10,23 @@ from sqlmodel import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.sse import SseEvent
-from app.agent.turn import run_turn
+from app.agent.turn import TurnLlms, run_turn
 from app.core.config import Settings, get_settings
 from app.db import repo
 from app.db.engine import get_db, get_engine
-from app.llm.base import LLMProvider
 from app.llm.factory import get_provider
 from app.schemas.dto import SendMessageBody
 
 router = APIRouter()
 
 
-def get_llm(settings: Annotated[Settings, Depends(get_settings)]) -> LLMProvider:
-    """FastAPI dependency for the LLM provider (tests override it)."""
-    return get_provider(settings)
+def get_llm(settings: Annotated[Settings, Depends(get_settings)]) -> TurnLlms:
+    """FastAPI dependency for the turn's chat and planner providers (D26; tests override it)."""
+    return TurnLlms(chat=get_provider(settings, "chat"), planner=get_provider(settings, "planner"))
 
 
 Db = Annotated[Session, Depends(get_db)]
-Llm = Annotated[LLMProvider, Depends(get_llm)]
+Llm = Annotated[TurnLlms, Depends(get_llm)]
 
 
 @router.post("/sessions/{session_id}/messages")
@@ -49,11 +48,11 @@ def generate(session_id: str, db: Db, llm: Llm) -> EventSourceResponse:
 
 
 async def _turn_events(
-    session_id: str, content: str | None, llm: LLMProvider
+    session_id: str, content: str | None, llm: TurnLlms
 ) -> AsyncIterator[SseEvent]:
     # The stream outlives the request's DB session, so it opens its own.
     # aclosing() makes sure the turn is closed (e.g. on Stop) while this DB session is still open.
     with Session(get_engine()) as db:
-        async with aclosing(run_turn(db, session_id, content, llm)) as events:
+        async with aclosing(run_turn(db, session_id, content, llm.chat, llm.planner)) as events:
             async for event in events:
                 yield event

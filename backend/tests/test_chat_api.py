@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
+from app.agent.turn import TurnLlms
 from app.api.chat import get_llm
 from app.db import repo
 from app.db.tables import MessageRow
@@ -97,7 +98,7 @@ class RecordingProvider:
 
 
 def _use_provider(client: TestClient, provider: Any) -> None:
-    client.app.dependency_overrides[get_llm] = lambda: provider  # type: ignore[attr-defined]
+    client.app.dependency_overrides[get_llm] = lambda: TurnLlms(provider, provider)  # type: ignore[attr-defined]
 
 
 # --- happy path: event order ----------------------------------------------------------------

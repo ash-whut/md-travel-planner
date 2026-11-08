@@ -25,7 +25,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 | C. Plan view | 18–24 | "make the plan" → AI-drafted day cards with letters |
 | D. Edit by letter | 25–27 | "replace [F]…" → v2 with stable letters + highlight |
 | E. Weather | 28–31 | real °F weather per day |
-| F. Places + Map | 32–36 (+ 32a, 32b, 33a) | planner agent picks its searches (parallel); real places with coordinates; Map tab works |
+| F. Places + Map | 32–36 (+ 32a, 32b, 33a, 34a) | planner agent picks its searches (parallel); real places with coordinates; Map tab works |
 | G. Hotels | 37–41 | real hotel price "as of"; flights as links |
 | H. Book | 42–43 | Book tab with links, approval and booked status |
 | I. History | 44–45 | history rail: list, open, rename, delete |
@@ -429,7 +429,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   On 2026-11-08 the design for steps 33+ switched to a planner agent with parallel tool calls
   (D24–D26), which added steps 32a, 32b and 33a.
 
-### 32a · Models per role (chat + planner) — ☐ *BE*
+### 32a · Models per role (chat + planner) — ☑ *BE*
 - **Builds:** D26.
   - Settings: `LLM_CHAT_MODEL` (falls back to `LLM_MODEL` when empty).
   - `get_provider(settings, role)` with `role` = `"chat"` or `"planner"`.
@@ -442,9 +442,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   reply use the chat provider and compose uses the planner provider (two fakes that record
   their calls); existing route tests keep passing (update the `get_llm` overrides).
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `model_for`/`get_provider(settings, role)`; `get_llm` returns `TurnLlms(chat, planner)`; `run_turn(..., chat_llm, planner_llm=None)` falls back to chat.
 
-### 32b · Tool calling in the LLM layer — ☐ *BE*
+### 32b · Tool calling in the LLM layer — ☑ *BE*
 - **Builds:**
   - provider-neutral `ToolSpec`, `ToolCall`, `ToolRound` in `llm/base.py`;
   - `tool_turn(system, messages, rounds, tools) -> list[ToolCall]` on the protocol (an empty
@@ -460,11 +460,11 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   results sent back in order); bad arguments JSON; the fake script for generate/edit/no-hotels
   cases; one `@pytest.mark.live` test, a round trip with 2 parallel calls.
 - **Done when:** tests green.
-- **Notes:** Probe (D24): Opus-5 and Sonnet-5 both return several `tool_calls` in one reply;
+- **Notes:** Live test found that TAMU AI needs `content: ""` (not null or missing) on the assistant tool-call message. Built: fake planner reads `system` markers `Trip profile (JSON):` and `Change request:` (edit → no tools); hotel args are `check_in`/`check_out`. Probe (D24): Opus-5 and Sonnet-5 both return several `tool_calls` in one reply;
   `response_format: json_object` works alongside `tools`. Keep the OpenAI format inside the
   adapter (AGENTS rule 5).
 
-### 33 · Places tool (Geoapify + Nominatim) — ☐ *BE*
+### 33 · Places tool (Geoapify + Nominatim) — ☑ *BE*
 - **Builds:** `places.py`:
   - `geocode(query)` (Geoapify, falling back to Nominatim with a descriptive User-Agent);
   - `search(lat, lng, interest, limit=8)`, which maps interests → Geoapify categories (a table
@@ -479,9 +479,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** interest → category mapping (and the default); normalization; no key → Nominatim
   path; error → `ok: false`; the registry entry's schema and that it calls the function.
 - **Done when:** tests green.
-- **Notes:** Reuse `pipeline.status()` and the `ToolResult`/cache helpers from step 28, and cache the geocoder too (Nominatim's usage policy requires it). Open-Meteo geocoding drops the region ("Paris, TX" → Paris, France); if Nominatim takes a region, pass it through.
+- **Notes:** Built: `places.geocode/search` return ToolResults (both cached), `registry.TOOLS` + `run_tool`; HTTP helpers moved to `common.py`. Mock search only covers San Jose places.
 
-### 33a · Planner agent: tool rounds in parallel — ☐ *BE* (needs 32a, 32b, 33)
+### 33a · Planner agent: tool rounds in parallel — ☑ *BE* (needs 32a, 32b, 33)
 - **Builds:** `agent/planner.py`, run by the pipeline after weather (D24, D25):
   - the planner prompt `prompts/planner.md` gets the profile, the weather and, for an edit, the
     current plan + change request; the tools come from `tools/registry.py`;
@@ -503,11 +503,11 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   events: every start gets exactly one end/error and the labels are unique; existing pipeline
   tests stay green.
 - **Done when:** tests green; with the fake LLM a generated plan shows the places status lines.
-- **Notes:** The frontend keys status lines by label (step 31), so interleaved lines need no
+- **Notes:** Built: `run_planner` yields status events, then `list[Finding(ref, tool, data)]`; `status()` + `run_parallel` moved to planner.py; 4 status-order tests updated for the new Choosing line. The frontend keys status lines by label (step 31), so interleaved lines need no
   frontend change (contracts §5). Chat turns still send no status (D23), so step 46's
   `generating` note still holds.
 
-### 34 · Real places in the plan — ☐ *BE*
+### 34 · Real places in the plan — ☑ *BE*
 - **Builds:**
   - the planner's places results (step 33a) feed compose;
   - the compose prompt lists results with short refs (`p1`, `p2`…);
@@ -521,7 +521,25 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** coordinates come from tools even if the draft has numbers; airport geocoded; a bad
   ref is handled; v2 tag stability by `place_id`.
 - **Done when:** tests green.
-- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached. For edits, `as_draft` uses stop tags as draft keys, so map tag-keys and new keys (e.g. `s20`) to place_ids too. Stop coordinates must come from the places tool, never from the city coordinates gathered for weather (step 30).
+- **Notes:** Built: `pipeline.locate_stops` (ref → previous-version name → geocode home/airport/lodging only, D27); assign_tags same-name bug fixed; `source` set from code; the fake cites mock places. The fake LLM makes no tool calls on edits, so new stops in a fake edit have no coordinates (step 34a).
+
+### 34a · Edits look up new stops — ☐ *BE* (needs 34)
+- **Builds:** an edit that adds or replaces a stop gets real place data, like a new plan.
+  - The real planner already searches for a change request (`prompts/planner.md`). The fake
+    planner should match it: an edit that adds or replaces a stop ("replace [F] with something
+    vegan") asks for one `search_places` in that city; an edit that only moves or removes stops
+    asks for none.
+  - Fallback for a stop that still has no usable ref (the model didn't search, or didn't cite
+    one): geocode it by "name, city" with `precise=True`, so it gets a pin only when a real,
+    specific match exists. This widens D27 beyond home/airport/lodging; update D27.
+- **Files:** `backend/app/llm/fake_provider.py`, `agent/pipeline.py`, `docs/decisions.md`, tests
+- **Tests:** with the fake LLM, "replace [F] with something vegan" runs one search, the new stop
+  cites a ref and gets that place's coordinates and place_id, and the other stops keep their
+  letters and coordinates; "move [E] to day 2" runs no search; the fallback geocode gives a pin
+  for a specific match and none for a city-level match.
+- **Done when:** tests green; with the real LLM, a "replace [X]" edit shows a "Finding …" status
+  line and the new stop has coordinates.
+- **Notes:** —
 
 ### 35 · Travel estimates between stops — ☐ *BE*
 - **Builds:** postprocess sets `transit_from_previous` from the haversine distance and a simple
@@ -530,7 +548,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `backend/app/agent/postprocess.py`, `tests/test_travel.py`
 - **Tests:** a known distance; a missing coordinate → `null`; the first item of a day → `null`.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** In mock mode, geocoded fixed stops (home, airports, hotel) can share the mock city's coordinates, so travel-estimate tests should use stops with place refs.
 
 ### 36 · Map tab from real data — ☐ *FE*
 - **Builds:**
@@ -542,7 +560,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** helper functions; MapView (mocked leaflet) lists the right stops per day; the tab
   enable rule.
 - **Done when:** a generated plan shows on the map.
-- **Notes:** In mock mode, `weather.geocode_city` falls back to San Jose's coordinates for unknown cities, so don't trust mock city coordinates for map pins.
+- **Notes:** In mock mode, `weather.geocode_city` falls back to San Jose's coordinates for unknown cities, so don't trust mock city coordinates for map pins. A stop can still lack coordinates (no usable ref and no specific geocode match), so the Map tab must show stops without a pin, e.g. listed without a marker.
 
 ## G. Hotels (+ flights note)
 
@@ -564,7 +582,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** normalization; the cache prevents a second call; the fallback path; error →
   `ok: false`; the registry entry.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** The fake planner (step 32b) asks for `search_hotels {city, check_in, check_out}`; the registry entry must use these argument names. Each `search_places` sends 2 Geoapify requests (geocode + search), so a 6-call round can burst about 12 requests and break D25's assumption that the cap keeps Geoapify under 5 requests/second. Geocode each city once per plan, or add a small rate gate, before hotel calls add more.
 
 ### 39 · Hotel in the plan — ☐ *BE*
 - **Builds:**
@@ -580,7 +598,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** tool price wins over a draft price; no-price fallback → `null` + "check link"; the
   fake planner's hotel call reaches compose as an `h` ref.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Hotel stops are geocoded by name for now (D27, `GEOCODE_KINDS` in pipeline.py). Once hotels get refs (`h1`…), drop "lodging" from `GEOCODE_KINDS` and use the hotel result's coordinates.
 
 ### 40 · Deep links + flights as links — ☐ *BE*
 - **Builds:**
@@ -672,7 +690,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes.
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached).
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**
@@ -704,7 +722,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Notes:** The registry already has name/description/schema/function per tool (step 33), so
   this is a thin wrapper.
 
-**Later (not planned yet):** performance (caching everything, real routing), sub-agents per
+**Later (not planned yet):** planner speed-ups (skip the "anything else?" tool round when round 1 fully succeeded; try Sonnet for choosing searches after comparing ~10 sample trips with Opus; or let the understand call list the searches), weather-aware searches (an explicit "rainy day → indoor places" rule in the planner prompt; the planner already sees the weather), performance (caching everything, real routing), sub-agents per
 domain (only if a domain's raw results get too big or messy for the planner), diff-aware
 edits, drag-and-drop editing, editable profile chips, export (PDF/.ics), mobile layout, an
 Anthropic adapter, auth + deployment.

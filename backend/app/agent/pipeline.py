@@ -1,19 +1,29 @@
-"""Generation pipeline (architecture §4.1): gather → compose → postprocess → save.
+"""Generation pipeline (architecture §4.1): weather → planner → compose → postprocess → save.
 
-Gather so far: the weather for each profile city over the trip dates (when both are known).
+Weather: each profile city over the trip dates (when both are known), all cities in parallel.
+Planner: the planner agent's tool rounds (agent/planner.py).
+Compose cites the planner's places by ref (`place_ref: "p3"`); `locate_stops` turns the draft's
+stops into tool locations for postprocess.
 """
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
 from datetime import date, timedelta
-from typing import Any
 
 from pydantic import ValidationError
 from sqlmodel import Session
 
 from app.agent import context, sse
-from app.agent.postprocess import CityWeather, build_itinerary, short_city_name
+from app.agent.planner import PLANNER_REQUEST, Finding, run_parallel, run_planner
+from app.agent.postprocess import (
+    PLACES_SOURCE,
+    CityWeather,
+    StopPlace,
+    build_itinerary,
+    short_city_name,
+)
 from app.agent.sse import SseEvent
+from app.agent.tags import normalize_name
 from app.db import repo
 from app.llm.base import LLMProvider, Message
 from app.schemas.itinerary import (
@@ -27,8 +37,9 @@ from app.schemas.itinerary import (
     ItineraryDraft,
 )
 from app.schemas.profile import TripProfile
+from app.tools import places as places_tool
 from app.tools import weather as weather_tool
-from app.tools.common import ToolResult, tool_error, tool_ok
+from app.tools.common import ToolResult, tool_ok
 
 COMPOSE_REQUEST = "Make the full trip plan now."
 # For an edit; the fake provider spots edits by "change only what was asked".
@@ -40,23 +51,31 @@ EDIT_REQUEST = (
 )
 DRAFTING_LABEL = "Drafting your plan…"
 UPDATING_LABEL = "Updating your plan…"
+# Planner tools whose findings are places a stop can cite with `place_ref`.
+PLACE_TOOLS = {"search_places"}
+# Stops that may have no found place but are still put on the map with the geocoder: the trip's
+# fixed points. Other stops without a valid ref stay off the map (D27).
+GEOCODE_KINDS = {"home", "airport", "lodging"}
 
 
 async def run_generation(
     db: Session,
     session_id: str,
-    llm: LLMProvider,
+    planner_llm: LLMProvider,
     profile: TripProfile,
     messages: list[Message],
     on_saved: Callable[[Itinerary], None],
     today: date | None = None,
     change_request: str | None = None,
 ) -> AsyncIterator[SseEvent]:
-    """Make the session's next plan version and save it. Events: the gather status lines (one
-    start → end/error pair per weather city), then the draft's status start → end → itinerary.
+    """Make the session's next plan version and save it. Events: the weather status lines (one
+    start → end/error pair per city), the planner's status lines, then the draft's status
+    start → end → itinerary.
 
-    A failed weather call only leaves the weather out (postprocess adds an assumption).
+    A failed weather call only leaves the weather out (postprocess adds an assumption), and a
+    failed planner tool only leaves its data out.
     `change_request` (an edit) makes compose update the latest plan instead of making a new one.
+    `planner_llm` is the planner-role provider (D26); it runs the planner and compose.
     `on_saved` is called right after the save, so the caller knows the new version even if a
     later step fails or the stream is stopped. If compose or the save fails, it emits status
     "error" and re-raises; nothing is saved, so the previous plan stays. The caller turns the
@@ -70,11 +89,31 @@ async def run_generation(
             yield item
 
     label = UPDATING_LABEL if change_request else DRAFTING_LABEL
+    try:
+        # Read before the planner, which needs the latest plan for an edit.
+        previous_versions = repo.list_itineraries(db, session_id)
+    except Exception:
+        # A failed generation ends with a status error before the `error` event (contracts §5).
+        yield sse.status(label, "start")
+        yield sse.status(label, "error")
+        raise
+    latest = max(previous_versions, key=lambda itinerary: itinerary.version, default=None)
+    # Every numbered result item (p1, h1…) the planner's tools found; compose cites them.
+    findings: list[Finding] = []
+    async for event in run_planner(
+        planner_llm, profile, with_request(messages, PLANNER_REQUEST), weather, today,
+        current_plan=latest if change_request else None, change_request=change_request,
+    ):
+        if isinstance(event, list):
+            findings = event
+        else:
+            yield event
+
     yield sse.status(label, "start")
     try:
-        previous_versions = repo.list_itineraries(db, session_id)
         plan = await compose(
-            llm, profile, messages, previous_versions, today, change_request, weather
+            planner_llm, profile, messages, previous_versions, today, change_request, weather,
+            findings,
         )
         saved = repo.save_itinerary(db, session_id, plan)  # also sets the status to "planned"
     except Exception:
@@ -85,38 +124,16 @@ async def run_generation(
     yield sse.itinerary(saved.model_dump(mode="json"))
 
 
-async def status(
-    label: str, tool: Callable[..., ToolResult], *args: Any
-) -> AsyncIterator[SseEvent | ToolResult]:
-    """Run one tool call between `status` lines: start, then end (ok) or error (failed).
-
-    Yields the two status events, then the ToolResult as the last item. The tool runs in a
-    worker thread (tools are synchronous). A tool that raises counts as failed, so the pipeline
-    can always carry on without that data. Use it like this:
-
-        async for item in status("Checking weather…", weather.get_weather, lat, lng, start, end):
-            if isinstance(item, ToolResult):
-                result = item
-            else:
-                yield item
-    """
-    yield sse.status(label, "start")
-    try:
-        result = await asyncio.to_thread(tool, *args)
-    except Exception as error:  # tools shouldn't raise, but one bad tool mustn't stop the plan
-        result = tool_error(str(error) or type(error).__name__)
-    yield sse.status(label, "end" if result.ok else "error")
-    yield result
-
-
 async def gather_weather(
     profile: TripProfile, today: date | None = None
 ) -> AsyncIterator[SseEvent | CityWeather]:
-    """Weather for each profile city over the trip dates, one status line pair per city.
+    """Weather for each profile city over the trip dates, one status line pair per city. The
+    cities run in parallel (D25).
 
-    Yields the status events and one CityWeather per city (with `error` set if the tool
-    failed). Yields nothing when the profile has no city or no exact dates yet, or when
-    the trip already ended before `today` (there is no forecast for past dates).
+    Yields the status events as they happen, then one CityWeather per city in profile order
+    (with `error` set if the tool failed). Yields nothing when the profile has no city or no
+    exact dates yet, or when the trip already ended before `today` (there is no forecast for
+    past dates).
     """
     dates = trip_dates(profile)
     if dates is None:
@@ -124,10 +141,16 @@ async def gather_weather(
     start, end = dates
     if end < (today or date.today()):
         return
-    for city in profile.cities:
-        label = weather_label(city, start, end)
-        async for item in status(label, city_weather, city, start, end, today):
-            yield to_city_weather(city, item) if isinstance(item, ToolResult) else item
+    calls = [
+        (weather_label(city, start, end), city_weather, (city, start, end, today))
+        for city in profile.cities
+    ]
+    async for item in run_parallel(calls):
+        if isinstance(item, list):
+            for city, result in zip(profile.cities, item):
+                yield to_city_weather(city, result)
+        else:
+            yield item
 
 
 def trip_dates(profile: TripProfile) -> tuple[date, date] | None:
@@ -205,6 +228,7 @@ async def compose(
     today: date | None = None,
     change_request: str | None = None,
     weather: list[CityWeather] | None = None,
+    findings: list[Finding] | None = None,
 ) -> Itinerary:
     """Ask the LLM for an ItineraryDraft and postprocess it into a valid Itinerary.
 
@@ -212,26 +236,31 @@ async def compose(
     and is told to change only what was asked. If the draft breaks a rule, compose once more
     with the errors included. Raises ComposeError when the repair try fails too.
     `weather` (from the gather step) goes into the prompt and, by postprocess, into the plan.
+    `findings` (from the planner) are listed in the prompt by ref; the stops that cite one get
+    its coordinates (see `locate_stops`).
     """
     previous_versions = previous_versions or []
     weather = weather or []
+    findings = findings or []
     latest = max(previous_versions, key=lambda itinerary: itinerary.version, default=None)
     if change_request and latest is not None:
         request = EDIT_REQUEST.format(change_request=change_request)
-        system = build_system(profile, today, current_plan=latest, weather=weather)
+        system = build_system(
+            profile, today, current_plan=latest, weather=weather, findings=findings
+        )
     else:
         request = COMPOSE_REQUEST
-        system = build_system(profile, today, weather=weather)
+        system = build_system(profile, today, weather=weather, findings=findings)
 
     result = await _compose_once(
-        llm, system, messages, request, previous_versions, profile, weather
+        llm, system, messages, request, previous_versions, profile, weather, findings
     )
     if isinstance(result, Itinerary):
         return result
 
     result = await _compose_once(
         llm, system, messages, repair_request(result, request), previous_versions, profile,
-        weather,
+        weather, findings,
     )
     if isinstance(result, Itinerary):
         return result
@@ -246,6 +275,7 @@ async def _compose_once(
     previous_versions: list[Itinerary],
     profile: TripProfile,
     weather: list[CityWeather],
+    findings: list[Finding],
 ) -> Itinerary | list[str]:
     """One compose call + postprocess: the Itinerary, or the errors that broke it."""
     try:
@@ -256,7 +286,104 @@ async def _compose_once(
             f"{'.'.join(str(part) for part in detail['loc'])}: {detail['msg']}"
             for detail in error.errors()
         ]
-    return build_itinerary(draft, previous_versions, profile, weather)
+    places = await locate_stops(draft, findings, previous_versions, profile)
+    return build_itinerary(draft, previous_versions, profile, weather, places)
+
+
+async def locate_stops(
+    draft: ItineraryDraft,
+    findings: list[Finding],
+    previous_versions: list[Itinerary],
+    profile: TripProfile,
+) -> dict[str, StopPlace]:
+    """Where each draft stop is, by stop key, from tools only: never from numbers in the draft
+    and never from the city coordinates gathered for the weather.
+
+    For each stop, the first that applies:
+    1. its `place_ref` names a place the planner found → that place (id, address, coordinates,
+       rating; source "Geoapify"). An unknown ref is ignored;
+    2. a stop with the same name in an earlier version had coordinates → copy them (an edit
+       copies stops with their letter tags as keys and no ref, so they keep their place);
+    3. home, airports and the hotel → the geocoder (see `geocode_query`); for airports and the
+       hotel a city-level match counts as not found.
+    Any other stop is left out and stays off the map.
+    """
+    found = {finding.ref: finding.data for finding in findings if finding.tool in PLACE_TOOLS}
+    newest_first = sorted(previous_versions, key=lambda itinerary: itinerary.version, reverse=True)
+    earlier_stops = [
+        stop
+        for version in newest_first
+        for stop in version.stops
+        if stop.lat is not None and stop.lng is not None
+    ]
+    places: dict[str, StopPlace] = {}
+    for stop in draft.stops:
+        data = found.get(stop.place_ref or "")
+        if data is not None and data.get("lat") is not None and data.get("lng") is not None:
+            places[stop.key] = StopPlace(
+                lat=data["lat"],
+                lng=data["lng"],
+                address=data.get("address"),
+                place_id=data.get("id"),
+                rating=data.get("rating"),
+                source=PLACES_SOURCE,
+            )
+            continue
+
+        earlier = next(
+            (s for s in earlier_stops if normalize_name(s.name) == normalize_name(stop.name)),
+            None,
+        )
+        if earlier is not None and earlier.lat is not None and earlier.lng is not None:
+            places[stop.key] = StopPlace(
+                lat=earlier.lat,
+                lng=earlier.lng,
+                address=earlier.address,
+                place_id=earlier.place_id,
+                rating=earlier.rating,
+                # Only places from the places search have a place_id.
+                source=PLACES_SOURCE if earlier.place_id else None,
+            )
+            continue
+
+        query = geocode_query(stop, draft, profile)
+        if query is None:
+            continue
+        # Home is the origin city, so a city-level match is right for it; for an airport or the
+        # hotel it would pin the city centre, so it counts as not found (D27).
+        precise = stop.kind != "home"
+        result = await asyncio.to_thread(places_tool.geocode, query, precise=precise)
+        if result.ok:
+            places[stop.key] = StopPlace(
+                lat=result.data["lat"],
+                lng=result.data["lng"],
+                address=stop.address or result.data.get("address"),
+            )
+    return places
+
+
+def geocode_query(stop: DraftStop, draft: ItineraryDraft, profile: TripProfile) -> str | None:
+    """What to geocode for a stop with no found place, or None if it isn't geocoded.
+
+    Only GEOCODE_KINDS are. Home is the profile's origin (or its address). Others use their
+    address when the draft has one, since geocoders handle addresses best, else "name, city"
+    with the city of the first day that visits the stop.
+    """
+    if stop.kind not in GEOCODE_KINDS:
+        return None
+    if stop.kind == "home":
+        return profile.origin or stop.address
+    if stop.address:
+        return stop.address
+    return f"{stop.name}, {stop_city(stop.key, draft)}"
+
+
+def stop_city(key: str, draft: ItineraryDraft) -> str:
+    """The city of the first day with an item at this stop, else the trip's first city."""
+    for day in draft.days:
+        if any(item.stop_key == key for item in day.items):
+            return day.city
+    return draft.cities[0].name
 
 
 def with_request(messages: list[Message], request: str) -> list[Message]:
@@ -286,9 +413,10 @@ def build_system(
     today: date | None = None,
     current_plan: Itinerary | None = None,
     weather: list[CityWeather] | None = None,
+    findings: list[Finding] | None = None,
 ) -> str:
-    """System text for the compose call: its prompt plus today's date, the profile and the
-    gathered weather.
+    """System text for the compose call: its prompt plus today's date, the profile, the
+    gathered weather and the places the planner found (by ref).
 
     For an edit, `current_plan` is the latest version. It is given in the draft shape compose
     replies with, so unchanged parts can be copied as they are.
@@ -302,6 +430,9 @@ def build_system(
     ]
     if weather:
         parts.append(context.render_weather(weather))
+    places_text = render_places(findings or [])
+    if places_text:
+        parts.append(places_text)
     if current_plan is not None:
         parts.append(
             f"## Current plan (version {current_plan.version})\n"
@@ -309,6 +440,34 @@ def build_system(
             + as_draft(current_plan).model_dump_json(exclude_none=True)
         )
     return "\n\n".join(parts)
+
+
+def render_places(findings: list[Finding]) -> str:
+    """The found places for the compose prompt, one line each, e.g.
+    `- p1 · The Tech Interactive · entertainment.museum · 201 S Market St, San Jose · rating 4.6`.
+    A place found under two refs is listed once (its first ref). Empty text when none.
+    The fake provider reads these lines (fake_provider.PLACE_LINE), so keep the format.
+    """
+    lines: list[str] = []
+    seen_ids: set[str] = set()
+    for finding in findings:
+        data = finding.data
+        place_id = str(data.get("id"))
+        if finding.tool not in PLACE_TOOLS or place_id in seen_ids:
+            continue
+        seen_ids.add(place_id)
+        parts = [finding.ref, str(data.get("name")), str(data.get("category") or "place")]
+        if data.get("address"):
+            parts.append(str(data["address"]))
+        if data.get("rating") is not None:
+            parts.append(f"rating {data['rating']}")
+        lines.append("- " + " · ".join(parts))
+    if not lines:
+        return ""
+    return (
+        "## Places found (from the places service, Geoapify)\n"
+        "Cite a place with its ref in the stop's `place_ref`.\n" + "\n".join(lines)
+    )
 
 
 def as_draft(plan: Itinerary) -> ItineraryDraft:

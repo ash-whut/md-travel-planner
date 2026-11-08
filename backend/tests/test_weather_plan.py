@@ -21,8 +21,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
-from app.agent import context, pipeline
+from app.agent import context, pipeline, planner
 from app.agent.postprocess import CityWeather, build_itinerary
+from app.agent.turn import TurnLlms
 from app.api.chat import get_llm
 from app.db import repo
 from app.llm.base import Message
@@ -176,7 +177,7 @@ class RecordingFake(FakeProvider):
 
 
 def _use(client: TestClient, provider: FakeProvider) -> None:
-    client.app.dependency_overrides[get_llm] = lambda: provider  # type: ignore[attr-defined]
+    client.app.dependency_overrides[get_llm] = lambda: TurnLlms(provider, provider)  # type: ignore[attr-defined]
 
 
 def _session(client: TestClient) -> str:
@@ -488,12 +489,13 @@ def test_gather_still_runs_for_a_trip_already_underway() -> None:
 def test_gather_one_status_pair_per_city() -> None:
     events, cities = _gather(_profile(cities=["San Jose, CA", "San Francisco, CA"]))
 
-    labels = [s["label"] for s in _status_data(events)]
-    assert labels == [
-        LABEL, LABEL,
-        "Checking weather for San Francisco · Mar 5–7",
-        "Checking weather for San Francisco · Mar 5–7",
-    ]
+    # The cities run in parallel (step 33a, D25), so the lines may interleave: both starts
+    # come first, then each city's end.
+    statuses = _status_data(events)
+    sf_label = "Checking weather for San Francisco · Mar 5–7"
+    assert [s["state"] for s in statuses] == ["start", "start", "end", "end"]
+    assert sorted(s["label"] for s in statuses if s["state"] == "start") == sorted([LABEL, sf_label])
+    assert sorted(s["label"] for s in statuses if s["state"] == "end") == sorted([LABEL, sf_label])
     assert [c.name for c in cities] == ["San Jose, CA", "San Francisco, CA"]
 
 
@@ -544,7 +546,9 @@ def test_generation_weather_status_comes_before_drafting(db: Session) -> None:
         {"label": LABEL, "state": "start"},
         {"label": LABEL, "state": "end"},
     ]
-    assert statuses[2] == {"label": pipeline.DRAFTING_LABEL, "state": "start"}
+    # Then the planner's line (step 33a), then the draft.
+    assert statuses[2] == {"label": planner.CHOOSING_LABEL, "state": "start"}
+    assert statuses[4] == {"label": pipeline.DRAFTING_LABEL, "state": "start"}
 
 
 def test_generation_saves_the_tool_weather(db: Session) -> None:

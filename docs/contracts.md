@@ -185,8 +185,9 @@ Same shape as `Itinerary` **minus** everything code owns:
 - bookings
 
 Stops get a temporary `key` (`"s1"`, `"s2"`…) and items refer to it with `stop_key`. A stop
-may carry a `place_ref` that points at a tool result id (step 34+). Code copies the
-coordinates and address from that tool result.
+may carry a `place_ref` that points at a tool result id (step 34+): the short ref code gave a
+found place (`"p3"`). Code copies the coordinates, address, `place_id` and rating from that
+tool result and sets the item `source` ("Geoapify"); an unknown ref is ignored.
 
 ### 2.4 `TurnAnalysis` (internal, one JSON call per user turn)
 ```jsonc

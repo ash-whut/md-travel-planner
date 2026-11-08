@@ -3,11 +3,13 @@
 import json
 import re
 from collections.abc import AsyncIterator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from app.llm.base import Message, T
+from app.llm.base import Message, T, ToolCall, ToolRound, ToolSpec
 from app.schemas.itinerary import ItineraryDraft
+from app.schemas.profile import TripProfile
 from app.schemas.turn import TurnAnalysis
 
 CANNED_REPLY = "Sounds fun! Tell me where you want to go, when, and who is coming along."
@@ -33,6 +35,14 @@ SUMMARY_PHRASE = "just made the plan"
 EDIT_SUMMARY_PHRASE = "just updated the plan"
 # Compose asks for an edit with this phrase (agent/pipeline.py EDIT_REQUEST).
 EDIT_PHRASE = "change only what was asked"
+# Copies of agent/planner.py PLANNER_PROFILE_MARKER and PLANNER_EDIT_MARKER (llm/ doesn't import
+# agent/): the planner's system text holds the profile JSON and the change request after them.
+# The fake's tool_turn reads only `system`.
+PLANNER_PROFILE_MARKER = "Trip profile (JSON):"
+PLANNER_EDIT_MARKER = "Change request:"
+# A found place in the compose system text (agent/pipeline.py render_places), e.g.
+# "- p1 · The Tech Interactive · entertainment.museum · …": the ref and the name.
+PLACE_LINE = re.compile(r"^- (p\d+) · (.+?) · ", re.MULTILINE)
 
 
 class FakeProvider:
@@ -47,7 +57,8 @@ class FakeProvider:
     ) -> None:
         """`drafts`: raw ItineraryDraft JSON replies to give, one per compose call, in order
         (tests use it for bad-then-good drafts). Once used up, the San Jose v1 draft is given,
-        or the v2 draft for an edit. `summary_reply` / `edit_summary_reply` are streamed instead
+        or the v2 draft for an edit; their stops cite the found places in the compose system
+        text that share their name. `summary_reply` / `edit_summary_reply` are streamed instead
         of `reply` when the turn asks for a plan / edit summary."""
         self.reply = reply
         self.drafts = list(drafts or [])
@@ -75,16 +86,88 @@ class FakeProvider:
             if self.drafts:
                 draft = self.drafts.pop(0)
             elif EDIT_PHRASE in last_user_text(messages).lower():
-                draft = load_fake_data("draft_sanjose_v2")
+                draft = cite_found_places(load_fake_data("draft_sanjose_v2"), system)
             else:
-                draft = load_fake_data("draft_sanjose_v1")
+                draft = cite_found_places(load_fake_data("draft_sanjose_v1"), system)
             return schema.model_validate(draft)
         raise NotImplementedError(f"FakeProvider.complete_json has no scripted reply for {schema.__name__}")
+
+    async def tool_turn(
+        self, system: str, messages: list[Message], rounds: list[ToolRound], tools: list[ToolSpec]
+    ) -> list[ToolCall]:
+        """The scripted planner: in round 1 of a generate, `search_places` for each city ×
+        interest, then `search_hotels` per city when the exact dates are known. Only tools in
+        `tools` are asked for. A later round, or an edit, asks for none."""
+        if rounds or PLANNER_EDIT_MARKER in system:
+            return []
+        profile = planner_profile(system)
+        tool_names = {tool.name for tool in tools}
+        wanted: list[tuple[str, dict[str, Any]]] = []
+        if "search_places" in tool_names:
+            for city in profile.cities:
+                for interest in profile.interests:
+                    wanted.append(("search_places", {"city": city, "interest": interest}))
+        dates = exact_dates(profile)
+        if "search_hotels" in tool_names and dates:
+            check_in, check_out = dates
+            for city in profile.cities:
+                wanted.append(("search_hotels", {"city": city, "check_in": check_in, "check_out": check_out}))
+        return [
+            ToolCall(id=f"call_{i}", name=name, arguments=arguments)
+            for i, (name, arguments) in enumerate(wanted, start=1)
+        ]
 
 
 def load_fake_data(name: str) -> dict[str, Any]:
     """The JSON in `llm/fake_data/<name>.json`."""
     return json.loads((FAKE_DATA_DIR / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def cite_found_places(draft: dict[str, Any], system: str) -> dict[str, Any]:
+    """Set `place_ref` on each stop whose name matches a found place listed in `system` (equal
+    names, or one starts with the other: "San Pedro Square" ↔ "San Pedro Square Market"), as a
+    real model would cite them."""
+    found = [(ref, simple_name(name)) for ref, name in PLACE_LINE.findall(system)]
+    for stop in draft["stops"]:
+        name = simple_name(stop["name"])
+        stop["place_ref"] = next(
+            (
+                ref
+                for ref, found_name in found
+                if found_name.startswith(name) or name.startswith(found_name)
+            ),
+            None,
+        )
+    return draft
+
+
+def simple_name(name: str) -> str:
+    """Lowercase, no punctuation, single spaces (like agent/tags.normalize_name; the LLM layer
+    doesn't import the agent)."""
+    return " ".join(re.sub(r"[^\w\s]", "", name.lower()).split())
+
+
+def planner_profile(system: str) -> TripProfile:
+    """The profile JSON that follows PLANNER_PROFILE_MARKER in the planner's system text (an
+    empty profile if there is none)."""
+    start = system.find(PLANNER_PROFILE_MARKER)
+    if start < 0:
+        return TripProfile()
+    data, _ = json.JSONDecoder().raw_decode(system[start + len(PLANNER_PROFILE_MARKER):].lstrip())
+    return TripProfile.model_validate(data)
+
+
+def exact_dates(profile: TripProfile) -> tuple[str, str] | None:
+    """The trip's first and last day as ISO strings, or None if they aren't known exactly."""
+    if profile.start_date is None:
+        return None
+    if profile.end_date is not None:
+        end = profile.end_date
+    elif profile.duration_days is not None:
+        end = profile.start_date + timedelta(days=profile.duration_days - 1)
+    else:
+        return None
+    return profile.start_date.isoformat(), end.isoformat()
 
 
 def last_user_text(messages: list[Message]) -> str:

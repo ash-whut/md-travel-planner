@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
+from app.agent.turn import TurnLlms
 from app.api.chat import get_llm
 from app.db import repo
 from app.db.tables import MessageRow
@@ -112,7 +113,7 @@ def test_fake_summary_phrase_matches_the_turn_summary_request() -> None:
 
 
 def _use_provider(client: TestClient, provider: Any) -> None:
-    client.app.dependency_overrides[get_llm] = lambda: provider  # type: ignore[attr-defined]
+    client.app.dependency_overrides[get_llm] = lambda: TurnLlms(provider, provider)  # type: ignore[attr-defined]
 
 
 def _failing_provider() -> FakeProvider:
@@ -169,7 +170,12 @@ def test_generate_status_events_start_then_end_with_drafting_label(client: TestC
     statuses = [data for name, data in _generate(client, session_id) if name == "status"]
 
     assert all(set(s) == {"label", "state"} for s in statuses)
-    assert statuses[0] == {"label": "Drafting your plan…", "state": "start"}
+    # The planner's line comes first (step 33a); no tools run for an empty profile.
+    assert statuses[:2] == [
+        {"label": "Choosing what to look up…", "state": "start"},
+        {"label": "Choosing what to look up…", "state": "end"},
+    ]
+    assert statuses[2] == {"label": "Drafting your plan…", "state": "start"}
     assert statuses[-1]["state"] == "end"
     assert all(s["state"] in ("start", "end") for s in statuses)
 
@@ -192,8 +198,15 @@ def test_generate_itinerary_event_is_a_valid_v1_plan(client: TestClient) -> None
     assert plan.version == 1
     tags = [stop.tag for stop in plan.stops]
     assert tags == [chr(ord("A") + i) for i in range(len(tags))]
-    # Tools don't exist yet: no coordinates, no weather, no bookings from the LLM.
-    assert all(stop.lat is None and stop.lng is None for stop in plan.stops)
+    # This profile has no city, so the planner finds no places: only home, the airports and the
+    # hotel get coordinates (from the geocoder, step 34); nothing comes from the LLM.
+    fixed_kinds = {"home", "airport", "lodging"}
+    assert all(
+        stop.lat is None and stop.lng is None for stop in plan.stops if stop.kind not in fixed_kinds
+    )
+    airports = [stop for stop in plan.stops if stop.kind == "airport"]
+    assert airports
+    assert all(stop.lat is not None and stop.lng is not None for stop in airports)
 
 
 # --- Generate button: persistence -----------------------------------------------------------
@@ -529,10 +542,36 @@ def test_failed_save_emits_status_error_not_end(
     session_id = _create_session(client)
 
     events = _generate(client, session_id)
-    states = [data["state"] for name, data in events if name == "status"]
+    states = [
+        data["state"] for name, data in events
+        if name == "status" and data["label"] == "Drafting your plan…"
+    ]
 
     assert states == ["start", "error"]
     assert events[-1] == ("error", {"message": turn.PLAN_ERROR_MESSAGE, "retryable": True})
+    assert _versions(db_engine, session_id) == []
+
+
+def test_failed_plan_read_emits_status_error_before_error(
+    client: TestClient, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken_list(db: Session, session_id: str) -> list[Itinerary]:
+        raise RuntimeError("database hiccup")
+
+    monkeypatch.setattr(repo, "list_itineraries", broken_list)
+    session_id = _create_session(client)
+
+    events = _generate(client, session_id)
+    statuses = [data for name, data in events if name == "status"]
+
+    # contracts §5: a failed generation gives a status error, then the error event.
+    assert statuses[-2:] == [
+        {"label": "Drafting your plan…", "state": "start"},
+        {"label": "Drafting your plan…", "state": "error"},
+    ]
+    assert events[-2][0] == "status"
+    assert events[-1] == ("error", {"message": turn.PLAN_ERROR_MESSAGE, "retryable": True})
+    monkeypatch.undo()  # _versions reads through repo.list_itineraries
     assert _versions(db_engine, session_id) == []
 
 

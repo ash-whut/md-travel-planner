@@ -1,9 +1,10 @@
 """Postprocess: turn the LLM's ItineraryDraft into a full Itinerary (contracts §2.2, §2.3, §3).
 
 Code owns ids, version, tags, sources and `updated_in_version`. City coordinates, day weather
-and the weather summary come from the gathered weather (never from the draft). Things that
-later steps fill from tools (stop coordinates, prices, links, transit, bookings) stay null or
-empty here. The finished itinerary is validated; any broken rules come back as a list of error
+and the weather summary come from the gathered weather (never from the draft). Stop
+coordinates, addresses and place ids come from the places tool, found by the pipeline
+(`StopPlace`); never from the draft or the weather's city coordinates. Things that later steps
+fill from tools (prices, links, transit, bookings) stay null or empty here. The finished itinerary is validated; any broken rules come back as a list of error
 strings instead of an exception, so the compose call can try once more with them (step 22).
 """
 
@@ -35,6 +36,7 @@ from app.schemas.profile import TripProfile
 DEFAULT_ITEM_SOURCE = "AI suggestion"
 BUDGET_ASSUMPTION = "Budget level assumed (none given)"
 WEATHER_ASSUMPTION = "Weather for {city} couldn't be loaded; check a forecast before you go"
+PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places search found
 
 
 @dataclass
@@ -52,6 +54,22 @@ class CityWeather:
     error: str | None = None
 
 
+@dataclass
+class StopPlace:
+    """Where one draft stop is, from a tool (the pipeline finds it; see pipeline.locate_stops).
+
+    `source` is the item source for items at this stop (e.g. "Geoapify" for a place the
+    places search found); None keeps the default "AI suggestion" (e.g. a geocoded home).
+    """
+
+    lat: float
+    lng: float
+    address: str | None = None
+    place_id: str | None = None
+    rating: float | None = None
+    source: str | None = None
+
+
 def short_city_name(name: str) -> str:
     """The name without its region: "San Jose, CA" → "San Jose"."""
     return name.split(",")[0].strip()
@@ -62,16 +80,20 @@ def build_itinerary(
     previous_versions: list[Itinerary],
     profile: TripProfile,
     weather: list[CityWeather] | None = None,
+    places: dict[str, StopPlace] | None = None,
 ) -> Itinerary | list[str]:
     """The finished Itinerary, or a list of validation errors if it breaks the §2.2 rules.
 
     `previous_versions` are all earlier itineraries of the session (empty for the first plan).
     The new plan reuses the id of the latest one, so all versions share one plan id.
     `weather` is the gather step's result (empty when nothing was gathered).
+    `places` maps a draft stop key to its tool location; stops without one stay off the map.
     """
     latest = max(previous_versions, key=lambda itinerary: itinerary.version, default=None)
     try:
-        itinerary = _assemble(draft, latest, previous_versions, profile, weather or [])
+        itinerary = _assemble(
+            draft, latest, previous_versions, profile, weather or [], places or {}
+        )
     except ValidationError as error:
         return [line for detail in error.errors() for line in _error_lines(detail)]
 
@@ -86,9 +108,11 @@ def _assemble(
     previous_versions: list[Itinerary],
     profile: TripProfile,
     weather: list[CityWeather],
+    places: dict[str, StopPlace],
 ) -> Itinerary:
     """Copy the draft into an Itinerary. Raises ValidationError when a §2.2 rule breaks."""
-    tags = assign_tags(draft, previous_versions)
+    place_ids = {key: place.place_id for key, place in places.items() if place.place_id}
+    tags = assign_tags(draft, previous_versions, place_ids)
     days = [
         Day(
             day_number=day.day_number,
@@ -97,7 +121,7 @@ def _assemble(
             city=day.city,
             weather=_day_weather(day.city, day.date, weather, len(draft.cities)),
             items=[
-                _item(item, f"d{day.day_number}-i{index}", tags)
+                _item(item, f"d{day.day_number}-i{index}", tags, places)
                 for index, item in enumerate(day.items, start=1)
             ],
         )
@@ -118,7 +142,7 @@ def _assemble(
         cost_estimate=_cost_estimate(draft.cost_estimate),
         weather_summary=weather_summary(days),
         assumptions=_assumptions(draft, profile, weather),
-        stops=_stops(draft, tags),
+        stops=_stops(draft, tags, places),
         lodging=[_lodging(lodging, tags) for lodging in draft.lodging],
         days=days,
         bookings=[],
@@ -214,19 +238,27 @@ def _feel(average_high_f: float) -> str:
     return "Cold"
 
 
-def _stops(draft: ItineraryDraft, tags: dict[str, str]) -> list[Stop]:
-    """One stop per tag (two draft keys can be the same place), sorted by letter."""
+def _stops(
+    draft: ItineraryDraft, tags: dict[str, str], places: dict[str, StopPlace]
+) -> list[Stop]:
+    """One stop per tag (two draft keys can be the same place), sorted by letter. Coordinates,
+    place_id, rating and (when the tool has one) the address come from `places`; map_url comes
+    from links (step 41)."""
     stops_by_tag: dict[str, Stop] = {}
     for draft_stop in draft.stops:
         tag = tags[draft_stop.key]
         if tag in stops_by_tag:
             continue
+        place = places.get(draft_stop.key)
         stops_by_tag[tag] = Stop(
             tag=tag,
             name=draft_stop.name,
             kind=draft_stop.kind,
-            address=draft_stop.address,
-            # Coordinates, place_id, rating and map_url come from tools/links (steps 34, 41).
+            address=(place.address if place and place.address else draft_stop.address),
+            lat=place.lat if place else None,
+            lng=place.lng if place else None,
+            place_id=place.place_id if place else None,
+            rating=place.rating if place else None,
         )
     return sorted(stops_by_tag.values(), key=lambda stop: index_for_tag(stop.tag))
 
@@ -249,7 +281,10 @@ def _lodging(lodging: DraftLodging, tags: dict[str, str]) -> Lodging:
     )
 
 
-def _item(item: DraftItem, item_id: str, tags: dict[str, str]) -> ItineraryItem:
+def _item(
+    item: DraftItem, item_id: str, tags: dict[str, str], places: dict[str, StopPlace]
+) -> ItineraryItem:
+    place = places.get(item.stop_key) if item.stop_key else None
     return ItineraryItem(
         id=item_id,
         kind=item.kind,
@@ -262,7 +297,7 @@ def _item(item: DraftItem, item_id: str, tags: dict[str, str]) -> ItineraryItem:
         cost_source="ai_estimate" if item.est_cost is not None else None,
         booking_required=item.booking_required,
         why=item.why,
-        source=DEFAULT_ITEM_SOURCE,
+        source=(place.source if place and place.source else DEFAULT_ITEM_SOURCE),
     )
 
 

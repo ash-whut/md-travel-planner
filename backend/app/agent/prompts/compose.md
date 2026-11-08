@@ -31,6 +31,11 @@ profile below, then reply with one JSON object (no other text): the full day-by-
   it with `stop_key`. Visiting the same place twice (e.g. the airport) reuses its key.
   Free-time items may have `stop_key: null`.
 - Include `home` (the origin), the airports for a flight, and the hotel as stops.
+- **Use the places found.** When the context has a "Places found" list, build the sights, meals
+  and activities from it and put the place's ref in the stop's `place_ref` (e.g. `"p3"`). Copy
+  only refs from that list, never make one up. Stops that aren't in the list (home, airports,
+  the hotel, anything else) get `place_ref: null`. The app adds addresses and coordinates from
+  the ref, so a place without one won't show on the map.
 - One `lodging` entry per city with `check_in`, `check_out`, `nights` and an estimated
   `price_per_night`. Add a `lodging` item on the check-in day.
 - `est_cost` is per person in USD and is a rough estimate; use `null` if you can't guess.

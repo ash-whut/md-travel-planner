@@ -58,7 +58,7 @@ backend/
       postprocess.py   draft → Itinerary (tags, ids, weather, coords, prices, links, bookings, validation)
       tags.py          letter tags (contracts §3)
       context.py       builds the per-turn context text (today's date, profile, compact itinerary)
-      prompts/         system.md, understand.md, compose.md (plain markdown files)
+      prompts/         system.md, understand.md, planner.md, compose.md (plain markdown files)
       sse.py           tiny helpers to build SSE events
     tools/             weather.py, places.py, hotels.py, links.py, common.py (mock switch, cache, errors),
                        registry.py (the planner's tools: name, description, JSON schema, function)
@@ -128,7 +128,7 @@ domain's raw results get too big or messy for the planner.
 |---|---|---|---|
 | **TAMU AI** (`chat-api.tamu.ai`, OpenAI-compatible) | the LLM | TAMU account key | Check the model id and JSON-output support (step 10) |
 | **Open-Meteo** forecast + archive + geocoding | weather; city coordinates | none | Free for non-commercial use; credit "Weather data by Open-Meteo.com" |
-| **Geoapify** Places + Geocoding | place suggestions, addresses, coordinates | free account, no card | About 3,000 requests/day on the free plan |
+| **Geoapify** Places + Geocoding | place suggestions, addresses, coordinates | free account, no card | Free plan: 3,000 credits/day, 5 requests/second |
 | **Nominatim** (OpenStreetMap) | geocoding fallback | none | ≤ 1 request/second; send a descriptive User-Agent (app name) |
 | **OpenStreetMap tiles** | map background (Leaflet) | none | Light use only; keep the "© OpenStreetMap" attribution |
 | **SerpApi** Google Hotels | hotel prices | free account | Small monthly quota, so cache results 6 h. Without a key → hotels without prices |

@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     llm_provider: Literal["fake", "openai_compat"] = "fake"
-    llm_model: str = ""
+    llm_model: str = ""  # the planner model (planner + compose), D26
+    llm_chat_model: str = ""  # the chat model (understand + replies); empty = llm_model
     llm_api_key: str = ""
     llm_base_url: str = ""
 

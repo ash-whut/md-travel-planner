@@ -183,7 +183,7 @@ def _compat_settings(settings: Settings, **overrides: str) -> Settings:
 
 
 def test_factory_returns_openai_compat_provider(settings: Settings) -> None:
-    provider = get_provider(_compat_settings(settings))
+    provider = get_provider(_compat_settings(settings), "planner")
     assert isinstance(provider, OpenAICompatProvider)
     assert provider.name == "openai_compat"
     assert provider.model == "some-model"
@@ -195,13 +195,13 @@ def test_factory_returns_openai_compat_provider(settings: Settings) -> None:
 )
 def test_factory_errors_clearly_when_a_setting_is_missing(settings: Settings, field: str, env_name: str) -> None:
     with pytest.raises(ValueError, match=env_name):
-        get_provider(_compat_settings(settings, **{field: ""}))
+        get_provider(_compat_settings(settings, **{field: ""}), "planner")
 
 
 def test_factory_lists_all_missing_settings(settings: Settings) -> None:
     bad = settings.model_copy(update={"llm_provider": "openai_compat"})
     with pytest.raises(ValueError) as exc:
-        get_provider(bad)
+        get_provider(bad, "planner")
     message = str(exc.value)
     for env_name in ("LLM_MODEL", "LLM_API_KEY", "LLM_BASE_URL"):
         assert env_name in message
@@ -217,7 +217,7 @@ def test_live_tamu_ai_streams_and_returns_json() -> None:
     live = Settings().model_copy(update={"llm_provider": "openai_compat"})
     if not (live.llm_model and live.llm_api_key and live.llm_base_url):
         pytest.skip("LLM_MODEL / LLM_API_KEY / LLM_BASE_URL not set in backend/.env")
-    provider = get_provider(live)
+    provider = get_provider(live, "planner")
 
     async def run() -> tuple[list[str], City, TurnAnalysis]:
         chunks = [c async for c in provider.stream_text("Reply in one short sentence.", MESSAGES)]

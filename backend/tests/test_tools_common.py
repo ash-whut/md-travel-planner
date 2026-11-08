@@ -1,5 +1,5 @@
 """Step 28: ToolResult helpers, mock switch + loading, the api_cache with TTL, and the
-pipeline's status() wrapper around a tool call."""
+status() wrapper around a tool call (in agent/planner.py since step 33a)."""
 
 import asyncio
 import json
@@ -10,9 +10,10 @@ from typing import Any
 import pytest
 from sqlalchemy import inspect
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
-from app.agent import pipeline
+from app.agent import planner
 from app.core.config import get_settings
 from app.db.tables import ApiCacheRow
 from app.tools import common
@@ -144,11 +145,38 @@ def test_cache_get_default_now_uses_current_time() -> None:
     assert cache_get("weather", ARGS) == VALUE
 
 
-# ---- pipeline.status() ----
+def test_cache_set_survives_a_duplicate_key_race(
+    db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two parallel calls both miss the cache; the other one inserts first. A plain INSERT of the
+    # same key then raises IntegrityError, which cache_set must swallow (the tool has its data).
+    cache_set("place_geocode", ARGS, {"v": "first"}, 60, now=T0)
+    monkeypatch.setattr(common.Session, "merge", lambda self, row: self.add(row))
+
+    cache_set("place_geocode", ARGS, {"v": "second"}, 60, now=T0)  # must not raise
+
+    assert cache_get("place_geocode", ARGS, now=T0) == {"v": "first"}
+    with Session(db_engine) as db:
+        assert len(list(db.exec(select(ApiCacheRow)).all())) == 1
+
+
+def test_cache_set_ignores_a_db_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken_commit(self: Session) -> None:
+        raise OperationalError("COMMIT", {}, Exception("database is locked"))
+
+    monkeypatch.setattr(common.Session, "commit", broken_commit)
+
+    cache_set("weather", ARGS, VALUE, 60, now=T0)  # must not raise
+
+    monkeypatch.undo()
+    assert cache_get("weather", ARGS, now=T0) is None
+
+
+# ---- planner.status() ----
 
 def collect(label: str, tool: Any, *args: Any) -> list[Any]:
     async def run() -> list[Any]:
-        return [item async for item in pipeline.status(label, tool, *args)]
+        return [item async for item in planner.status(label, tool, *args)]
 
     return asyncio.run(run())
 

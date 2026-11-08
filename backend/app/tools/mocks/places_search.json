@@ -1,0 +1,364 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "The Tech Interactive",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8901,
+        "lat": 37.3316,
+        "formatted": "The Tech Interactive, 201 South Market Street, San Jose, CA 95113, United States of America",
+        "address_line1": "The Tech Interactive",
+        "address_line2": "201 South Market Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "entertainment",
+          "entertainment.museum"
+        ],
+        "place_id": "mock_tech_interactive"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8901,
+          37.3316
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Computer History Museum",
+        "country": "United States",
+        "state": "California",
+        "city": "Mountain View",
+        "postcode": "94043",
+        "lon": -122.0774,
+        "lat": 37.4143,
+        "formatted": "Computer History Museum, 1401 North Shoreline Boulevard, Mountain View, CA 94043, United States of America",
+        "address_line1": "Computer History Museum",
+        "address_line2": "1401 North Shoreline Boulevard, Mountain View, CA 94043, United States of America",
+        "categories": [
+          "entertainment",
+          "entertainment.museum"
+        ],
+        "place_id": "mock_computer_history_museum"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.0774,
+          37.4143
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "San Jose Museum of Art",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8895,
+        "lat": 37.3335,
+        "formatted": "San Jose Museum of Art, 110 South Market Street, San Jose, CA 95113, United States of America",
+        "address_line1": "San Jose Museum of Art",
+        "address_line2": "110 South Market Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "entertainment",
+          "entertainment.culture",
+          "entertainment.culture.gallery",
+          "entertainment.museum"
+        ],
+        "place_id": "mock_sj_museum_of_art"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8895,
+          37.3335
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Winchester Mystery House",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95128",
+        "lon": -121.9511,
+        "lat": 37.3184,
+        "formatted": "Winchester Mystery House, 525 South Winchester Boulevard, San Jose, CA 95128, United States of America",
+        "address_line1": "Winchester Mystery House",
+        "address_line2": "525 South Winchester Boulevard, San Jose, CA 95128, United States of America",
+        "categories": [
+          "tourism",
+          "tourism.attraction",
+          "tourism.sights"
+        ],
+        "place_id": "mock_winchester_mystery_house"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.9511,
+          37.3184
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Japantown",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95112",
+        "lon": -121.8947,
+        "lat": 37.3486,
+        "formatted": "Japantown, Jackson Street, San Jose, CA 95112, United States of America",
+        "address_line1": "Japantown",
+        "address_line2": "Jackson Street, San Jose, CA 95112, United States of America",
+        "categories": [
+          "tourism",
+          "tourism.sights"
+        ],
+        "place_id": "mock_japantown"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8947,
+          37.3486
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "San Pedro Square Market",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95110",
+        "lon": -121.8942,
+        "lat": 37.3364,
+        "formatted": "San Pedro Square Market, 87 North San Pedro Street, San Jose, CA 95110, United States of America",
+        "address_line1": "San Pedro Square Market",
+        "address_line2": "87 North San Pedro Street, San Jose, CA 95110, United States of America",
+        "categories": [
+          "catering",
+          "catering.food_court"
+        ],
+        "place_id": "mock_san_pedro_square"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8942,
+          37.3364
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Good Karma Kitchen",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8899,
+        "lat": 37.3357,
+        "formatted": "Good Karma Kitchen, 37 South 1st Street, San Jose, CA 95113, United States of America",
+        "address_line1": "Good Karma Kitchen",
+        "address_line2": "37 South 1st Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "catering",
+          "catering.restaurant",
+          "catering.restaurant.vegetarian"
+        ],
+        "place_id": "mock_good_karma_kitchen"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8899,
+          37.3357
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Original Joe's",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8862,
+        "lat": 37.3313,
+        "formatted": "Original Joe's, 301 South 1st Street, San Jose, CA 95113, United States of America",
+        "address_line1": "Original Joe's",
+        "address_line2": "301 South 1st Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "catering",
+          "catering.restaurant",
+          "catering.restaurant.italian"
+        ],
+        "place_id": "mock_original_joes"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8862,
+          37.3313
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Japanese Friendship Garden",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95112",
+        "lon": -121.8609,
+        "lat": 37.3194,
+        "formatted": "Japanese Friendship Garden, 1300 Senter Road, San Jose, CA 95112, United States of America",
+        "address_line1": "Japanese Friendship Garden",
+        "address_line2": "1300 Senter Road, San Jose, CA 95112, United States of America",
+        "categories": [
+          "leisure",
+          "leisure.park",
+          "leisure.park.garden"
+        ],
+        "place_id": "mock_japanese_friendship_garden"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8609,
+          37.3194
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "San Jose Municipal Rose Garden",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95126",
+        "lon": -121.9282,
+        "lat": 37.3317,
+        "formatted": "San Jose Municipal Rose Garden, Naglee Avenue & Dana Avenue, San Jose, CA 95126, United States of America",
+        "address_line1": "San Jose Municipal Rose Garden",
+        "address_line2": "Naglee Avenue & Dana Avenue, San Jose, CA 95126, United States of America",
+        "categories": [
+          "leisure",
+          "leisure.park",
+          "leisure.park.garden"
+        ],
+        "place_id": "mock_rose_garden"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.9282,
+          37.3317
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Guadalupe River Park",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95110",
+        "lon": -121.9006,
+        "lat": 37.3393,
+        "formatted": "Guadalupe River Park, 438 Coleman Avenue, San Jose, CA 95110, United States of America",
+        "address_line1": "Guadalupe River Park",
+        "address_line2": "438 Coleman Avenue, San Jose, CA 95110, United States of America",
+        "categories": [
+          "leisure",
+          "leisure.park"
+        ],
+        "place_id": "mock_guadalupe_river_park"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.9006,
+          37.3393
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Santana Row",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95128",
+        "lon": -121.9479,
+        "lat": 37.3209,
+        "formatted": "Santana Row, 377 Santana Row, San Jose, CA 95128, United States of America",
+        "address_line1": "Santana Row",
+        "address_line2": "377 Santana Row, San Jose, CA 95128, United States of America",
+        "categories": [
+          "commercial",
+          "commercial.shopping_mall"
+        ],
+        "place_id": "mock_santana_row"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.9479,
+          37.3209
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Philz Coffee",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8867,
+        "lat": 37.3339,
+        "formatted": "Philz Coffee, 118 Paseo de San Antonio, San Jose, CA 95113, United States of America",
+        "address_line1": "Philz Coffee",
+        "address_line2": "118 Paseo de San Antonio, San Jose, CA 95113, United States of America",
+        "categories": [
+          "catering",
+          "catering.cafe",
+          "catering.cafe.coffee_shop"
+        ],
+        "place_id": "mock_philz_coffee"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8867,
+          37.3339
+        ]
+      }
+    }
+  ]
+}

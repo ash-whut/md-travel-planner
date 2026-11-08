@@ -54,8 +54,11 @@ def assign_tags(
     """Map every draft stop `key` to its letter tag.
 
     `previous_versions` are all earlier itineraries of the session (any order; empty for v1).
-    `place_ids` maps a stop key to the place_id of its tool result (step 34); until then it is
-    empty and stops match by name only.
+    `place_ids` maps a stop key to the place_id of its tool result (step 34); stops without one
+    match by name only.
+    An earlier version's tag is given to at most one place in this version: two new stops with
+    the same name but different place_ids can't both take the letter of an older stop that had
+    no place_id.
     """
     place_ids = place_ids or {}
     previous_stops = [
@@ -84,11 +87,14 @@ def assign_tags(
         )
         if tag is None:
             # Newest version first, so a stop seen in several versions takes its latest letter.
+            # A letter another place already took in this version is skipped.
+            used_this_version = {earlier_tag for _, _, earlier_tag in tagged_this_version}
             tag = next(
                 (
                     previous.tag
                     for previous in previous_stops
-                    if same_place(stop.name, place_id, previous.name, previous.place_id)
+                    if previous.tag not in used_this_version
+                    and same_place(stop.name, place_id, previous.name, previous.place_id)
                 ),
                 None,
             )

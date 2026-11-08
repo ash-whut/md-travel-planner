@@ -111,7 +111,7 @@ params also work: `?tab=map&day=2`, `?tab=book`, `?why=F`, `?picker=1` (only wit
 | Mode | Settings | Needs |
 |---|---|---|
 | Offline (default) | `LLM_PROVIDER=fake`, `TOOL_PROVIDER_MODE=mock` | nothing |
-| Real LLM, mock tools | `LLM_PROVIDER=openai_compat` + `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | TAMU AI key |
+| Real LLM, mock tools | `LLM_PROVIDER=openai_compat` + `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` (optional `LLM_CHAT_MODEL`, D26) | TAMU AI key |
 | Everything live | above + `TOOL_PROVIDER_MODE=live` + `GEOAPIFY_KEY` (+ `SERPAPI_KEY` for hotel prices) | free keys |
 
 Tests always run offline, whatever your `.env` says.
@@ -122,11 +122,11 @@ Better still, each person makes their own.
 
 | Service | Used for | How to get it | Variable |
 |---|---|---|---|
-| **TAMU AI** | the LLM | Sign in to TAMU AI with your NetID and create an API key. Base URL `https://chat-api.tamu.ai` (confirm in plan step 10) | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` |
-| **Geoapify** | places, addresses, coordinates | Sign up at geoapify.com (free plan) → create a project → API key | `GEOAPIFY_KEY` |
+| **TAMU AI** | the LLM | Sign in to TAMU AI with your NetID and create an API key. Base URL `https://chat-api.tamu.ai` (confirm in plan step 10) | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_CHAT_MODEL` |
+| **Geoapify** | places, addresses, coordinates | Sign up at geoapify.com (free plan: 3,000 credits/day, 5 requests/second) → create a project → API key | `GEOAPIFY_KEY` |
 | **SerpApi** | hotel prices (Google Hotels) | Sign up at serpapi.com (free plan, small monthly quota) → dashboard → API key | `SERPAPI_KEY` |
 | Open-Meteo | weather + city coordinates | no key | — |
-| OpenStreetMap / Nominatim | map tiles, geocoding fallback | no key (light use, keep the attribution) | — |
+| OpenStreetMap / Nominatim | map tiles, geocoding fallback (used when `GEOAPIFY_KEY` is unset or Geoapify finds nothing) | no key (≤ 1 request/second, light use, keep the attribution) | — |
 
 Use mock mode while you're not working on a tool, to save the free quotas (SerpApi especially).
 

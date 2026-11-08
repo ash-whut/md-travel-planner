@@ -6,18 +6,24 @@ Tools are plain synchronous functions that never raise to the caller: they retur
 
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from app.core.config import get_settings
 from app.db.engine import get_engine
 from app.db.tables import ApiCacheRow, utcnow
 
+logger = logging.getLogger(__name__)
+
 MOCKS_DIR = Path(__file__).resolve().parent / "mocks"
+TIMEOUT_SECONDS = 10.0
 
 # Cache lifetimes per tool (contracts §1, api_cache).
 WEATHER_TTL_SECONDS = 3 * 60 * 60
@@ -72,13 +78,52 @@ def cache_get(tool: str, args: dict[str, Any], now: datetime | None = None) -> A
 def cache_set(
     tool: str, args: dict[str, Any], value: Any, ttl_seconds: int, now: datetime | None = None
 ) -> None:
-    """Store a JSON-ready value for this call, replacing any earlier entry."""
+    """Store a JSON-ready value for this call, replacing any earlier entry.
+
+    Best-effort: a DB error is logged and ignored, since the tool already has its result. Two
+    parallel calls (e.g. two searches geocoding the same city) can both miss the cache and race
+    to insert the same key; the loser gets an IntegrityError, and the winner's row is kept.
+    """
     row = ApiCacheRow(
         key=cache_key(tool, args), value=value, created_at=now or utcnow(), ttl_seconds=ttl_seconds
     )
     with Session(get_engine()) as db:
-        db.merge(row)
-        db.commit()
+        try:
+            db.merge(row)
+            db.commit()
+        except SQLAlchemyError as error:
+            db.rollback()
+            logger.warning("api_cache write for %s skipped: %s", tool, type(error).__name__)
+
+
+def get_json(
+    client: httpx.Client | None,
+    url: str,
+    params: dict[str, Any],
+    headers: dict[str, str] | None = None,
+) -> Any:
+    """GET and parse a JSON body. Raises httpx.HTTPError on network or HTTP errors.
+
+    Uses `client` when given (tests pass one with a MockTransport), else a short-lived one."""
+    http = client or httpx.Client(timeout=TIMEOUT_SECONDS)
+    try:
+        response = http.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    finally:
+        if client is None:
+            http.close()
+
+
+def describe_error(error: Exception) -> str:
+    """A one-line reason without the request URL (which may hold a key), e.g. "HTTP 500"."""
+    if isinstance(error, httpx.HTTPStatusError):
+        return f"HTTP {error.response.status_code}"
+    if isinstance(error, httpx.HTTPError):
+        return type(error).__name__  # e.g. ConnectTimeout
+    if isinstance(error, KeyError):
+        return f"missing {error}"
+    return str(error) or type(error).__name__
 
 
 def _as_utc(moment: datetime) -> datetime:

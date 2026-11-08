@@ -46,7 +46,7 @@ def test_fake_complete_json_raises_clear_error_naming_schema() -> None:
 
 
 def test_factory_returns_fake_provider(settings: Settings) -> None:
-    provider = get_provider(settings)
+    provider = get_provider(settings, "chat")
     assert isinstance(provider, FakeProvider)
     assert provider.name == "fake"
 
@@ -54,7 +54,7 @@ def test_factory_returns_fake_provider(settings: Settings) -> None:
 def test_factory_errors_clearly_on_unknown_name(settings: Settings) -> None:
     bad = settings.model_copy(update={"llm_provider": "nope"})
     with pytest.raises(ValueError) as exc:
-        get_provider(bad)
+        get_provider(bad, "chat")
     message = str(exc.value)
     assert "nope" in message
     assert "fake" in message  # lists what is supported

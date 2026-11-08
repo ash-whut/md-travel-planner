@@ -9,11 +9,13 @@ The turn is an async generator of SSE events (contracts §5). Order:
 The Generate button runs the same turn with no user message (content=None). An edit with no
 plan yet runs as chat.
 If the client stops the stream early, the partial reply is saved with STOPPED_MARKER.
+Two models per turn (D26): the chat one understands and replies, the planner one composes.
 """
 
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from sqlmodel import Session
 
@@ -51,14 +53,29 @@ EDIT_SUMMARY_REQUEST = (
 )
 
 
+@dataclass
+class TurnLlms:
+    """The two providers of a turn (D26): `chat` for understand and replies, `planner` for
+    compose."""
+
+    chat: LLMProvider
+    planner: LLMProvider
+
+
 async def run_turn(
-    db: Session, session_id: str, content: str | None, llm: LLMProvider
+    db: Session,
+    session_id: str,
+    content: str | None,
+    chat_llm: LLMProvider,
+    planner_llm: LLMProvider | None = None,
 ) -> AsyncIterator[SseEvent]:
     """Run one turn for an existing session (the route checks it exists).
 
     `content` is the user's message. None means the Generate button: no user message is saved,
     the understand step is skipped, and the turn makes the plan.
+    `chat_llm` runs understand and the reply; `planner_llm` runs compose (None = `chat_llm`).
     """
+    planner_llm = planner_llm or chat_llm
     message_id = new_id()  # the assistant message id, announced before the message is saved
     parts: list[str] = []  # streamed reply so far, saved with STOPPED_MARKER on Stop
     plan_version: int | None = None  # set once a new plan version is saved in this turn
@@ -81,7 +98,7 @@ async def run_turn(
         history = chat_history(db, session_id)
         profile = session_profile(db, session_id)
         if content is not None:
-            analysis = await understand.analyze(llm, profile, history)
+            analysis = await understand.analyze(chat_llm, profile, history)
             new_profile = understand.merge_profile(profile, analysis.profile_updates)
             if understand.profile_changed(profile, new_profile):
                 # mode="json": the JSON column can't hold date objects.
@@ -98,13 +115,13 @@ async def run_turn(
         reply_messages = history
         if action == "generate":
             async for event in pipeline.run_generation(
-                db, session_id, llm, profile, history, on_saved=remember_version
+                db, session_id, planner_llm, profile, history, on_saved=remember_version
             ):
                 yield event
             reply_messages = pipeline.with_request(history, SUMMARY_REQUEST)
         elif action == "edit":
             async for event in pipeline.run_generation(
-                db, session_id, llm, profile, history, on_saved=remember_version,
+                db, session_id, planner_llm, profile, history, on_saved=remember_version,
                 change_request=change_request,
             ):
                 yield event
@@ -121,7 +138,7 @@ async def run_turn(
                 if isinstance(item, CityWeather)
             ]
         system = context.build_system(profile, plan=plan, weather=weather)
-        async for chunk in llm.stream_text(system, reply_messages):
+        async for chunk in chat_llm.stream_text(system, reply_messages):
             parts.append(chunk)
             yield sse.token(chunk)
 

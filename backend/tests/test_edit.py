@@ -23,6 +23,7 @@ from sqlmodel import Session
 from app.agent import context, pipeline, turn
 from app.agent.pipeline import compose
 from app.agent.postprocess import build_itinerary
+from app.agent.turn import TurnLlms
 from app.api.chat import get_llm
 from app.db import repo
 from app.db.tables import MessageRow
@@ -98,7 +99,7 @@ def _send(client: TestClient, session_id: str, content: str) -> list[Event]:
 
 
 def _use_provider(client: TestClient, provider: Any) -> None:
-    client.app.dependency_overrides[get_llm] = lambda: provider  # type: ignore[attr-defined]
+    client.app.dependency_overrides[get_llm] = lambda: TurnLlms(provider, provider)  # type: ignore[attr-defined]
 
 
 def _versions(engine: Engine, session_id: str) -> list[Itinerary]:

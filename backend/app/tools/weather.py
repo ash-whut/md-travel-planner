@@ -17,6 +17,8 @@ from app.tools.common import (
     ToolResult,
     cache_get,
     cache_set,
+    describe_error,
+    get_json,
     is_mock,
     load_mock,
     tool_error,
@@ -26,7 +28,6 @@ from app.tools.common import (
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-TIMEOUT_SECONDS = 10.0
 
 FORECAST_DAYS = 16  # today plus 15 days
 CLIMATE_YEARS = 3
@@ -123,7 +124,7 @@ def geocode_city(name: str, client: httpx.Client | None = None) -> ToolResult:
             "admin1": city.get("admin1"),
         }
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
-        return tool_error(f"City lookup failed: {_describe(error)}")
+        return tool_error(f"City lookup failed: {describe_error(error)}")
 
     if not mock:
         cache_set("geocode", cache_args, data, GEOCODE_TTL_SECONDS)
@@ -153,7 +154,7 @@ def get_weather(
         try:
             return tool_ok(_mock_days(dates, source))
         except (OSError, ValueError, KeyError, TypeError) as error:
-            return tool_error(f"Weather is unavailable: {_describe(error)}")
+            return tool_error(f"Weather is unavailable: {describe_error(error)}")
 
     cache_args = {"lat": lat, "lng": lng, "start": start, "end": end, "source": source}
     cached = cache_get("weather", cache_args)
@@ -170,7 +171,7 @@ def get_weather(
             ]
         days = _build_days(dates, series, source)
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as error:
-        return tool_error(f"Weather is unavailable: {_describe(error)}")
+        return tool_error(f"Weather is unavailable: {describe_error(error)}")
 
     cache_set("weather", cache_args, days, WEATHER_TTL_SECONDS)
     return tool_ok(days)
@@ -213,28 +214,10 @@ def _fetch_daily(
 
 def _get_json(client: httpx.Client | None, url: str, params: dict[str, Any]) -> dict[str, Any]:
     """GET a JSON object. Raises httpx.HTTPError on network or HTTP errors."""
-    http = client or httpx.Client(timeout=TIMEOUT_SECONDS)
-    try:
-        response = http.get(url, params=params)
-        response.raise_for_status()
-        payload = response.json()
-    finally:
-        if client is None:
-            http.close()
+    payload = get_json(client, url, params)
     if not isinstance(payload, dict):
         raise ValueError("unexpected response")
     return payload
-
-
-def _describe(error: Exception) -> str:
-    """A one-line reason without the request URL, e.g. "HTTP 500" or "missing 'daily'"."""
-    if isinstance(error, httpx.HTTPStatusError):
-        return f"HTTP {error.response.status_code}"
-    if isinstance(error, httpx.HTTPError):
-        return type(error).__name__  # e.g. ConnectTimeout
-    if isinstance(error, KeyError):
-        return f"missing {error}"
-    return str(error) or type(error).__name__
 
 
 def _parse_daily(payload: dict[str, Any]) -> list[DailyRow]:
