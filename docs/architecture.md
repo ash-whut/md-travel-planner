@@ -14,11 +14,12 @@ the MVP is feature-complete.
        ▼                   ▼ (Leaflet, no key)         ▼
 ┌──────────────────────── FastAPI backend (backend/app/) ────────────────┐
 │ api/  sessions.py  chat.py  bookings.py          (thin routes)          │
-│ agent/ turn.py  ─▶ understand (LLM JSON) ─▶ reply (LLM stream)          │
-│        pipeline.py ─▶ gather (tools) ─▶ compose (LLM JSON) ─▶ postprocess│
+│ agent/ turn.py  ─▶ understand (chat LLM, JSON) ─▶ reply (chat LLM)       │
+│        pipeline.py ─▶ weather ─▶ planner.py (tool rounds, parallel)     │
+│                    ─▶ compose (planner LLM, JSON) ─▶ postprocess        │
 │        tags.py  postprocess.py  prompts/*.md                            │
 │ llm/   base.py  fake_provider.py  openai_compat_provider.py  factory.py │
-│ tools/ weather.py  places.py  hotels.py  links.py   (+ mock JSON)       │
+│ tools/ weather.py  places.py  hotels.py  links.py  registry.py (+ mocks)│
 │ db/    engine, tables, repo.py       → SQLite file backend/travel.db    │
 └────────────────────────────────────────────────────────────────────────┘
         │ Open-Meteo        │ Geoapify / Nominatim     │ SerpApi (hotels)
@@ -52,24 +53,32 @@ backend/
     agent/
       turn.py          one chat turn: understand → (generate | reply) → SSE events
       understand.py    TurnAnalysis JSON call + profile merge + missing_required
-      pipeline.py      generation: gather → compose → postprocess → save
+      pipeline.py      generation: weather → planner → compose → postprocess → save
+      planner.py       the planner agent's tool rounds (parallel calls, caps, refs, status lines)
       postprocess.py   draft → Itinerary (tags, ids, weather, coords, prices, links, bookings, validation)
       tags.py          letter tags (contracts §3)
       context.py       builds the per-turn context text (today's date, profile, compact itinerary)
       prompts/         system.md, understand.md, compose.md (plain markdown files)
       sse.py           tiny helpers to build SSE events
-    tools/             weather.py, places.py, hotels.py, links.py, common.py (mock switch, cache, errors)
+    tools/             weather.py, places.py, hotels.py, links.py, common.py (mock switch, cache, errors),
+                       registry.py (the planner's tools: name, description, JSON schema, function)
       mocks/           recorded JSON responses used in mock mode and tests
   tests/               test_*.py mirroring app modules; fixtures/ with JSON
 ```
 
-## 4. How a chat turn works (no LLM tool-calling)
-We **don't** rely on the model's tool/function calling. Code decides what to run, which keeps
-it simple, testable, and working with any model.
+## 4. How a chat turn works (two agents)
+There are two LLM roles (D24, D26):
+- the **conversation agent** (`LLM_CHAT_MODEL`, Sonnet): understand + chat replies + the
+  post-plan summary. It never calls tools.
+- the **planner agent** (`LLM_MODEL`, Opus): during a generate/edit it chooses its own tool calls
+  through the model's tool calling, then compose writes the plan.
+
+Code still owns everything around the LLM: it runs the tools, caps the rounds, assigns refs
+and copies facts (D10).
 
 `POST /sessions/{id}/messages`, implemented in `agent/turn.py`:
 1. Save the user message and emit `message_start`.
-2. **Understand:** one `complete_json` call returns a `TurnAnalysis` (contracts §2.4). Merge
+2. **Understand:** one `complete_json` call (chat LLM) returns a `TurnAnalysis` (contracts §2.4). Merge
    `profile_updates` into the session profile, recompute `missing_required`, and emit `profile`
    if it changed. Auto-title once the city and dates are known (plain code, no LLM), and emit
    `title`.
@@ -82,16 +91,24 @@ it simple, testable, and working with any model.
    Any exception → `error` (the previous plan is untouched).
 
 ### 4.1 Generation pipeline (`agent/pipeline.py`)
-1. **Gather:** code calls the tools directly, depending on which steps exist:
-   - `weather.geocode_city(city)`, then `weather.get_weather(lat, lng, start, end)`;
-   - `places.search(city, interest)` for each interest;
-   - `hotels.search(city, dates, travelers)`.
-   Each call emits a `status` start/end line. A failed tool returns an error result, and the
-   pipeline continues without that data.
-2. **Compose:** one `complete_json` call → `ItineraryDraft`. The prompt includes the profile,
-   the gathered results (each with a short id the draft can cite as `place_ref`), and, for an
-   edit, the previous itinerary + `change_request` with "change only what was asked".
-3. **Postprocess** (pure functions, the most-tested code):
+1. **Weather (code):** for each profile city with exact dates, `weather.geocode_city` then
+   `weather.get_weather`, all cities in parallel (D23, D25). The planner sees the result.
+2. **Planner rounds (`agent/planner.py`):** the planner LLM gets the profile, the weather and,
+   for an edit, the current plan + `change_request`, plus the tools from `tools/registry.py`
+   (`search_places`, `search_hotels`, later `search_flights`). Each round:
+   - one `tool_turn` call. The model asks for 0–N tool calls, and only the first 6 run; the rest
+     come back to the model as "skipped: limit";
+   - code runs them **in parallel** (`asyncio.gather` + `asyncio.to_thread`). Each call emits
+     its own `status` start, then end/error as it finishes;
+   - code gives every result item a short ref (`p1`, `p2`… for places, `h1`… for hotels) and
+     sends the results back as the tool replies.
+   The loop ends when the model asks for no tools, or after 3 rounds. A failed tool returns an
+   error result, and planning carries on without that data.
+3. **Compose:** one `complete_json` call (planner LLM) → `ItineraryDraft`. The prompt includes
+   the profile, the weather, every gathered result with its ref (the draft cites `place_ref`),
+   and, for an edit, the previous itinerary + `change_request` with "change only what was
+   asked".
+4. **Postprocess** (pure functions, the most-tested code):
    - assign tags;
    - copy coordinates, addresses, prices and weather **from tool results** (never from LLM
      text);
@@ -100,7 +117,11 @@ it simple, testable, and working with any model.
    - set `updated_in_version`;
    - validate.
    If validation fails, run one repair attempt: compose again with the errors.
-4. Save as a new version, set the session to `planned`, and emit `itinerary`.
+5. Save as a new version, set the session to `planned`, and emit `itinerary`.
+
+Rough timing with the real LLM: planner round 1 ≈ 5 s, tools ≈ 1–3 s (parallel), round 2
+≈ 2 s, then compose. Sub-agents (an LLM per domain) aren't used; add one later only if a
+domain's raw results get too big or messy for the planner.
 
 ## 5. External services (all free, no card)
 | Service | Used for | Key | Limits / notes |
@@ -122,23 +143,37 @@ class LLMProvider(Protocol):
     name: str
     def stream_text(self, system: str, messages: list[dict]) -> AsyncIterator[str]: ...
     async def complete_json(self, system: str, messages: list[dict], schema: type[T]) -> T: ...
+    async def tool_turn(self, system: str, messages: list[dict], rounds: list[ToolRound],
+                        tools: list[ToolSpec]) -> list[ToolCall]: ...   # [] = no more tools
 # messages = [{"role": "user" | "assistant", "content": "..."}]
+# ToolSpec(name, description, parameters: JSON schema); ToolCall(id, name, arguments: dict);
+# ToolRound(calls: list[ToolCall], results: list[str])   — provider-neutral, in llm/base.py
 ```
 - `fake_provider.py`: deterministic and offline.
   - `stream_text` yields canned text in chunks.
   - `complete_json` returns a scripted `TurnAnalysis`, using simple keyword rules ("plan",
     "generate" → generate; a `[X]` tag or "replace" with a plan present → edit).
   - For `ItineraryDraft` it returns fixture drafts (the San Jose trip v1 / v2).
+  - `tool_turn` scripts the planner: round 1 asks for `search_places` per interest per city
+    and `search_hotels` per city (when dates are known); a later round, or an edit, asks for
+    none.
 - `openai_compat_provider.py`: `AsyncOpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)`.
   - `stream_text` uses `stream=True`.
   - `complete_json` asks for JSON (`response_format` if the endpoint supports it, else
     "reply with JSON only" + the schema in the prompt). It parses with Pydantic and retries
     once on a parse error.
-- `factory.py`: `get_provider(settings)` by `LLM_PROVIDER`.
+  - `tool_turn` turns the neutral types into OpenAI `tools` / `tool_calls` / `role: "tool"`
+    messages (that format lives only here) and sends `stream=False` (D16).
+- `factory.py`: `get_provider(settings, role)` by `LLM_PROVIDER`; `role` is `"chat"`
+  (`LLM_CHAT_MODEL`, falling back to `LLM_MODEL`) or `"planner"` (`LLM_MODEL`) (D26).
 
 ## 7. Tools (`app/tools/`)
 - Plain **synchronous** functions with typed inputs and outputs, using `httpx.Client` and a
-  10 s timeout. The agent calls them with `await asyncio.to_thread(...)`.
+  10 s timeout. The agent calls them with `await asyncio.to_thread(...)`; the calls in one
+  planner round run at the same time (D25).
+- `registry.py`: the tools the planner may call. Each entry has a name, a one-line description,
+  a JSON schema for its arguments, and the function. It is the only list of planner tools, and
+  its shape matches an MCP server's, so wrapping it later (stretch step 50) is a thin layer.
 - They never raise to the caller. They return `{"ok": false, "error": "..."}` (a small
   `ToolResult` model).
 - `TOOL_PROVIDER_MODE=mock` returns recorded JSON from `tools/mocks/`. Tests always use mock
@@ -162,7 +197,7 @@ separate frontend mock mode: run the backend with `LLM_PROVIDER=fake` + `TOOL_PR
 
 ## 9. Configuration
 - `backend/.env` (git-ignored; template `backend/.env.example`): `LLM_PROVIDER`, `LLM_MODEL`,
-  `LLM_API_KEY`, `LLM_BASE_URL`, `TOOL_PROVIDER_MODE`, `GEOAPIFY_KEY`, `SERPAPI_KEY`,
+  `LLM_CHAT_MODEL`, `LLM_API_KEY`, `LLM_BASE_URL`, `TOOL_PROVIDER_MODE`, `GEOAPIFY_KEY`, `SERPAPI_KEY`,
   `DATABASE_URL` (optional).
 - `frontend/.env.local` (git-ignored; template `frontend/.env.example`): `VITE_API_BASE_URL`.
 - No key ever reaches the browser. The map needs none.

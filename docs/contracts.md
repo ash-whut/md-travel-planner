@@ -276,6 +276,10 @@ Order: `message_start` comes first and `done` or `error` comes last. If the clie
 - A failed generation → `status` with `state: "error"`, then `error`; no version is saved.
   A tool status (e.g. weather) may also end in `error` while generation carries on to `done`;
   only the `error` event means the plan failed.
+- Tool calls in one planner round run in parallel (D25), so status lines may interleave:
+  several `start`s, then their `end`/`error`s in any order. Labels are unique within a turn
+  (e.g. "Finding food spots in San Jose"), and a later event for the same label updates that
+  line.
 - If only the summary fails (the version is already saved), a fixed "plan is ready" line is
   streamed and saved with `itinerary_version`, then `done`.
 

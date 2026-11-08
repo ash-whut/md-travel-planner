@@ -25,12 +25,12 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 | C. Plan view | 18–24 | "make the plan" → AI-drafted day cards with letters |
 | D. Edit by letter | 25–27 | "replace [F]…" → v2 with stable letters + highlight |
 | E. Weather | 28–31 | real °F weather per day |
-| F. Places + Map | 32–36 | real places with coordinates; Map tab works |
+| F. Places + Map | 32–36 (+ 32a, 32b, 33a) | planner agent picks its searches (parallel); real places with coordinates; Map tab works |
 | G. Hotels | 37–41 | real hotel price "as of"; flights as links |
 | H. Book | 42–43 | Book tab with links, approval and booked status |
 | I. History | 44–45 | history rail: list, open, rename, delete |
 | J. Polish | 46–47 | demo-ready |
-| Stretch | 48–49 | booking help, real flight fares |
+| Stretch | 48–50 | booking help, real flight fares, MCP server for the tools |
 
 ---
 
@@ -421,28 +421,95 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## F. Places + Map view
 
-### 32 · [HUMAN] Geoapify key — ☐
+### 32 · [HUMAN] Geoapify key — ☑
 - **Builds:** create a free Geoapify account (no card), make an API key, put `GEOAPIFY_KEY` in
   `backend/.env`, and confirm the free-plan limits in the README.
 - **Done when:** a places request with the key returns results.
+- **Notes:** Key added; free plan = 3,000 credits/day, 5 requests/second (put this in the README in step 33).
+  On 2026-11-08 the design for steps 33+ switched to a planner agent with parallel tool calls
+  (D24–D26), which added steps 32a, 32b and 33a.
+
+### 32a · Models per role (chat + planner) — ☐ *BE*
+- **Builds:** D26.
+  - Settings: `LLM_CHAT_MODEL` (falls back to `LLM_MODEL` when empty).
+  - `get_provider(settings, role)` with `role` = `"chat"` or `"planner"`.
+  - `chat.py` gives the turn two providers: the chat one for understand, chat replies and the
+    post-plan summary, and the planner one for compose.
+  - `.env.example`: `LLM_CHAT_MODEL=protected.Claude-Sonnet-5`, with a comment.
+- **Files:** `backend/app/core/config.py`, `llm/factory.py`, `api/chat.py`, `agent/turn.py`,
+  `agent/pipeline.py`, `backend/.env.example`, tests
+- **Tests:** the factory picks the right model per role, with the fallback; understand and
+  reply use the chat provider and compose uses the planner provider (two fakes that record
+  their calls); existing route tests keep passing (update the `get_llm` overrides).
+- **Done when:** tests green.
 - **Notes:** —
+
+### 32b · Tool calling in the LLM layer — ☐ *BE*
+- **Builds:**
+  - provider-neutral `ToolSpec`, `ToolCall`, `ToolRound` in `llm/base.py`;
+  - `tool_turn(system, messages, rounds, tools) -> list[ToolCall]` on the protocol (an empty
+    list means "no more tools");
+  - the OpenAI adapter maps it to `tools`, `tool_calls` and `role: "tool"` messages, sends
+    `stream=False` (D16), and parses the `arguments` JSON (a bad one → the call is skipped);
+  - the fake provider scripts the planner: round 1 asks for `search_places` for each interest
+    × city, plus `search_hotels` per city when dates are known. It asks only for tools that
+    appear in `tools`. A later round, or an edit, asks for none.
+- **Files:** `backend/app/llm/base.py`, `llm/openai_compat_provider.py`, `llm/fake_provider.py`,
+  `tests/test_llm_tools.py`
+- **Tests:** adapter request/response mapping with a mocked client (several parallel calls;
+  results sent back in order); bad arguments JSON; the fake script for generate/edit/no-hotels
+  cases; one `@pytest.mark.live` test, a round trip with 2 parallel calls.
+- **Done when:** tests green.
+- **Notes:** Probe (D24): Opus-5 and Sonnet-5 both return several `tool_calls` in one reply;
+  `response_format: json_object` works alongside `tools`. Keep the OpenAI format inside the
+  adapter (AGENTS rule 5).
 
 ### 33 · Places tool (Geoapify + Nominatim) — ☐ *BE*
 - **Builds:** `places.py`:
   - `geocode(query)` (Geoapify, falling back to Nominatim with a descriptive User-Agent);
   - `search(lat, lng, interest, limit=8)`, which maps interests → Geoapify categories (a table
-    in code) and normalizes results to `{id, name, address, lat, lng, category, rating}`.
-  It has mock JSON.
-- **Files:** `backend/app/tools/places.py`, `tools/mocks/places_*.json`,
+    in code) and normalizes results to `{id, name, address, lat, lng, category, rating}`;
+  - a module-level lock keeps Nominatim at ≤ 1 request/second, since tool calls run in
+    parallel (D25).
+  It has mock JSON. Also add `tools/registry.py` with its first entry, `search_places(city,
+  interest)`: a description, a JSON schema, and a function that geocodes the city and then
+  searches.
+- **Files:** `backend/app/tools/places.py`, `tools/registry.py`, `tools/mocks/places_*.json`,
   `tests/test_places.py`
 - **Tests:** interest → category mapping (and the default); normalization; no key → Nominatim
-  path; error → `ok: false`.
+  path; error → `ok: false`; the registry entry's schema and that it calls the function.
 - **Done when:** tests green.
 - **Notes:** Reuse `pipeline.status()` and the `ToolResult`/cache helpers from step 28, and cache the geocoder too (Nominatim's usage policy requires it). Open-Meteo geocoding drops the region ("Paris, TX" → Paris, France); if Nominatim takes a region, pass it through.
 
+### 33a · Planner agent: tool rounds in parallel — ☐ *BE* (needs 32a, 32b, 33)
+- **Builds:** `agent/planner.py`, run by the pipeline after weather (D24, D25):
+  - the planner prompt `prompts/planner.md` gets the profile, the weather and, for an edit, the
+    current plan + change request; the tools come from `tools/registry.py`;
+  - at most 3 rounds. Each round makes one `tool_turn` call; only the first 6 calls run, and
+    the rest get a "skipped: limit" reply. They run in parallel (`asyncio.gather` +
+    `asyncio.to_thread`), and the loop stops when the model asks for none;
+  - each call emits its own `status` start, then end/error as it finishes, with a unique label
+    ("Finding food spots in San Jose"). One "Choosing what to look up…" line runs from the first
+    round to the end of the loop;
+  - code numbers the result items with refs (`p1`…, `h1`…) and returns them to the model, and
+    to the pipeline as a list for compose;
+  - weather for several cities runs in parallel too (`gather_weather`).
+  A tool that fails or raises → an error reply to the model; planning goes on.
+- **Files:** `backend/app/agent/planner.py`, `agent/prompts/planner.md`, `agent/pipeline.py`,
+  `tests/test_planner.py`
+- **Tests:** calls in one round run at the same time (two fake tools that wait on a
+  `threading.Barrier(2)`); the 6-call and 3-round caps; a failed tool doesn't stop the plan;
+  an edit like "move [E] to day 2" makes no tool calls; refs are unique across rounds; status
+  events: every start gets exactly one end/error and the labels are unique; existing pipeline
+  tests stay green.
+- **Done when:** tests green; with the fake LLM a generated plan shows the places status lines.
+- **Notes:** The frontend keys status lines by label (step 31), so interleaved lines need no
+  frontend change (contracts §5). Chat turns still send no status (D23), so step 46's
+  `generating` note still holds.
+
 ### 34 · Real places in the plan — ☐ *BE*
 - **Builds:**
-  - gather searches places per interest;
+  - the planner's places results (step 33a) feed compose;
   - the compose prompt lists results with short refs (`p1`, `p2`…);
   - postprocess copies `place_id`, address and coordinates from the referenced result;
   - stops without a ref (home, airports) are geocoded by name + city;
@@ -491,23 +558,27 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   - normalized to name, coordinates, rating, per night, total, link;
   - `price_as_of` = now, cached 6 h.
   No key or quota left → places lodging results with no price (`price_source: "none"`). It has
-  mock JSON.
-- **Files:** `backend/app/tools/hotels.py`, `tools/mocks/hotels_*.json`, `tests/test_hotels.py`
+  mock JSON. Add a `search_hotels` entry to `tools/registry.py`.
+- **Files:** `backend/app/tools/hotels.py`, `tools/registry.py`, `tools/mocks/hotels_*.json`,
+  `tests/test_hotels.py`
 - **Tests:** normalization; the cache prevents a second call; the fallback path; error →
-  `ok: false`.
+  `ok: false`; the registry entry.
 - **Done when:** tests green.
 - **Notes:** —
 
 ### 39 · Hotel in the plan — ☐ *BE*
 - **Builds:**
-  - gather searches hotels once per city for the whole stay;
-  - compose picks one by ref;
+  - the planner calls `search_hotels` (its prompt says: one search per city for the whole
+    stay);
+  - compose picks one by ref (`h1`…);
   - postprocess builds the `lodging` entry (prices + `price_as_of` from the tool, never from
     the draft);
   - the hotel is a lettered stop, and its item shows nights + per-night cost with source
     "SerpApi Google Hotels · as of …".
-- **Files:** `backend/app/agent/pipeline.py`, `agent/postprocess.py`, tests
-- **Tests:** tool price wins over a draft price; no-price fallback → `null` + "check link".
+- **Files:** `backend/app/agent/pipeline.py`, `agent/postprocess.py`, `agent/prompts/planner.md`,
+  tests
+- **Tests:** tool price wins over a draft price; no-price fallback → `null` + "check link"; the
+  fake planner's hotel call reaches compose as an `h` ref.
 - **Done when:** tests green.
 - **Notes:** —
 
@@ -622,10 +693,18 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Notes:** —
 
 ### 49 · Real flight fares — ☐
-- **Builds:** `tools/flights.py` via SerpApi Google Flights (same key, cached). Flight items and
-  bookings get a fare estimate + "as of".
+- **Builds:** `tools/flights.py` via SerpApi Google Flights (same key, cached), registered as a
+  `search_flights` planner tool. Flight items and bookings get a fare estimate + "as of".
 - **Notes:** —
 
-**Later (not planned yet):** performance (caching everything, real routing, parallel tool
-calls), diff-aware edits, drag-and-drop editing, editable profile chips, export (PDF/.ics),
-mobile layout, an Anthropic adapter, MCP wrappers for tools, auth + deployment.
+### 50 · MCP server for the tools — ☐
+- **Builds:** a small MCP server (the `mcp` Python package; approve the new dependency first)
+  that serves every `tools/registry.py` entry, so any MCP client (Claude Desktop, Claude Code…)
+  can use our tools. The app itself keeps calling the tools directly.
+- **Notes:** The registry already has name/description/schema/function per tool (step 33), so
+  this is a thin wrapper.
+
+**Later (not planned yet):** performance (caching everything, real routing), sub-agents per
+domain (only if a domain's raw results get too big or messy for the planner), diff-aware
+edits, drag-and-drop editing, editable profile chips, export (PDF/.ics), mobile layout, an
+Anthropic adapter, auth + deployment.
