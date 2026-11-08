@@ -38,4 +38,4 @@ replaces.
 ## Open questions
 - TAMU AI rate limits (not measured in step 10). Tool calling and the model list were verified
   on 2026-11-08 (D24, D26).
-- Geoapify free-plan limits and attribution wording (step 32); SerpApi current free quota (step 37).
+- Geoapify attribution wording. (Free-plan limits confirmed: Geoapify 3,000 credits/day, 5 requests/second, step 32; SerpApi 250 searches/month, 250/hour, step 37, 2026-11-08.)

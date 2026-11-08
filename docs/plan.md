@@ -564,11 +564,11 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## G. Hotels (+ flights note)
 
-### 37 · [HUMAN] SerpApi key — ☐
+### 37 · [HUMAN] SerpApi key — ☑
 - **Builds:** create a free SerpApi account, put `SERPAPI_KEY` in `backend/.env`, and note the
   monthly quota in the README.
 - **Done when:** one Google Hotels search returns prices.
-- **Notes:** —
+- **Notes:** Key added; free plan = 250 searches/month, 250/hour (account API, 2026-11-08). A live `google_hotels` search (San Jose, Dec 4–6, `sort_by=3`) returned 18 properties with per-night and total prices, ratings, GPS and links. Quota counter lags.
 
 ### 38 · Hotels tool (SerpApi Google Hotels) — ☐ *BE*
 - **Builds:** `hotels.search(city, check_in, check_out, adults, budget_level)`:
@@ -582,7 +582,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** normalization; the cache prevents a second call; the fallback path; error →
   `ok: false`; the registry entry.
 - **Done when:** tests green.
-- **Notes:** The fake planner (step 32b) asks for `search_hotels {city, check_in, check_out}`; the registry entry must use these argument names. Each `search_places` sends 2 Geoapify requests (geocode + search), so a 6-call round can burst about 12 requests and break D25's assumption that the cap keeps Geoapify under 5 requests/second. Geocode each city once per plan, or add a small rate gate, before hotel calls add more.
+- **Notes:** The fake planner (step 32b) asks for `search_hotels {city, check_in, check_out}`; the registry entry must use these argument names. Each `search_places` sends 2 Geoapify requests (geocode + search), so a 6-call round can burst about 12 requests and break D25's assumption that the cap keeps Geoapify under 5 requests/second. Geocode each city once per plan, or add a small rate gate, before hotel calls add more. SerpApi's free plan is about 250 searches/month, so guard it in code, not only in the prompt: cache by (city, check_in, check_out) only, and allow at most one hotel search per city per plan (extra calls get a "skipped: limit" reply). Lowest-price sort puts poorly rated places first (the live check's cheapest had a 1.8 rating), so filter by rating (e.g. ≥ 3.5) or pass several results and let compose pick. Results include `gps_coordinates`, so the hotel stop can take coordinates from the tool.
 
 ### 39 · Hotel in the plan — ☐ *BE*
 - **Builds:**

@@ -124,7 +124,7 @@ Better still, each person makes their own.
 |---|---|---|---|
 | **TAMU AI** | the LLM | Sign in to TAMU AI with your NetID and create an API key. Base URL `https://chat-api.tamu.ai` (confirm in plan step 10) | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_CHAT_MODEL` |
 | **Geoapify** | places, addresses, coordinates | Sign up at geoapify.com (free plan: 3,000 credits/day, 5 requests/second) → create a project → API key | `GEOAPIFY_KEY` |
-| **SerpApi** | hotel prices (Google Hotels) | Sign up at serpapi.com (free plan, small monthly quota) → dashboard → API key | `SERPAPI_KEY` |
+| **SerpApi** | hotel prices (Google Hotels) | Sign up at serpapi.com (free plan: 250 searches/month, 250/hour; one hotel search per city per plan, cached) → dashboard → API key | `SERPAPI_KEY` |
 | Open-Meteo | weather + city coordinates | no key | — |
 | OpenStreetMap / Nominatim | map tiles, geocoding fallback (used when `GEOAPIFY_KEY` is unset or Geoapify finds nothing) | no key (≤ 1 request/second, light use, keep the attribution) | — |
 
