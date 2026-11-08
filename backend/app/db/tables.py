@@ -1,4 +1,4 @@
-"""Database tables (contracts §1). A later step adds `api_cache`."""
+"""Database tables (contracts §1)."""
 
 import uuid
 from datetime import datetime, timezone
@@ -61,3 +61,14 @@ class ItineraryRow(SQLModel, table=True):
     version: int  # 1, 2, 3… per session
     data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class ApiCacheRow(SQLModel, table=True):
+    """A cached tool result. Read and written only through `tools/common.py`."""
+
+    __tablename__ = "api_cache"
+
+    key: str = Field(primary_key=True)  # "{tool}:{sha256 of the args JSON}"
+    value: Any = Field(sa_column=Column(JSON, nullable=False))
+    created_at: datetime = Field(default_factory=utcnow)
+    ttl_seconds: int

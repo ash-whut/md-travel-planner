@@ -83,7 +83,7 @@ it simple, testable, and working with any model.
 
 ### 4.1 Generation pipeline (`agent/pipeline.py`)
 1. **Gather:** code calls the tools directly, depending on which steps exist:
-   - `weather.get_forecast(city, dates)`;
+   - `weather.geocode_city(city)`, then `weather.get_weather(lat, lng, start, end)`;
    - `places.search(city, interest)` for each interest;
    - `hotels.search(city, dates, travelers)`.
    Each call emits a `status` start/end line. A failed tool returns an error result, and the

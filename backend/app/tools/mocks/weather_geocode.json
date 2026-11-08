@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "id": 5392171,
+      "name": "San Jose",
+      "latitude": 37.33939,
+      "longitude": -121.89496,
+      "elevation": 26.0,
+      "country_code": "US",
+      "timezone": "America/Los_Angeles",
+      "population": 1026908,
+      "country": "United States",
+      "admin1": "California"
+    },
+    {
+      "id": 5391959,
+      "name": "San Francisco",
+      "latitude": 37.77493,
+      "longitude": -122.41942,
+      "elevation": 16.0,
+      "country_code": "US",
+      "timezone": "America/Los_Angeles",
+      "population": 864816,
+      "country": "United States",
+      "admin1": "California"
+    }
+  ],
+  "generationtime_ms": 0.6
+}

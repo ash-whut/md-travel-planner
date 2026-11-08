@@ -18,6 +18,7 @@ from collections.abc import AsyncIterator
 from sqlmodel import Session
 
 from app.agent import context, pipeline, sse, understand
+from app.agent.postprocess import CityWeather
 from app.agent.sse import SseEvent
 from app.db import repo
 from app.db.tables import new_id
@@ -111,7 +112,15 @@ async def run_turn(
             reply_messages = pipeline.with_request(history, summary_request)
 
         plan = repo.get_latest_itinerary(db, session_id)
-        system = context.build_system(profile, plan=plan)
+        weather: list[CityWeather] = []
+        if action == "chat" and plan is None:
+            # No plan (with its weather) yet: fetch the forecast for the profile's city and
+            # dates, if known. Silently: chat turns emit no status lines.
+            weather = [
+                item async for item in pipeline.gather_weather(profile)
+                if isinstance(item, CityWeather)
+            ]
+        system = context.build_system(profile, plan=plan, weather=weather)
         async for chunk in llm.stream_text(system, reply_messages):
             parts.append(chunk)
             yield sse.token(chunk)

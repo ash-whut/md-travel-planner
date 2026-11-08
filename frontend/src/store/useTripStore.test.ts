@@ -208,7 +208,12 @@ describe('reduceEvent (contracts §5)', () => {
       { event: 'status', data: { label, state: 'end' } },
       { event: 'status', data: { label: 'Finding hotels', state: 'start' } },
     )
-    expect(s.statusLines).toEqual({ a1: [label, 'Finding hotels'] })
+    expect(s.statusLines).toEqual({
+      a1: [
+        { label, state: 'end' },
+        { label: 'Finding hotels', state: 'start' },
+      ],
+    })
   })
 
   it('profile replaces the trip profile', () => {

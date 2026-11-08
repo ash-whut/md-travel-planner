@@ -114,9 +114,13 @@ describe('generatePlan', () => {
     expect(state().itinerary?.version).toBe(1)
   })
 
-  it('a status error event ends generating', () => {
-    const { generate } = openStream(start('a1'), status('Drafting your plan…'), status('Drafting your plan…', 'error'))
+  // Step 31: a tool status (weather) can fail while the plan carries on; only `error` ends it.
+  it('a status error event keeps generating; the error event ends it', () => {
+    const weather = 'Checking weather for San Jose · Mar 5–7'
+    const { generate } = openStream(start('a1'), status(weather), status(weather, 'error'))
     void state().generatePlan(fakeApi(generate))
+    expect(state().generating).toBe(true)
+    state().applyEvent({ event: 'error', data: { message: 'Could not make the plan', retryable: true } })
     expect(state().generating).toBe(false)
     expect(state().planStatus).toBeNull()
     state().stop()

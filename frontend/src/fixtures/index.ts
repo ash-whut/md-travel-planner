@@ -1,5 +1,6 @@
 // The v0 San Jose trip as contract-shaped JSON (docs/contracts.md §2). The JSON files in this
 // folder are the one shared copy: backend tests load them too (step 18 validates them).
+import type { StatusLine } from '../store/useTripStore'
 import type { Itinerary, Message, TripProfile } from '../types'
 import v1 from './sanjose-v1.json'
 import v2 from './sanjose-v2.json'
@@ -14,7 +15,10 @@ export const sanJoseMessages = messages as unknown as Message[]
 
 // Status lines are not stored messages (they come from SSE `status` events, step 31). For the
 // demo they are shown just above the message they led to, keyed by message id.
-export const sanJoseStatusLines: Record<string, string[]> = {
-  m8: ['Checked weather for San Jose · Mar 5–7', 'Found 12 hotels under $150/night'],
-  m10: ['Searching vegan restaurants near downtown'],
+export const sanJoseStatusLines: Record<string, StatusLine[]> = {
+  m8: [
+    { label: 'Checked weather for San Jose · Mar 5–7', state: 'end' },
+    { label: 'Found 12 hotels under $150/night', state: 'end' },
+  ],
+  m10: [{ label: 'Searching vegan restaurants near downtown', state: 'end' }],
 }

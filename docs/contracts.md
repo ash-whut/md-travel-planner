@@ -55,7 +55,7 @@ itinerary. We do **not** store provider-specific transcripts.
 | key | str PK | `"{tool}:{sha256 of the args JSON}"` |
 | value | JSON | normalized tool result |
 | created_at | datetime | |
-| ttl_seconds | int | weather 3 h, places 7 d, hotels 6 h |
+| ttl_seconds | int | weather 3 h, geocode 30 d, places 7 d, hotels 6 h |
 
 The cache exists to protect free-tier quotas (SerpApi especially), not for speed.
 
@@ -274,6 +274,8 @@ Order: `message_start` comes first and `done` or `error` comes last. If the clie
   `message_start → [profile] → status… → itinerary → token… → done`. The tokens are a short
   summary; its saved message gets `itinerary_version`. `/generate` saves no user message.
 - A failed generation → `status` with `state: "error"`, then `error`; no version is saved.
+  A tool status (e.g. weather) may also end in `error` while generation carries on to `done`;
+  only the `error` event means the plan failed.
 - If only the summary fails (the version is already saved), a fixed "plan is ready" line is
   streamed and saved with `itinerary_version`, then `done`.
 

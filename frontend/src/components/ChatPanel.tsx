@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
-import { Check, Plus, RotateCcw, SendHorizontal, Square } from 'lucide-react'
+import { Check, Loader2, Plus, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
 import { demo } from '@/demoParams'
 import { firstDayByTag, insertTag, isTag, isTagHref, parseTagTokens, tagsToLinks } from '@/lib/tags'
-import type { StoreError } from '@/store/useTripStore'
+import type { StatusLine, StoreError } from '@/store/useTripStore'
 import type { Itinerary, Message } from '@/types'
 import { TagBadge } from './TagBadge'
 
@@ -60,6 +60,19 @@ function AssistantMarkdown({ text, firstDay, onTagClick }: { text: string } & Om
   )
 }
 
+// A status line: a spinner while its step runs, then ✓ (done) or ✕ (failed). A step still
+// running after its reply stopped streaming (Stop, cut-off stream) never finished, so it shows ✕.
+function StatusLineRow({ line, live }: { line: StatusLine; live: boolean }) {
+  const state = line.state === 'start' && !live ? 'error' : line.state
+  return (
+    <p data-state={state} className="flex items-center gap-1.5 pl-1 text-xs text-gray-400">
+      {state === 'start' && <Loader2 size={12} aria-label="In progress" className="animate-spin text-accent" />}
+      {state === 'end' && <Check size={12} aria-label="Done" className="text-emerald-500" />}
+      {state === 'error' && <X size={12} aria-label="Failed" className="text-red-500" />} {line.label}
+    </p>
+  )
+}
+
 function versionLabel(version: number) {
   return version === 1 ? 'Plan created · v1' : `Plan updated · v${version}`
 }
@@ -71,7 +84,7 @@ function demoMessage(role: Message['role'], content: string, id: string): Messag
 interface Props {
   messages: Message[]
   itinerary: Itinerary | null
-  statusLines?: Record<string, string[]> // labels shown just above the message with that id
+  statusLines?: Record<string, StatusLine[]> // status lines shown just above the message with that id
   streaming?: boolean // a reply is streaming: the input is disabled
   streamingMessageId?: string | null // the assistant message being streamed (shows "…" until text arrives)
   error?: StoreError | null // shown inline after the last message
@@ -95,7 +108,7 @@ export function ChatPanel({
 }: Props) {
   // ?demo=1 has no backend session: canned replies live only here, after the store's messages.
   const [demoMessages, setMessages] = useState<Message[]>([])
-  const [demoStatus, setStatusBefore] = useState<Record<string, string[]>>({})
+  const [demoStatus, setStatusBefore] = useState<Record<string, StatusLine[]>>({})
   const messages = [...savedMessages, ...demoMessages]
   const statusBefore = { ...statusLines, ...demoStatus }
   const [draft, setDraft] = useState('')
@@ -146,7 +159,8 @@ export function ChatPanel({
     const id = Date.now().toString()
     setMessages((m) => [...m, demoMessage('user', text, id)])
     setTimeout(() => {
-      setStatusBefore((s) => ({ ...s, [id + 'a']: [mentioned ? `Re-planning ${mentioned} only` : 'Thinking…'] }))
+      const label = mentioned ? `Re-planning ${mentioned} only` : 'Thinking…'
+      setStatusBefore((s) => ({ ...s, [id + 'a']: [{ label, state: 'end' }] }))
       setMessages((m) => [
         ...m,
         demoMessage(
@@ -171,10 +185,8 @@ export function ChatPanel({
           const mine = m.role === 'user'
           return (
             <Fragment key={m.id}>
-              {(statusBefore[m.id] ?? []).map((label, i) => (
-                <p key={i} className="flex items-center gap-1.5 pl-1 text-xs text-gray-400">
-                  <Check size={12} className="text-emerald-500" /> {label}
-                </p>
+              {(statusBefore[m.id] ?? []).map((line) => (
+                <StatusLineRow key={line.label} line={line} live={m.id === streamingMessageId} />
               ))}
               <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 {mine ? (

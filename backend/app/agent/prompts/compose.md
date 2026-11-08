@@ -12,6 +12,11 @@ profile below, then reply with one JSON object (no other text): the full day-by-
   hotel or airport.
 - **Sensible meal times:** breakfast or brunch 8:00–11:00, lunch 12:00–14:00, dinner
   18:00–20:30. Respect dietary needs in every meal.
+- **Plan around the weather.** When the context has a "Weather" section, use it without being
+  asked: on rainy, stormy, snowy or very hot days pick indoor stops (museums, markets, food
+  halls) over hikes, beaches and long walks, and put outdoor stops on the clearest days. When
+  you move a stop because of the weather, say so in its `why`. A "seasonal average" is only a
+  tendency, so adjust lightly; a forecast is stronger.
 - Match the user's interests, and say why in each item's `why` (one short sentence).
 - List every guess you made (budget level, transport, flight times…) in `assumptions`, one
   short line each.

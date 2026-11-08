@@ -8,7 +8,7 @@ import {
 } from '@/lib/format'
 import { profileChips } from '@/lib/profile'
 import { firstDayByTag } from '@/lib/tags'
-import type { ItemKind, Itinerary, ItineraryItem, Stop, TripProfile } from '@/types'
+import type { DayWeather, ItemKind, Itinerary, ItineraryItem, Stop, TripProfile } from '@/types'
 import { TagBadge } from './TagBadge'
 
 const KIND_ICON: Record<ItemKind, typeof Car> = {
@@ -172,6 +172,9 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
   const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
   const firstDay = firstDayByTag(itinerary)
   const costRange = itinerary.cost_estimate ? ` · ${formatCostRange(itinerary.cost_estimate)} per person` : ''
+  // The summary chip borrows the first day's icon; the credit shows whenever any weather is shown.
+  const summaryIcon = itinerary.days.find((d) => d.weather)?.weather?.icon ?? null
+  const hasWeather = itinerary.weather_summary !== null || summaryIcon !== null
 
   return (
     <div className="h-full overflow-y-auto px-6 py-5">
@@ -202,7 +205,10 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
         <div className="mt-3 flex flex-wrap gap-1.5">
           {profile && <ProfileChips profile={profile} />}
           {itinerary.weather_summary && (
-            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700">☀️ {itinerary.weather_summary}</span>
+            <span data-testid="weather-summary" className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700">
+              {summaryIcon && `${summaryIcon} `}
+              {itinerary.weather_summary}
+            </span>
           )}
         </div>
         <button
@@ -227,11 +233,7 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
               Day {day.day_number} · {formatDate(day.date)}
               <span className="font-normal text-gray-500"> — {day.title}</span>
             </h2>
-            {day.weather && (
-              <span className="text-xs text-gray-500">
-                {day.weather.icon} {Math.round(day.weather.high_f)}° / {Math.round(day.weather.low_f)}°
-              </span>
-            )}
+            {day.weather && <WeatherChip weather={day.weather} />}
           </div>
           <ol className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white shadow-sm">
             {day.items.map((item) => (
@@ -248,6 +250,14 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
           </ol>
         </section>
       ))}
+      {/* Open-Meteo's free tier asks for this attribution. */}
+      {hasWeather && (
+        <p className="pt-6 text-center text-xs text-gray-400">
+          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer" className="hover:underline">
+            Weather data by Open-Meteo.com
+          </a>
+        </p>
+      )}
       {/* v0 footer with a fixed timestamp: only the demo trip shows it. */}
       {demo.enabled && (
         <p className="py-6 text-center text-xs text-gray-400">
@@ -255,6 +265,21 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
         </p>
       )}
     </div>
+  )
+}
+
+/** A day's weather: "☀️ 66° / 48°", plus "avg" when it is a climate average, not a forecast. */
+function WeatherChip({ weather }: { weather: DayWeather }) {
+  const climate = weather.source === 'climate'
+  return (
+    <span
+      data-testid="weather-chip"
+      title={climate ? `Typical ${weather.condition} weather for these dates (past years)` : `Forecast: ${weather.condition}`}
+      className="text-xs text-gray-500"
+    >
+      {weather.icon} {Math.round(weather.high_f)}° / {Math.round(weather.low_f)}°
+      {climate && <span className="ml-1 rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-500">avg</span>}
+    </span>
   )
 }
 

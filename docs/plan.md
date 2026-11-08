@@ -369,7 +369,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## E. Weather (first real tool)
 
-### 28 · Tool helpers + cache — ☐ *BE*
+### 28 · Tool helpers + cache — ☑ *BE*
 - **Builds:** `tools/common.py`:
   - the `ToolResult` (`ok`, `data`, `error`);
   - `is_mock()` and `load_mock(name)` from `tools/mocks/`;
@@ -380,9 +380,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** cache hit and expiry; mock loading; status emits start+end, or start+error on
   failure.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `pipeline.status(label, tool, *args)` yields start, then end/error, then the `ToolResult` last (pick it out with `isinstance`); cache functions open their own DB session.
 
-### 29 · Weather tool (Open-Meteo) — ☐ *BE*
+### 29 · Weather tool (Open-Meteo) — ☑ *BE*
 - **Builds:** `weather.py`:
   - `geocode_city(name)` via Open-Meteo geocoding;
   - `get_weather(lat, lng, start, end)`: the forecast API within 16 days, else the climate
@@ -395,9 +395,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** forecast vs climate chosen by date; WMO mapping; mock mode; an HTTP error
   (httpx `MockTransport`) → `ok: false`; one live test.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `geocode_city(name, client=None)` / `get_weather(lat, lng, start, end, today=None, client=None)`; a trip ending past today+15 uses climate for all days; geocoding ignores ", CA" (Open-Meteo matches plain names, most populous wins).
 
-### 30 · Weather in the plan and in chat — ☐ *BE*
+### 30 · Weather in the plan and in chat — ☑ *BE*
 - **Builds:**
   - the pipeline gather step geocodes cities (fills `cities[].lat/lng`) and fetches weather;
   - postprocess fills `days[].weather` and a code-built `weather_summary`;
@@ -408,16 +408,16 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** weather comes from tool data, not the draft; a tool failure → weather `null`, the
   plan is still saved, and an assumption is added; the context contains the forecast.
 - **Done when:** tests green.
-- **Notes:** Put the weather into or next to `context.compact_itinerary` and keep its one-line-per-day format, which `test_edit.py` checks. `compact_itinerary` dropped each day's city/title (step 25); if chat answers get thin, put `day.title` back.
+- **Notes:** Built: gather fetches weather only when the profile has exact dates; `compact_itinerary` gets one `Weather:` line before the unchanged day lines; chat turns fetch the forecast silently (no `status` events); decision D23. The compose and chat prompts tell the LLM to plan around the weather unasked (indoor stops on bad days). Still open from step 25: `compact_itinerary` dropped each day's city/title; if chat answers get thin, put `day.title` back.
 
-### 31 · Weather chips + status lines in the UI — ☐ *FE*
+### 31 · Weather chips + status lines in the UI — ☑ *FE*
 - **Builds:** a day weather chip ("☀ 66° / 48°", "avg" when climate), a header summary chip
   (hidden when null), chat status lines from `status` events (spinner → ✓, ✕ on error), and the
   "Weather data by Open-Meteo.com" credit.
 - **Files:** `frontend/src/components/PlanView.tsx`, `components/ChatPanel.tsx`, store, tests
 - **Tests:** the chip renders/hides; "avg" label; status line state changes.
 - **Done when:** tests green.
-- **Notes:** The store's `reduceEvent` sets `generating: true` on every `status` start, so a chat-only weather status before a plan exists would show the plan skeleton. Only plan-generation statuses should drive `generating` (check the label or add a flag).
+- **Notes:** `statusLines` are `{label, state}`; a status `error` no longer ends generation (only the SSE `error` event does). `generating` still turns on at any status `start`, which is safe only because chat turns send no status (step 30). Add a flag if that changes.
 
 ## F. Places + Map view
 
@@ -438,7 +438,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** interest → category mapping (and the default); normalization; no key → Nominatim
   path; error → `ok: false`.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Reuse `pipeline.status()` and the `ToolResult`/cache helpers from step 28, and cache the geocoder too (Nominatim's usage policy requires it). Open-Meteo geocoding drops the region ("Paris, TX" → Paris, France); if Nominatim takes a region, pass it through.
 
 ### 34 · Real places in the plan — ☐ *BE*
 - **Builds:**
@@ -454,7 +454,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** coordinates come from tools even if the draft has numbers; airport geocoded; a bad
   ref is handled; v2 tag stability by `place_id`.
 - **Done when:** tests green.
-- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached. For edits, `as_draft` uses stop tags as draft keys, so map tag-keys and new keys (e.g. `s20`) to place_ids too.
+- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached. For edits, `as_draft` uses stop tags as draft keys, so map tag-keys and new keys (e.g. `s20`) to place_ids too. Stop coordinates must come from the places tool, never from the city coordinates gathered for weather (step 30).
 
 ### 35 · Travel estimates between stops — ☐ *BE*
 - **Builds:** postprocess sets `transit_from_previous` from the haversine distance and a simple
@@ -475,7 +475,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** helper functions; MapView (mocked leaflet) lists the right stops per day; the tab
   enable rule.
 - **Done when:** a generated plan shows on the map.
-- **Notes:** —
+- **Notes:** In mock mode, `weather.geocode_city` falls back to San Jose's coordinates for unknown cities, so don't trust mock city coordinates for map pins.
 
 ## G. Hotels (+ flights note)
 
@@ -601,7 +601,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it.
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**

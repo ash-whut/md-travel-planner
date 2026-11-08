@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { ApiError, type ApiClient } from '@/api/client'
 import { sanJoseMessages, sanJoseProfile, sanJoseStatusLines, sanJoseV2 } from '@/fixtures'
-import type { Itinerary, Message, SessionDetail, SessionStatus, SseEvent, TripProfile } from '@/types'
+import type { Itinerary, Message, SessionDetail, SessionStatus, SseEvent, StatusState, TripProfile } from '@/types'
 
 // localStorage key holding the id of the session to reopen on the next visit.
 export const SESSION_KEY = 'md-travel-planner.sessionId'
@@ -15,6 +15,12 @@ export interface SessionInfo {
   id: string
   title: string
   status: SessionStatus
+}
+
+// One chat status line from SSE `status` events: a spinner while `start`, then ✓ or ✕.
+export interface StatusLine {
+  label: string
+  state: StatusState
 }
 
 export interface StoreError {
@@ -32,7 +38,7 @@ interface TripData {
   itinerary: Itinerary | null
   streaming: boolean
   streamingMessageId: string | null // the assistant message being streamed
-  statusLines: Record<string, string[]> // status labels shown just above the message with that id
+  statusLines: Record<string, StatusLine[]> // status lines shown just above the message with that id
   generating: boolean // the backend is making a plan (Generate, or a chat turn that plans)
   planStatus: string | null // the latest status label while generating, shown on the skeleton
   error: StoreError | null
@@ -123,15 +129,19 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
         ),
       }
     case 'status': {
-      // `start` shows the label on the plan skeleton; `error` means generation failed.
+      // Only plan generation sends `status` (decision D23), so `start` means a plan is being made
+      // and its label goes on the skeleton. A status `error` doesn't end generation: a tool such as
+      // weather can fail while the plan carries on, and a failed plan always ends with `error`.
       const { label, state: step } = event.data
-      let generation: Partial<TripData> = {}
-      if (step === 'start') generation = { generating: true, planStatus: label }
-      if (step === 'error') generation = { generating: false, planStatus: null }
+      const generation: Partial<TripData> = step === 'start' ? { generating: true, planStatus: label } : {}
       const id = state.streamingMessageId
-      const lines = id ? (state.statusLines[id] ?? []) : []
-      if (!id || lines.includes(label)) return generation
-      return { ...generation, statusLines: { ...state.statusLines, [id]: [...lines, label] } }
+      if (!id) return generation
+      // One line per label: a later event for the same label updates its state (spinner → ✓ / ✕).
+      const lines = state.statusLines[id] ?? []
+      const next = lines.some((l) => l.label === label)
+        ? lines.map((l) => (l.label === label ? { label, state: step } : l))
+        : [...lines, { label, state: step }]
+      return { ...generation, statusLines: { ...state.statusLines, [id]: next } }
     }
     case 'profile':
       return { profile: event.data }
