@@ -29,4 +29,6 @@ def get_session(session_id: str, db: Db) -> SessionDetail:
     session_row = repo.get_session(db, session_id)
     if session_row is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    return session_detail(session_row, repo.list_messages(db, session_id))
+    return session_detail(
+        session_row, repo.list_messages(db, session_id), repo.get_latest_itinerary(db, session_id)
+    )

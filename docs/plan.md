@@ -237,16 +237,16 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## C. Plan view (LLM only, no external tools yet)
 
-### 18 · Itinerary + draft schemas with validation — ☐ *BE*
+### 18 · Itinerary + draft schemas with validation — ☑ *BE*
 - **Builds:** Pydantic models for `Itinerary` (stops, lodging, days, items, bookings, weather,
   money) and `ItineraryDraft` (contracts §2.3), plus the validation rules from contracts §2.2.
 - **Files:** `backend/app/schemas/itinerary.py`, `tests/test_itinerary_schema.py`
 - **Tests:** `frontend/src/fixtures/sanjose-v1.json` and `-v2.json` validate. Each of these
   fails: a day gap, unsorted items, an unknown `stop_tag`, > 2 cities, > 7 days, bad lat/lng.
 - **Done when:** tests green.
-- **Notes:** Schema tests load the shared fixtures from `frontend/src/fixtures/*.json`.
+- **Notes:** Schema tests load the shared fixtures from `frontend/src/fixtures/*.json`. Built: models + `itinerary_errors()` (returns all rule errors at once; day/date rules run on `Itinerary` only). Also enforces unique stop tags (small tightening beyond §2.2).
 
-### 19 · Letter tags — ☐ *BE*
+### 19 · Letter tags — ☑ *BE*
 - **Builds:** `tags.py`: the letter sequence (A…Z, AA…), name normalization, and
   `assign_tags(draft, previous_versions)` implementing contracts §3.
 - **Files:** `backend/app/agent/tags.py`, `tests/test_tags.py`
@@ -254,18 +254,18 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   in v2; a new stop gets the next letter after the highest used; a removed letter is never
   reused; Z → AA; a `place_id` match beats a name difference.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `assign_tags` takes an optional `place_ids` (stop key → place_id) because drafts have no place_id until step 34. Same name + different place_ids counts as different places (§3 is ambiguous here).
 
-### 20 · Itinerary storage — ☐ *BE*
+### 20 · Itinerary storage — ☑ *BE*
 - **Builds:** the `itinerary` table and repo functions (`save_itinerary` with the next version,
   `get_latest_itinerary`, `list_itineraries`). `GET /sessions/{id}` now returns the latest
   itinerary.
 - **Files:** `backend/app/db/tables.py`, `db/repo.py`, `api/sessions.py`, tests
 - **Tests:** versions increment per session; latest is returned; GET includes it.
 - **Done when:** tests green.
-- **Notes:** Change `SessionDetail.itinerary` in `schemas/dto.py` from `None` to `Itinerary | None`.
+- **Notes:** Change `SessionDetail.itinerary` in `schemas/dto.py` from `None` to `Itinerary | None`. Built: `save_itinerary` computes the next version itself (ignores the passed one) and sets the session to `planned` in the same commit (changed in review); unique (session_id, version).
 
-### 21 · Postprocess (draft → itinerary) — ☐ *BE*
+### 21 · Postprocess (draft → itinerary) — ☑ *BE*
 - **Builds:** `build_itinerary(draft, previous_versions, profile)`:
   - tags, item ids (`d1-i1`…), version;
   - stops copied with coordinates `null`;
@@ -278,9 +278,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** a good draft → a valid itinerary with expected letters; a v2 draft →
   `updated_in_version` only on the changed item; a bad draft → errors, no exception.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `build_itinerary` returns `Itinerary | list[str]`; reuses the plan id across versions; items aren't re-sorted (unsorted → errors); null `budget_level` adds an assumption line.
 
-### 22 · Compose call (+ one repair try) — ☐ *BE*
+### 22 · Compose call (+ one repair try) — ☑ *BE*
 - **Builds:** `prompts/compose.md` (planning heuristics: budget first, cluster stops, 3–4 main
   stops a day, light travel days, sensible meal times, an assumptions list, no invented
   weather/coordinates) and `pipeline.compose(...)` → `ItineraryDraft` via `complete_json`. If
@@ -291,9 +291,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the fake path gives a valid itinerary; a fake that returns a bad then a good draft
   → success after 1 repair; bad twice → a clear failure.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `compose(llm, profile, messages, previous_versions, today)` returns the postprocessed `Itinerary` (not the raw draft); failure → `ComposeError(.errors)`. Fake: `FakeProvider(drafts=[...])` queues compose replies.
 
-### 23 · Generate endpoint + "make the plan" from chat — ☐ *BE*
+### 23 · Generate endpoint + "make the plan" from chat — ☑ *BE*
 - **Builds:** `run_generation(session, change_request=None)`:
   - emits `status` ("Drafting your plan…"), saves the new version, sets the session to
     `planned`, and emits `itinerary`;
@@ -306,9 +306,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** SSE order (`itinerary` before `done`); v1 saved; status `planned`; on failure no
   version is saved and `error` is emitted.
 - **Done when:** tests green; "just make the plan" in chat produces a plan with the fake LLM.
-- **Notes:** `TurnAnalysis.action` `generate`/`edit` are parsed by step 16 but every action runs as chat; route them in `turn.py` here (edit in step 25). `prompts/system.md` now says making the plan "is not available in the app yet", so the model stops faking it. Replace that bullet here with the real flow ("click **Generate** or say 'make the plan'"), and put the current plan in the context so the "a plan exists only if the context includes one" rule holds.
+- **Notes:** `TurnAnalysis.action` `generate`/`edit` are parsed by step 16 but every action runs as chat; route them in `turn.py` here (edit in step 25). `prompts/system.md` now says making the plan "is not available in the app yet", so the model stops faking it. Replace that bullet here with the real flow ("click **Generate** or say 'make the plan'"), and put the current plan in the context so the "a plan exists only if the context includes one" rule holds. Built: `run_generation(db, session_id, llm, profile, messages, today)` (no `change_request` yet — add it in step 25); `run_turn(content=None)` = Generate button; order `message_start → [profile] → status → itinerary → token… → done`; fake summary keyed on `turn.SUMMARY_REQUEST`.
 
-### 24 · Plan tab from real data — ☐ *FE* (needs 14, 23)
+### 24 · Plan tab from real data — ☑ *FE* (needs 14, 23)
 - **Builds:**
   - PlanView renders the store itinerary;
   - the empty state + a Generate button (`api.generate`, same event handling);
@@ -321,7 +321,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** empty state → Generate calls the API; skeleton while generating; renders the
   fixture plan; disabled tabs are not clickable and have aria-disabled.
 - **Done when:** in the browser: chat → generate → day cards with letters (fake and TAMU AI).
-- **Notes:** —
+- **Notes:** Store `generating`/`planStatus` + shared `runStream`; `lastSent` → `lastRequest` so Retry re-generates. Browser check (fake + TAMU AI) still to be done by a human.
 
 ## D. Edit by letter
 
@@ -339,17 +339,20 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `updated_in_version = 2` only on changed items; the assistant message has
   `itinerary_version = 2`; the compact listing format.
 - **Done when:** tests green; "replace [F] with something vegan" works in the browser.
-- **Notes:** —
+- **Notes:** `context.py` already has `render_plan` (step 23 puts the plan in every turn's context); rename/reuse it as `compact_itinerary` instead of adding a second one. `run_generation` still needs `change_request`, and `pipeline.build_system` doesn't give compose the previous plan yet. `FakeProvider(drafts=[...])` can serve the v2 draft.
 
 ### 26 · Version markers + "Updated in vN" — ☐ *FE* (needs 24)
 - **Builds:** chat version markers ("Plan created · v1", "Plan updated · v2") after messages
   with `itinerary_version`, the header version badge, and the highlight bar + badge for items
-  where `updated_in_version === itinerary.version > 1`.
+  where `updated_in_version === itinerary.version > 1`. Also a **Regenerate** button in the
+  Plan header once a plan exists (D20): it calls `api.generate` like the empty-state Generate
+  button, is disabled while a reply streams, and shows the skeleton + status line while the
+  new version is made; the old plan stays if it fails.
 - **Files:** `frontend/src/components/ChatPanel.tsx`, `components/PlanView.tsx`, tests
 - **Tests:** markers render at the right places; only changed items are highlighted; there is no
-  highlight on v1.
+  highlight on v1; Regenerate calls the API, is disabled while streaming, and a v2 replaces v1.
 - **Done when:** tests green; it matches the preview.
-- **Notes:** Step 8 draws the version divider above the message, but this step says after; settle it here. Also replace the hard-coded "updated just now" badge in PlanView.
+- **Notes:** Step 8 draws the version divider above the message, but this step says after; settle it here. Also replace the hard-coded "updated just now" badge in PlanView. Once a plan exists, regenerating from chat shows no skeleton, only chat status lines; check the version marker is enough feedback.
 
 ### 27 · Tag chips in chat + stop picker — ☐ *FE*
 - **Builds:**
@@ -414,7 +417,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `frontend/src/components/PlanView.tsx`, `components/ChatPanel.tsx`, store, tests
 - **Tests:** the chip renders/hides; "avg" label; status line state changes.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** The store's `reduceEvent` sets `generating: true` on every `status` start, so a chat-only weather status before a plan exists would show the plan skeleton. Only plan-generation statuses should drive `generating` (check the label or add a flag).
 
 ## F. Places + Map view
 
@@ -451,7 +454,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** coordinates come from tools even if the draft has numbers; airport geocoded; a bad
   ref is handled; v2 tag stability by `place_id`.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached.
 
 ### 35 · Travel estimates between stops — ☐ *BE*
 - **Builds:** postprocess sets `transit_from_previous` from the haversine distance and a simple
@@ -598,7 +601,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload.
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**

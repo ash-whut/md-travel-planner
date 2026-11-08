@@ -37,6 +37,7 @@ function fakeApi(send: SendImpl = streamOf(...reply('a1', 'Hel', 'lo'))) {
     createSession: vi.fn(async () => session),
     getSession: vi.fn(async () => session),
     sendMessage: vi.fn(send),
+    generate: vi.fn(),
   }
 }
 

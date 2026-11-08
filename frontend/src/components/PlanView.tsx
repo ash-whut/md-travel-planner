@@ -46,14 +46,98 @@ export function ProfileChips({ profile }: { profile: TripProfile }) {
   )
 }
 
+interface EmptyPlanProps {
+  profile: TripProfile | null
+  generating: boolean
+  planStatus: string | null
+  canGenerate: boolean
+  onGenerate: () => void
+}
+
+/** No plan yet: the profile so far and a Generate button, or skeleton day cards while generating. */
+function EmptyPlan({ profile, generating, planStatus, canGenerate, onGenerate }: EmptyPlanProps) {
+  return (
+    <div className="flex h-full flex-col items-center overflow-y-auto px-6 py-10 text-center text-sm text-gray-500">
+      <p>Your trip plan will appear here</p>
+      {profile && (
+        <div className="mt-3 flex max-w-lg flex-wrap justify-center gap-1.5">
+          <ProfileChips profile={profile} />
+        </div>
+      )}
+      {generating ? (
+        <>
+          <p role="status" className="mt-5 flex items-center gap-2 font-medium text-accent">
+            <Sparkles size={14} className="animate-pulse" /> {planStatus ?? 'Starting…'}
+          </p>
+          <div className="mt-5 w-full max-w-xl space-y-4" aria-hidden="true">
+            {[1, 2].map((n) => (
+              <div
+                key={n}
+                data-testid="skeleton-day"
+                className="animate-pulse rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm"
+              >
+                <div className="h-3 w-40 rounded bg-gray-200" />
+                {[1, 2, 3].map((row) => (
+                  <div key={row} className="mt-4 flex items-center gap-3">
+                    <div className="h-6 w-6 shrink-0 rounded-full bg-gray-200" />
+                    <div className="h-3 flex-1 rounded bg-gray-100" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={!canGenerate}
+          className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Sparkles size={14} /> Generate
+        </button>
+      )}
+    </div>
+  )
+}
+
 interface Props {
+  itinerary: Itinerary | null
+  profile: TripProfile | null
+  selectedTag: string | null
+  onTagClick: (tag: string) => void
+  generating?: boolean // a plan is being made (shows skeletons when there is no plan yet)
+  planStatus?: string | null // the current status label while generating
+  canGenerate?: boolean // false while a reply is streaming
+  onGenerate?: () => void
+}
+
+export function PlanView({
+  itinerary, profile, selectedTag, onTagClick,
+  generating = false, planStatus = null, canGenerate = true, onGenerate = () => {},
+}: Props) {
+  if (!itinerary) {
+    return (
+      <EmptyPlan
+        profile={profile}
+        generating={generating}
+        planStatus={planStatus}
+        canGenerate={canGenerate}
+        onGenerate={onGenerate}
+      />
+    )
+  }
+  return <PlanDetails itinerary={itinerary} profile={profile} selectedTag={selectedTag} onTagClick={onTagClick} />
+}
+
+interface PlanDetailsProps {
   itinerary: Itinerary
-  profile: TripProfile
+  profile: TripProfile | null
   selectedTag: string | null
   onTagClick: (tag: string) => void
 }
 
-export function PlanView({ itinerary, profile, selectedTag, onTagClick }: Props) {
+function PlanDetails({ itinerary, profile, selectedTag, onTagClick }: PlanDetailsProps) {
   const [showAssumptions, setShowAssumptions] = useState(false)
   const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
   const firstDay = firstDayByTag(itinerary)
@@ -75,7 +159,7 @@ export function PlanView({ itinerary, profile, selectedTag, onTagClick }: Props)
           </span>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <ProfileChips profile={profile} />
+          {profile && <ProfileChips profile={profile} />}
           {itinerary.weather_summary && (
             <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700">☀️ {itinerary.weather_summary}</span>
           )}

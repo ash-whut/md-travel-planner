@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe('App profile progress', () => {
   it('starts with nothing done and muted chips in the empty Plan state', async () => {
-    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn() }
+    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(), generate: vi.fn() }
     render(<App api={api} />)
     await screen.findByText('Where to?')
     for (const s of ['Profile', 'Trip details', 'Plan']) expect(screen.getByLabelText(`${s} to do`)).toBeTruthy()
@@ -73,6 +73,7 @@ describe('App profile progress', () => {
       createSession: vi.fn(async () => session),
       getSession: vi.fn(async () => session),
       sendMessage: vi.fn<ApiClient['sendMessage']>(async (_id, _c, onEvent) => turn(sanJoseProfile).forEach(onEvent)),
+      generate: vi.fn(),
     }
     await send(api, 'San Jose, first weekend of March, from College Station, solo, tech and food')
     expect(await screen.findByLabelText('Profile done')).toBeTruthy()

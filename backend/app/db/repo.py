@@ -5,7 +5,8 @@ from typing import Any, Literal
 from sqlalchemy import literal_column
 from sqlmodel import Session, select
 
-from app.db.tables import MessageRow, SessionRow
+from app.db.tables import ItineraryRow, MessageRow, SessionRow
+from app.schemas.itinerary import Itinerary
 
 Role = Literal["user", "assistant"]
 
@@ -64,6 +65,51 @@ def update_profile(db: Session, session_id: str, trip_profile: dict[str, Any]) -
     db.commit()
     db.refresh(session_row)
     return session_row
+
+
+def save_itinerary(db: Session, session_id: str, itinerary: Itinerary) -> Itinerary:
+    """Save as the session's next version (1, 2, 3…) and return it with that version set.
+
+    Also sets the session to "planned" in the same commit, so a saved plan never sits next to
+    an "intake" status.
+    """
+    session_row = _require_session(db, session_id)
+    latest = _latest_itinerary_row(db, session_id)
+    version = 1 if latest is None else latest.version + 1
+    saved = itinerary.model_copy(update={"version": version})
+    row = ItineraryRow(
+        session_id=session_id, version=version, data=saved.model_dump(mode="json")
+    )
+    session_row.status = "planned"
+    db.add(row)
+    db.add(session_row)
+    db.commit()
+    return saved
+
+
+def get_latest_itinerary(db: Session, session_id: str) -> Itinerary | None:
+    row = _latest_itinerary_row(db, session_id)
+    return None if row is None else Itinerary.model_validate(row.data)
+
+
+def list_itineraries(db: Session, session_id: str) -> list[Itinerary]:
+    """All versions of a session's plan, oldest first."""
+    statement = (
+        select(ItineraryRow)
+        .where(ItineraryRow.session_id == session_id)
+        .order_by(ItineraryRow.version)  # type: ignore[arg-type]
+    )
+    return [Itinerary.model_validate(row.data) for row in db.exec(statement).all()]
+
+
+def _latest_itinerary_row(db: Session, session_id: str) -> ItineraryRow | None:
+    statement = (
+        select(ItineraryRow)
+        .where(ItineraryRow.session_id == session_id)
+        .order_by(ItineraryRow.version.desc())  # type: ignore[attr-defined]
+        .limit(1)
+    )
+    return db.exec(statement).first()
 
 
 def _require_session(db: Session, session_id: str) -> SessionRow:

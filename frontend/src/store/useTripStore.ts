@@ -22,6 +22,9 @@ export interface StoreError {
   retryable: boolean
 }
 
+// The last stream the user started, so Retry can repeat it.
+type LastRequest = { kind: 'message'; text: string } | { kind: 'generate' }
+
 interface TripData {
   session: SessionInfo | null
   messages: Message[]
@@ -30,8 +33,10 @@ interface TripData {
   streaming: boolean
   streamingMessageId: string | null // the assistant message being streamed
   statusLines: Record<string, string[]> // status labels shown just above the message with that id
+  generating: boolean // the backend is making a plan (Generate, or a chat turn that plans)
+  planStatus: string | null // the latest status label while generating, shown on the skeleton
   error: StoreError | null
-  lastSent: string | null // the last user message sent, so Retry can resend it
+  lastRequest: LastRequest | null // what Retry repeats
 }
 
 interface TripActions {
@@ -39,6 +44,7 @@ interface TripActions {
   loadDemo: () => void
   startSession: (api: ApiClient) => Promise<void>
   sendMessage: (api: ApiClient, content: string, opts?: { retry?: boolean }) => Promise<void>
+  generatePlan: (api: ApiClient) => Promise<void>
   retry: (api: ApiClient) => Promise<void>
   stop: () => void
   applyEvent: (event: SseEvent) => void
@@ -55,11 +61,13 @@ const initialData: TripData = {
   streaming: false,
   streamingMessageId: null,
   statusLines: {},
+  generating: false,
+  planStatus: null,
   error: null,
-  lastSent: null,
+  lastRequest: null,
 }
 
-// The open chat stream, kept so Stop can abort it.
+// The open SSE stream (chat reply or generation), kept so Stop can abort it.
 let activeStream: AbortController | null = null
 
 function errorText(err: unknown): string {
@@ -110,10 +118,15 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
         ),
       }
     case 'status': {
+      // `start` shows the label on the plan skeleton; `error` means generation failed.
+      const { label, state: step } = event.data
+      let generation: Partial<TripData> = {}
+      if (step === 'start') generation = { generating: true, planStatus: label }
+      if (step === 'error') generation = { generating: false, planStatus: null }
       const id = state.streamingMessageId
       const lines = id ? (state.statusLines[id] ?? []) : []
-      if (!id || lines.includes(event.data.label)) return {}
-      return { statusLines: { ...state.statusLines, [id]: [...lines, event.data.label] } }
+      if (!id || lines.includes(label)) return generation
+      return { ...generation, statusLines: { ...state.statusLines, [id]: [...lines, label] } }
     }
     case 'profile':
       return { profile: event.data }
@@ -124,6 +137,8 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
       const version = event.data.version
       return {
         itinerary: event.data,
+        generating: false,
+        planStatus: null,
         session: state.session ? { ...state.session, status: 'planned' } : null,
         messages: state.messages.map((m) => (m.id === state.streamingMessageId ? { ...m, itinerary_version: version } : m)),
       }
@@ -132,11 +147,13 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
       return {
         streaming: false,
         streamingMessageId: null,
+        generating: false,
+        planStatus: null,
         error: event.data,
         messages: withoutEmptyReply(state.messages, state.streamingMessageId),
       }
     case 'done':
-      return { streaming: false, streamingMessageId: null }
+      return { streaming: false, streamingMessageId: null, generating: false, planStatus: null }
   }
 }
 
@@ -190,45 +207,27 @@ export const useTripStore = create<TripState>()((set, get) => ({
       }
       set((state) => ({ messages: [...state.messages, userMessage] }))
     }
-    set({ streaming: true, error: null, lastSent: text })
-
-    const controller = new AbortController()
-    activeStream = controller
-    let finished = false // saw `done` or `error`
-    try {
-      await api.sendMessage(
-        session.id,
-        text,
-        (event) => {
-          if (event.event === 'done' || event.event === 'error') finished = true
-          get().applyEvent(event)
-        },
-        controller.signal,
-      )
-      if (!finished && !controller.signal.aborted) {
-        set((state) => ({
-          error: { message: 'The reply was cut off.', retryable: true },
-          messages: withoutEmptyReply(state.messages, state.streamingMessageId),
-        }))
-      }
-    } catch (err) {
-      set((state) => ({
-        error: { message: `Couldn't send your message: ${errorText(err)}`, retryable: isRetryable(err) },
-        messages: withoutEmptyReply(state.messages, state.streamingMessageId),
-      }))
-    } finally {
-      // After Stop, stop() already reset the state (and a new stream may have started since).
-      if (activeStream === controller) {
-        activeStream = null
-        if (get().streaming) set({ streaming: false, streamingMessageId: null })
-      }
-    }
+    set({ streaming: true, error: null, lastRequest: { kind: 'message', text } })
+    await runStream(
+      (onEvent, signal) => api.sendMessage(session.id, text, onEvent, signal),
+      "Couldn't send your message",
+    )
   },
 
-  // Retry resends the last message; with nothing sent yet, it retries loading the session.
+  // The Generate button: streams the same events as a chat turn that makes the plan.
+  // The skeleton shows right away, before the first status event arrives.
+  generatePlan: async (api) => {
+    const { session, streaming } = get()
+    if (!session || streaming) return
+    set({ streaming: true, generating: true, planStatus: null, error: null, lastRequest: { kind: 'generate' } })
+    await runStream((onEvent, signal) => api.generate(session.id, onEvent, signal), "Couldn't make the plan")
+  },
+
+  // Retry repeats the last message or Generate; with nothing sent yet, it retries loading the session.
   retry: async (api) => {
-    const { lastSent } = get()
-    if (lastSent) await get().sendMessage(api, lastSent, { retry: true })
+    const { lastRequest } = get()
+    if (lastRequest?.kind === 'message') await get().sendMessage(api, lastRequest.text, { retry: true })
+    else if (lastRequest?.kind === 'generate') await get().generatePlan(api)
     else await get().startSession(api)
   },
 
@@ -239,6 +238,8 @@ export const useTripStore = create<TripState>()((set, get) => ({
     set((state) => ({
       streaming: false,
       streamingMessageId: null,
+      generating: false,
+      planStatus: null,
       messages: state.messages.map((m) =>
         m.id === state.streamingMessageId ? { ...m, content: m.content.trimEnd() + STOPPED_MARKER } : m,
       ),
@@ -249,3 +250,41 @@ export const useTripStore = create<TripState>()((set, get) => ({
 
   reset: () => set(initialData),
 }))
+
+// Opens one SSE stream, passing each event to the callback; resolves when the stream ends.
+type OpenStream = (onEvent: (event: SseEvent) => void, signal: AbortSignal) => Promise<void>
+
+// Runs a chat reply or a generation into the store: applies each event, turns a broken or
+// cut-off stream into an inline error, and cleans up unless Stop already did.
+// The caller has already set `streaming: true`.
+async function runStream(open: OpenStream, failText: string): Promise<void> {
+  const { getState: get, setState: set } = useTripStore
+  const controller = new AbortController()
+  activeStream = controller
+  let finished = false // saw `done` or `error`
+  try {
+    await open((event) => {
+      if (event.event === 'done' || event.event === 'error') finished = true
+      get().applyEvent(event)
+    }, controller.signal)
+    if (!finished && !controller.signal.aborted) {
+      set((state) => ({
+        error: { message: 'The reply was cut off.', retryable: true },
+        messages: withoutEmptyReply(state.messages, state.streamingMessageId),
+      }))
+    }
+  } catch (err) {
+    set((state) => ({
+      error: { message: `${failText}: ${errorText(err)}`, retryable: isRetryable(err) },
+      messages: withoutEmptyReply(state.messages, state.streamingMessageId),
+    }))
+  } finally {
+    // After Stop, stop() already reset the state (and a new stream may have started since).
+    if (activeStream === controller) {
+      activeStream = null
+      if (get().streaming || get().generating) {
+        set({ streaming: false, streamingMessageId: null, generating: false, planStatus: null })
+      }
+    }
+  }
+}

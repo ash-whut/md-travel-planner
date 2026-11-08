@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.db.tables import MessageRow, SessionRow
+from app.schemas.itinerary import Itinerary
 from app.schemas.profile import TripProfile, load_profile
 
 
@@ -35,7 +36,7 @@ class SessionDetail(BaseModel):
     status: Literal["intake", "planned"]
     trip_profile: TripProfile
     messages: list[MessageOut]
-    itinerary: None = None  # the latest Itinerary once plans exist (step 20+)
+    itinerary: Itinerary | None = None  # the latest version, null until a plan exists
     created_at: datetime
     updated_at: datetime
 
@@ -57,14 +58,16 @@ def message_out(row: MessageRow) -> MessageOut:
     )
 
 
-def session_detail(session_row: SessionRow, messages: list[MessageRow]) -> SessionDetail:
+def session_detail(
+    session_row: SessionRow, messages: list[MessageRow], itinerary: Itinerary | None = None
+) -> SessionDetail:
     return SessionDetail(
         id=session_row.id,
         title=session_row.title,
         status=session_row.status,  # type: ignore[arg-type]  (stored values are always intake|planned)
         trip_profile=load_profile(session_row.trip_profile),
         messages=[message_out(row) for row in messages],
-        itinerary=None,
+        itinerary=itinerary,
         created_at=as_utc(session_row.created_at),
         updated_at=as_utc(session_row.updated_at),
     )

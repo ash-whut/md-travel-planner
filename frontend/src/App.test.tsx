@@ -23,6 +23,7 @@ const fakeApi: ApiClient = {
   createSession: async () => sanJoseSession,
   getSession: async () => sanJoseSession,
   sendMessage: async () => {},
+  generate: async () => {},
 }
 
 beforeEach(() => {
@@ -46,6 +47,7 @@ describe('App', () => {
 
   it('renders the Map tab through the mocked react-leaflet', async () => {
     render(<App api={fakeApi} />)
+    await screen.findByRole('heading', { level: 1, name: sanJoseV2.title }) // Map unlocks once the plan loads
     fireEvent.click(screen.getByRole('button', { name: 'Map' }))
     expect(screen.getByRole('heading', { name: 'Map' })).toBeTruthy()
     expect(await screen.findByTestId('map')).toBeTruthy()
@@ -66,7 +68,7 @@ describe('App session start (fake ApiClient)', () => {
   }
 
   function spyApi(getSession: ApiClient['getSession'] = async () => sanJoseSession) {
-    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}) }
+    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}), generate: vi.fn(async () => {}) }
   }
 
   it('creates a session when none is stored, stores its id and shows the backend greeting', async () => {
@@ -122,18 +124,23 @@ describe('App session start (fake ApiClient)', () => {
       }),
       getSession: vi.fn(async () => sanJoseSession),
       sendMessage: vi.fn(async () => {}),
+      generate: vi.fn(async () => {}),
     }
     render(<App api={api} />)
     expect((await screen.findByRole('alert')).textContent).toMatch(/Failed to fetch/)
   })
 
-  it('shows a placeholder on the Map and Book tabs when there is no plan yet', async () => {
+  it('keeps the Map and Book tabs locked when there is no plan yet', async () => {
     render(<App api={spyApi()} />)
     await screen.findByText(greeting)
-    fireEvent.click(screen.getByRole('button', { name: 'Map' }))
+    for (const name of ['Map', 'Book']) {
+      const tab = screen.getByRole('button', { name })
+      expect(tab.getAttribute('aria-disabled')).toBe('true')
+      expect(tab.getAttribute('title')).toBe('Generate a plan to unlock')
+      fireEvent.click(tab)
+      expect(screen.getByRole('heading', { name: 'Plan' })).toBeTruthy()
+    }
     expect(screen.queryByTestId('map')).toBeNull()
-    expect(screen.getByText(/stops will show on the map/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Book' }))
-    expect(screen.getByText(/What to book will appear here/)).toBeTruthy()
+    expect(screen.getByText('Your trip plan will appear here')).toBeTruthy()
   })
 })

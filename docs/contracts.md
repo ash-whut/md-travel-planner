@@ -176,6 +176,7 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
   dates match.
 - ≤ 2 cities; ≤ 2 lodging entries.
 - Items within a day are sorted by `start_time`.
+- Stop tags are unique.
 - Every `stop_tag`, `lodging.stop_tag` and `booking_id` resolves.
 - Lat/lng are valid ranges or null.
 
@@ -185,6 +186,7 @@ Same shape as `Itinerary` **minus** everything code owns:
 - tags, `updated_in_version`
 - weather, `transit_from_previous`, coordinates
 - tool prices, `price_as_of`, links
+- item `source` and `cost_source` (code sets "AI suggestion" now; tool steps set it from the tool)
 - bookings
 
 Stops get a temporary `key` (`"s1"`, `"s2"`…) and items refer to it with `stop_key`. A stop
@@ -272,6 +274,13 @@ Errors are `{ "detail": "message" }` with status 400/404/500, or 422 (invalid bo
 
 Order: `message_start` comes first and `done` or `error` comes last. If the client aborts
 (Stop), the server stops and saves the partial text with " *(stopped)*" appended.
+- Chat turn: `message_start → [profile] → token… → done`.
+- Making the plan (`/generate`, or a chat turn whose action is `generate`):
+  `message_start → [profile] → status… → itinerary → token… → done`. The tokens are a short
+  summary; its saved message gets `itinerary_version`. `/generate` saves no user message.
+- A failed generation → `status` with `state: "error"`, then `error`; no version is saved.
+- If only the summary fails (the version is already saved), a fixed "plan is ready" line is
+  streamed and saved with `itinerary_version`, then `done`.
 
 ---
 

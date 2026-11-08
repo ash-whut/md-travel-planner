@@ -1,0 +1,305 @@
+{
+  "title": "San Jose — Tech, Tacos & Gardens",
+  "summary": "A budget long weekend in San Jose: a hands-on tech museum, a mansion tour, food halls and a rose garden.",
+  "start_date": "2027-03-05",
+  "end_date": "2027-03-07",
+  "travelers": 1,
+  "cities": [
+    {
+      "name": "San Jose",
+      "region": "CA",
+      "country": "USA"
+    }
+  ],
+  "cost_estimate": {
+    "low": 780,
+    "high": 910,
+    "currency": "USD",
+    "source": "ai_estimate"
+  },
+  "assumptions": [
+    "Rideshare for local trips"
+  ],
+  "stops": [
+    {
+      "key": "s1",
+      "name": "Home",
+      "kind": "home",
+      "address": "College Station, TX",
+      "place_ref": null
+    },
+    {
+      "key": "s2",
+      "name": "IAH",
+      "kind": "airport",
+      "address": "2800 N Terminal Rd, Houston, TX",
+      "place_ref": null
+    },
+    {
+      "key": "s3",
+      "name": "San Jose Airport",
+      "kind": "airport",
+      "address": "1701 Airport Blvd, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s4",
+      "name": "San Jose Marriott",
+      "kind": "lodging",
+      "address": "301 S Market St, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s5",
+      "name": "San Pedro Square",
+      "kind": "food",
+      "address": "87 N San Pedro St, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s6",
+      "name": "Baconhouse",
+      "kind": "food",
+      "address": "15 S 1st St, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s7",
+      "name": "The Tech Interactive",
+      "kind": "museum",
+      "address": "201 S Market St, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s8",
+      "name": "Winchester Mystery House",
+      "kind": "sight",
+      "address": "525 S Winchester Blvd, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s9",
+      "name": "Santana Row",
+      "kind": "shopping",
+      "address": "377 Santana Row, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s10",
+      "name": "Japantown",
+      "kind": "sight",
+      "address": "Jackson St, San Jose, CA",
+      "place_ref": null
+    },
+    {
+      "key": "s11",
+      "name": "Guadalupe River Park",
+      "kind": "nature",
+      "address": "438 Coleman Ave, San Jose, CA",
+      "place_ref": null
+    }
+  ],
+  "lodging": [
+    {
+      "stop_key": "s4",
+      "check_in": "2027-03-05",
+      "check_out": "2027-03-07",
+      "nights": 2,
+      "price_per_night": {
+        "amount": 120,
+        "currency": "USD"
+      }
+    }
+  ],
+  "days": [
+    {
+      "day_number": 1,
+      "date": "2027-03-05",
+      "title": "Travel day",
+      "city": "San Jose",
+      "items": [
+        {
+          "kind": "transit",
+          "stop_key": "s1",
+          "description": "Leave from home to Houston IAH airport via Uber.",
+          "start_time": "06:00",
+          "duration_min": 120,
+          "nights": null,
+          "est_cost": {
+            "amount": 100,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Cheapest door-to-door option; no long-term airport parking for 3 days."
+        },
+        {
+          "kind": "flight",
+          "stop_key": "s2",
+          "description": "Board your flight to San Jose.",
+          "start_time": "09:15",
+          "duration_min": 360,
+          "nights": null,
+          "est_cost": {
+            "amount": 300,
+            "currency": "USD"
+          },
+          "booking_required": true,
+          "why": "Lowest fare with one stop that lands before 2 PM local time."
+        },
+        {
+          "kind": "transit",
+          "stop_key": "s3",
+          "description": "Head to the Marriott Hotel via Uber.",
+          "start_time": "13:30",
+          "duration_min": 30,
+          "nights": null,
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Hotel is 4 miles away; rideshare beats the shuttle by ~25 min."
+        },
+        {
+          "kind": "lodging",
+          "stop_key": "s4",
+          "description": "Check in — 2 nights downtown.",
+          "start_time": "14:15",
+          "duration_min": null,
+          "nights": 2,
+          "est_cost": {
+            "amount": 120,
+            "currency": "USD"
+          },
+          "booking_required": true,
+          "why": "Cheapest 4★ option within walking distance of downtown food."
+        },
+        {
+          "kind": "meal",
+          "stop_key": "s5",
+          "description": "Dinner at the food hall — lots of vegan stalls.",
+          "start_time": "18:30",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 20,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Matches \"food\" interest; 8 min walk from the hotel."
+        }
+      ]
+    },
+    {
+      "day_number": 2,
+      "date": "2027-03-06",
+      "title": "Tech & mystery",
+      "city": "San Jose",
+      "items": [
+        {
+          "kind": "meal",
+          "stop_key": "s6",
+          "description": "Brunch, then head to the first tourist spot at 1 PM.",
+          "start_time": "11:00",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 20,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Popular brunch spot two blocks from the hotel."
+        },
+        {
+          "kind": "activity",
+          "stop_key": "s7",
+          "description": "Hands-on science & tech museum.",
+          "start_time": "13:00",
+          "duration_min": 150,
+          "nights": null,
+          "est_cost": {
+            "amount": 32,
+            "currency": "USD"
+          },
+          "booking_required": true,
+          "why": "Matches \"tech\" interest; indoor in case of afternoon clouds."
+        },
+        {
+          "kind": "activity",
+          "stop_key": "s8",
+          "description": "Guided mansion tour.",
+          "start_time": "16:00",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 46,
+            "currency": "USD"
+          },
+          "booking_required": true,
+          "why": "Most-visited sight in San Jose; tours sell out on weekends."
+        },
+        {
+          "kind": "meal",
+          "stop_key": "s9",
+          "description": "Walk the row, dinner at a plant-based bistro.",
+          "start_time": "18:30",
+          "duration_min": 120,
+          "nights": null,
+          "est_cost": {
+            "amount": 25,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Across the street from the mansion — no extra travel."
+        }
+      ]
+    },
+    {
+      "day_number": 3,
+      "date": "2027-03-07",
+      "title": "Gardens & home",
+      "city": "San Jose",
+      "items": [
+        {
+          "kind": "meal",
+          "stop_key": "s10",
+          "description": "Breakfast and a stroll through the farmers market.",
+          "start_time": "09:30",
+          "duration_min": 90,
+          "nights": null,
+          "est_cost": {
+            "amount": 15,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Sunday market only; matches \"food\"."
+        },
+        {
+          "kind": "activity",
+          "stop_key": "s11",
+          "description": "Rose garden walk before heading out.",
+          "start_time": "11:15",
+          "duration_min": 60,
+          "nights": null,
+          "est_cost": {
+            "amount": 0,
+            "currency": "USD"
+          },
+          "booking_required": false,
+          "why": "Matches \"gardens\"; free; on the way to the airport."
+        },
+        {
+          "kind": "flight",
+          "stop_key": "s3",
+          "description": "Fly back to Houston IAH.",
+          "start_time": "14:40",
+          "duration_min": 330,
+          "nights": null,
+          "est_cost": null,
+          "booking_required": false,
+          "why": "Return leg of the round trip."
+        }
+      ]
+    }
+  ]
+}

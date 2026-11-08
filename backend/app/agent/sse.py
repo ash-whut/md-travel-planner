@@ -27,6 +27,16 @@ def profile(trip_profile: dict[str, Any]) -> SseEvent:
     return sse_event("profile", trip_profile)
 
 
+def status(label: str, state: str) -> SseEvent:
+    """A pipeline activity line; `state` is "start", "end" or "error"."""
+    return sse_event("status", {"label": label, "state": state})
+
+
+def itinerary(plan: dict[str, Any]) -> SseEvent:
+    """The full Itinerary (JSON-ready dict) after a new version was saved."""
+    return sse_event("itinerary", plan)
+
+
 def done(message_id: str) -> SseEvent:
     return sse_event("done", {"message_id": message_id})
 

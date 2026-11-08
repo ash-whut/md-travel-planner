@@ -1,10 +1,10 @@
-"""Database tables (contracts §1). Later steps add `itinerary` and `api_cache`."""
+"""Database tables (contracts §1). A later step adds `api_cache`."""
 
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Column, ForeignKey, String
+from sqlalchemy import JSON, Column, ForeignKey, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -43,4 +43,21 @@ class MessageRow(SQLModel, table=True):
     role: str  # user | assistant
     content: str
     itinerary_version: int | None = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class ItineraryRow(SQLModel, table=True):
+    """One saved plan version. `data` holds the full Itinerary (contracts §2.2) as JSON."""
+
+    __tablename__ = "itinerary"
+    __table_args__ = (UniqueConstraint("session_id", "version"),)
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    session_id: str = Field(
+        sa_column=Column(
+            String, ForeignKey("session.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    version: int  # 1, 2, 3… per session
+    data: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(default_factory=utcnow)

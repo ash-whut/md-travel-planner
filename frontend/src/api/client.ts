@@ -14,6 +14,8 @@ export interface ApiClient {
     onEvent: (event: SseEvent) => void,
     signal?: AbortSignal,
   ): Promise<void>
+  // Makes (or remakes) the plan: POST /generate, streamed the same way as sendMessage.
+  generate(sessionId: string, onEvent: (event: SseEvent) => void, signal?: AbortSignal): Promise<void>
 }
 
 // A non-2xx response. `message` is the backend's `detail` text when there is one.

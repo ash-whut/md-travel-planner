@@ -1,4 +1,5 @@
-"""Chat route: POST /api/sessions/{id}/messages streams one turn as SSE (contracts §4, §5)."""
+"""Chat routes (contracts §4, §5): POST /api/sessions/{id}/messages and /generate stream one
+turn as SSE."""
 
 from collections.abc import AsyncIterator
 from contextlib import aclosing
@@ -39,7 +40,17 @@ def send_message(
     return EventSourceResponse(_turn_events(session_id, body.content, llm))
 
 
-async def _turn_events(session_id: str, content: str, llm: LLMProvider) -> AsyncIterator[SseEvent]:
+@router.post("/sessions/{session_id}/generate")
+def generate(session_id: str, db: Db, llm: Llm) -> EventSourceResponse:
+    """The Generate button: make (or remake) the plan. The body is `{}` and is ignored."""
+    if repo.get_session(db, session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return EventSourceResponse(_turn_events(session_id, None, llm))
+
+
+async def _turn_events(
+    session_id: str, content: str | None, llm: LLMProvider
+) -> AsyncIterator[SseEvent]:
     # The stream outlives the request's DB session, so it opens its own.
     # aclosing() makes sure the turn is closed (e.g. on Stop) while this DB session is still open.
     with Session(get_engine()) as db:

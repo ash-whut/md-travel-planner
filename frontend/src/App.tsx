@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import type { ApiClient } from './api/client'
 import { httpClient } from './api/http'
 import { HistoryRail } from './components/HistoryRail'
-import { PlanView, ProfileChips } from './components/PlanView'
+import { PlanView } from './components/PlanView'
 import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
@@ -18,12 +18,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'book', label: 'Book' },
 ]
 
-const EMPTY_TEXT: Record<Tab, string> = {
-  plan: 'Your trip plan will appear here',
-  map: 'Your stops will show on the map once there is a plan',
-  book: 'What to book will appear here once there is a plan',
-}
-
 interface Props {
   api?: ApiClient // tests pass a fake
 }
@@ -35,6 +29,8 @@ export default function App({ api = httpClient }: Props) {
   const statusLines = useTripStore((s) => s.statusLines)
   const streaming = useTripStore((s) => s.streaming)
   const streamingMessageId = useTripStore((s) => s.streamingMessageId)
+  const generating = useTripStore((s) => s.generating)
+  const planStatus = useTripStore((s) => s.planStatus)
   const error = useTripStore((s) => s.error)
   const started = useRef(false)
 
@@ -54,6 +50,20 @@ export default function App({ api = httpClient }: Props) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [flashKey, setFlashKey] = useState(0)
   const main = useRef<HTMLDivElement>(null)
+
+  // A new plan version from the stream (not from loading a session) brings the Plan tab forward.
+  // A store subscription (not an effect on `itinerary`) sees each change with its `streaming`
+  // flag, so it reacts to the `itinerary` event only and a session load keeps the current tab.
+  useEffect(
+    () =>
+      useTripStore.subscribe((state, prev) => {
+        if (state.itinerary !== prev.itinerary && state.streaming) setTab('plan')
+      }),
+    [],
+  )
+
+  // Map and Book stay locked until there is a plan.
+  const activeTab: Tab = itinerary ? tab : 'plan'
 
   // Clicking a tag anywhere: from chat/book jump to the plan entry; on the map, focus the pin.
   const onTagClick = useCallback(
@@ -82,7 +92,7 @@ export default function App({ api = httpClient }: Props) {
     window.addEventListener('mouseup', up)
   }
 
-  const title = TABS.find((t) => t.id === tab)!.label
+  const title = TABS.find((t) => t.id === activeTab)!.label
 
   return (
     <div className="flex h-full">
@@ -92,26 +102,33 @@ export default function App({ api = httpClient }: Props) {
         <section className="flex min-w-0 bg-gray-50" style={{ width: `${split}%` }}>
           {/* Vertical tabs down the pane's edge, as in the sketch */}
           <nav className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-gray-200 bg-white pt-14">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={`flex w-full justify-center py-5 text-xs font-semibold tracking-wider uppercase ${
-                  tab === t.id
-                    ? 'border-l-2 border-accent bg-accent-soft text-accent'
-                    : 'border-l-2 border-transparent text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                <span className="inline-block rotate-180 [writing-mode:vertical-rl]">{t.label}</span>
-              </button>
-            ))}
+            {TABS.map((t) => {
+              const locked = t.id !== 'plan' && !itinerary
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => !locked && setTab(t.id)}
+                  aria-disabled={locked}
+                  title={locked ? 'Generate a plan to unlock' : undefined}
+                  className={`flex w-full justify-center py-5 text-xs font-semibold tracking-wider uppercase ${
+                    activeTab === t.id
+                      ? 'border-l-2 border-accent bg-accent-soft text-accent'
+                      : locked
+                        ? 'cursor-not-allowed border-l-2 border-transparent text-gray-300'
+                        : 'border-l-2 border-transparent text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="inline-block rotate-180 [writing-mode:vertical-rl]">{t.label}</span>
+                </button>
+              )
+            })}
           </nav>
 
           <div className="flex min-w-0 flex-1 flex-col">
             <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-5">
               <h2 className="font-semibold">{title}</h2>
-              {tab !== 'plan' && (
+              {activeTab !== 'plan' && (
                 <button
                   type="button"
                   onClick={() => setTab('plan')}
@@ -122,25 +139,23 @@ export default function App({ api = httpClient }: Props) {
                 </button>
               )}
             </header>
-            <div className="min-h-0 flex-1" key={tab === 'plan' ? flashKey : tab}>
-              {/* No plan yet (fresh session): a placeholder. Step 24 adds Generate + skeletons. */}
-              {!itinerary && (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-gray-500">
-                  <p>{EMPTY_TEXT[tab]}</p>
-                  {tab === 'plan' && profile && (
-                    <div className="flex max-w-lg flex-wrap justify-center gap-1.5">
-                      <ProfileChips profile={profile} />
-                    </div>
-                  )}
-                </div>
+            <div className="min-h-0 flex-1" key={activeTab === 'plan' ? flashKey : activeTab}>
+              {activeTab === 'plan' && (
+                <PlanView
+                  itinerary={itinerary}
+                  profile={profile}
+                  selectedTag={selectedTag}
+                  onTagClick={onTagClick}
+                  generating={generating}
+                  planStatus={planStatus}
+                  canGenerate={!streaming}
+                  onGenerate={() => void useTripStore.getState().generatePlan(api)}
+                />
               )}
-              {itinerary && tab === 'plan' && profile && (
-                <PlanView itinerary={itinerary} profile={profile} selectedTag={selectedTag} onTagClick={onTagClick} />
-              )}
-              {itinerary && tab === 'map' && (
+              {itinerary && activeTab === 'map' && (
                 <MapView itinerary={itinerary} selectedTag={selectedTag} onTagClick={onTagClick} />
               )}
-              {itinerary && tab === 'book' && <BookView itinerary={itinerary} onTagClick={onTagClick} />}
+              {itinerary && activeTab === 'book' && <BookView itinerary={itinerary} onTagClick={onTagClick} />}
             </div>
           </div>
         </section>

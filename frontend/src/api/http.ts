@@ -20,14 +20,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-async function sendMessage(
-  sessionId: string,
-  content: string,
+// POSTs `body` and passes each SSE event (contracts §5) to onEvent until the stream ends.
+async function streamPost(
+  path: string,
+  body: object,
   onEvent: (event: SseEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const body: SendMessageBody = { content }
-  await fetchEventSource(`${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/messages`, {
+  await fetchEventSource(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -52,8 +52,23 @@ async function sendMessage(
   })
 }
 
+function sendMessage(
+  sessionId: string,
+  content: string,
+  onEvent: (event: SseEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const body: SendMessageBody = { content }
+  return streamPost(`/sessions/${encodeURIComponent(sessionId)}/messages`, body, onEvent, signal)
+}
+
+function generate(sessionId: string, onEvent: (event: SseEvent) => void, signal?: AbortSignal): Promise<void> {
+  return streamPost(`/sessions/${encodeURIComponent(sessionId)}/generate`, {}, onEvent, signal)
+}
+
 export const httpClient: ApiClient = {
   createSession: () => request<SessionDetail>('/sessions', { method: 'POST' }),
   getSession: (id) => request<SessionDetail>(`/sessions/${encodeURIComponent(id)}`),
   sendMessage,
+  generate,
 }

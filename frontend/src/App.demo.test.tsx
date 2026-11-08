@@ -20,6 +20,9 @@ function unusedApi() {
     getSession: vi.fn(async () => {
       throw new Error('getSession must not be called in demo mode')
     }),
+    generate: vi.fn(async () => {
+      throw new Error('generate must not be called in demo mode')
+    }),
   }
 }
 
