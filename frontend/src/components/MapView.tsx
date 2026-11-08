@@ -3,8 +3,9 @@ import L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import { demo } from '@/demoParams'
 import { formatTime } from '@/lib/format'
+import { dayColor, firstDayByTag } from '@/lib/tags'
 import type { Itinerary } from '@/types'
-import { TagBadge, dayColor, firstDayByTag } from './TagBadge'
+import { TagBadge } from './TagBadge'
 
 // One visit to a stop that has coordinates.
 interface Located {

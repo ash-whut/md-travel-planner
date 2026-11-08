@@ -1,4 +1,4 @@
-// Step 17: the chat-header stepper and the plan-header profile chips as rendered.
+// Step 17: the plan-header profile chips as rendered (the chat-header stepper was removed, D22).
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { sanJoseProfile, sanJoseV2 } from '@/fixtures'
@@ -15,23 +15,11 @@ const intakeProfile: TripProfile = {
   missing_required: ['origin', 'travelers', 'interests'],
 }
 
-describe('chat-header stepper', () => {
-  it('shows every step to do with no profile', () => {
-    render(<ChatPanel messages={[]} itinerary={null} onTagClick={() => {}} />)
-    for (const s of ['Profile', 'Trip details', 'Plan']) expect(screen.getByLabelText(`${s} to do`)).toBeTruthy()
-    expect(screen.queryByLabelText(/done$/)).toBeNull()
-  })
-
-  it('ticks only Trip details for a partial profile', () => {
-    render(<ChatPanel messages={[]} itinerary={null} profile={intakeProfile} onTagClick={() => {}} />)
-    expect(screen.getByLabelText('Trip details done')).toBeTruthy()
-    expect(screen.getByLabelText('Profile to do')).toBeTruthy()
-    expect(screen.getByLabelText('Plan to do')).toBeTruthy()
-  })
-
-  it('ticks all three steps for a full profile with a plan', () => {
-    render(<ChatPanel messages={[]} itinerary={sanJoseV2} profile={sanJoseProfile} onTagClick={() => {}} />)
-    for (const s of ['Profile', 'Trip details', 'Plan']) expect(screen.getByLabelText(`${s} done`)).toBeTruthy()
+describe('chat header', () => {
+  it('has no progress stepper (removed by D22)', () => {
+    render(<ChatPanel messages={[]} itinerary={sanJoseV2} onTagClick={() => {}} />)
+    expect(screen.queryByRole('list', { name: 'Trip progress' })).toBeNull()
+    expect(screen.queryByText('Trip details')).toBeNull()
   })
 })
 

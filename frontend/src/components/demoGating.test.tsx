@@ -48,7 +48,7 @@ describe('ChatPanel send', () => {
 
   function sendMessage(text: string, onSend = vi.fn()) {
     render(<ChatPanel messages={[]} itinerary={sanJoseV2} statusLines={{}} onSend={onSend} onTagClick={() => {}} />)
-    const input = screen.getByPlaceholderText(/Edit by letter/)
+    const input = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(input, { target: { value: text } })
     fireEvent.keyDown(input, { key: 'Enter' })
     act(() => {

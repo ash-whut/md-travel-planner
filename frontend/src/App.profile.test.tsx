@@ -1,5 +1,5 @@
-// Step 17 "Done when": the stepper ticks (and the empty-state chips fill in) as `profile`
-// events arrive during a chat turn. Fake ApiClient, no network.
+// Step 17 "Done when": the empty-state chips fill in as `profile` events arrive during a chat
+// turn (the chat-header stepper was removed, D22). Fake ApiClient, no network.
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from './api/client'
@@ -49,7 +49,7 @@ function turn(profile: TripProfile): SseEvent[] {
 async function send(api: ApiClient, text: string) {
   render(<App api={api} />)
   await screen.findByText('Where to?')
-  const input = screen.getByPlaceholderText(/Edit by letter/)
+  const input = screen.getByRole('textbox', { name: 'Message' })
   fireEvent.change(input, { target: { value: text } })
   fireEvent.keyDown(input, { key: 'Enter' })
 }
@@ -60,15 +60,14 @@ beforeEach(() => {
 })
 
 describe('App profile progress', () => {
-  it('starts with nothing done and muted chips in the empty Plan state', async () => {
+  it('starts with muted chips in the empty Plan state', async () => {
     const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(), generate: vi.fn() }
     render(<App api={api} />)
     await screen.findByText('Where to?')
-    for (const s of ['Profile', 'Trip details', 'Plan']) expect(screen.getByLabelText(`${s} to do`)).toBeTruthy()
     expect(screen.getAllByTitle(/Not given yet/).length).toBe(5)
   })
 
-  it('ticks the stepper and fills the chips after a profile event', async () => {
+  it('fills the chips after a profile event', async () => {
     const api = {
       createSession: vi.fn(async () => session),
       getSession: vi.fn(async () => session),
@@ -76,10 +75,7 @@ describe('App profile progress', () => {
       generate: vi.fn(),
     }
     await send(api, 'San Jose, first weekend of March, from College Station, solo, tech and food')
-    expect(await screen.findByLabelText('Profile done')).toBeTruthy()
-    expect(screen.getByLabelText('Trip details done')).toBeTruthy()
-    expect(screen.getByLabelText('Plan to do')).toBeTruthy()
-    expect(screen.getByText('📍 San Jose, CA')).toBeTruthy()
+    expect(await screen.findByText('📍 San Jose, CA')).toBeTruthy()
     expect(screen.queryByTitle(/Not given yet/)).toBeNull()
   })
 })

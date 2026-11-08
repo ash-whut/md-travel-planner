@@ -83,11 +83,6 @@ All fields are optional. The server computes `missing_required`.
   "missing_required": []               // subset of: destination, dates, origin, travelers, interests
 }
 ```
-**Chat-header stepper** (derived in the frontend):
-- *Trip details* ✓ when `cities` (or `vibe`) and dates are known.
-- *Profile* ✓ when `origin`, `travelers` and `interests` are known.
-- *Plan* ✓ when an itinerary exists.
-
 ### 2.2 `Itinerary`
 **Every stop with a location gets a letter tag**, including home, airports and the hotel. A
 stop is stored once in `stops`, and items point to it with `stop_tag`.

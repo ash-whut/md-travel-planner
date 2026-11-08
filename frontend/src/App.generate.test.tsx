@@ -125,7 +125,7 @@ describe('Generate from the empty Plan tab', () => {
     const api = makeApi(emptySession, { sendMessage })
     render(<App api={api} />)
     await screen.findByText('Where to?')
-    const input = screen.getByPlaceholderText(/Edit by letter/)
+    const input = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(input, { target: { value: 'San Jose' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -149,7 +149,7 @@ describe('Generate from the empty Plan tab', () => {
     )
     render(<App api={makeApi(emptySession, { sendMessage })} />)
     await screen.findByText('Where to?')
-    const input = screen.getByPlaceholderText(/Edit by letter/)
+    const input = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(input, { target: { value: 'just make the plan' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(sendMessage).toHaveBeenCalled())
@@ -193,7 +193,7 @@ describe('Map and Book tabs', () => {
     fireEvent.click(tab('Map'))
     expect(await screen.findByTestId('map')).toBeTruthy()
 
-    const input = screen.getByPlaceholderText(/Edit by letter/)
+    const input = screen.getByRole('textbox', { name: 'Message' })
     fireEvent.change(input, { target: { value: 'replace [F] with something vegan' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(sendMessage).toHaveBeenCalled())

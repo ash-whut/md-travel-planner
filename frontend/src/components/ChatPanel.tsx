@@ -1,45 +1,61 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
-import { Check, Circle, Plus, RotateCcw, SendHorizontal, Square } from 'lucide-react'
+import { Check, Plus, RotateCcw, SendHorizontal, Square } from 'lucide-react'
 import { demo } from '@/demoParams'
-import { stepperState } from '@/lib/profile'
+import { firstDayByTag, insertTag, isTag, isTagHref, parseTagTokens, tagsToLinks } from '@/lib/tags'
 import type { StoreError } from '@/store/useTripStore'
-import type { Itinerary, Message, TripProfile } from '@/types'
-import { TagBadge, firstDayByTag } from './TagBadge'
+import type { Itinerary, Message } from '@/types'
+import { TagBadge } from './TagBadge'
 
-const TAG_TOKEN = /\[([A-Z]{1,2})\]/g
-const TAG_HREF = '#tag-'
+const PLACEHOLDER_INTAKE = 'Tell me about your trip…'
+const PLACEHOLDER_EDIT = 'Edit by letter — e.g. “replace H with something outdoors”'
 
-function tagChip(tag: string, key: number | string, firstDay: Map<string, number>, onTagClick: (t: string) => void) {
+interface ChipProps {
+  tag: string
+  firstDay: Map<string, number>
+  onTagClick: (tag: string) => void
+}
+
+function TagChip({ tag, firstDay, onTagClick }: ChipProps) {
   return (
-    <span key={key} className="mx-0.5 inline-block align-middle">
+    <span className="mx-0.5 inline-block align-middle">
       <TagBadge tag={tag} day={firstDay.get(tag) ?? 1} size="sm" onClick={() => onTagClick(tag)} />
     </span>
   )
 }
 
-// "[C]" tokens (contracts §2.5) render as tag chips. Step 27 replaces this with lib/tags.ts.
-function withTagChips(text: string, firstDay: Map<string, number>, onTagClick: (t: string) => void): ReactNode[] {
-  return text
-    .split(/\[([A-Z]{1,2})\]/)
-    .map((part, i) => (i % 2 === 1 ? tagChip(part, i, firstDay, onTagClick) : <Fragment key={i}>{part}</Fragment>))
+// User text is plain: "[C]" tokens (contracts §2.5) become chips, the rest stays as typed.
+function UserText({ text, firstDay, onTagClick }: { text: string } & Omit<ChipProps, 'tag'>) {
+  return parseTagTokens(text).map((s, i) =>
+    s.kind === 'tag' ? (
+      <TagChip key={i} tag={s.tag} firstDay={firstDay} onTagClick={onTagClick} />
+    ) : (
+      <Fragment key={i}>{s.text}</Fragment>
+    ),
+  )
 }
 
-// Assistant text is markdown. "[C]" becomes a link to "#tag-C" first, and the link renderer
-// turns those links into tag chips. Other links are LLM-written, and links must come from code
-// or tools (AGENTS.md rule 5), so they show as plain text until step 40.
-function AssistantMarkdown(props: { text: string; firstDay: Map<string, number>; onTagClick: (t: string) => void }) {
-  const { text, firstDay, onTagClick } = props
+// Assistant text is markdown. Tag tokens become "#tag-C" links first, and the link renderer
+// turns those into chips. An LLM-written "[A](url)" becomes a chip only when A is a stop of the
+// current plan (its url is dropped), so "[US](url)" stays text. Other links are LLM-written, and
+// links must come from code or tools (AGENTS.md rule 5), so they show as plain text until step 40.
+function AssistantMarkdown({ text, firstDay, onTagClick }: { text: string } & Omit<ChipProps, 'tag'>) {
   return (
     <Markdown
       components={{
-        a: ({ href, children }) =>
-          href?.startsWith(TAG_HREF) ? tagChip(href.slice(TAG_HREF.length), href, firstDay, onTagClick) : <>{children}</>,
+        a: ({ children, href }) =>
+          typeof children === 'string' &&
+          isTag(children) &&
+          (isTagHref(href, children) || firstDay.has(children)) ? (
+            <TagChip tag={children} firstDay={firstDay} onTagClick={onTagClick} />
+          ) : (
+            <>{children}</>
+          ),
         // No remote images from LLM text (AGENTS.md rule 5): show the alt text only.
         img: ({ alt }) => <>{alt}</>,
       }}
     >
-      {text.replace(TAG_TOKEN, `[$1](${TAG_HREF}$1)`)}
+      {tagsToLinks(text)}
     </Markdown>
   )
 }
@@ -55,7 +71,6 @@ function demoMessage(role: Message['role'], content: string, id: string): Messag
 interface Props {
   messages: Message[]
   itinerary: Itinerary | null
-  profile?: TripProfile | null // drives the header stepper (with whether a plan exists)
   statusLines?: Record<string, string[]> // labels shown just above the message with that id
   streaming?: boolean // a reply is streaming: the input is disabled
   streamingMessageId?: string | null // the assistant message being streamed (shows "…" until text arrives)
@@ -69,7 +84,6 @@ interface Props {
 export function ChatPanel({
   messages: savedMessages,
   itinerary,
-  profile = null,
   statusLines = {},
   streaming = false,
   streamingMessageId = null,
@@ -85,14 +99,38 @@ export function ChatPanel({
   const messages = [...savedMessages, ...demoMessages]
   const statusBefore = { ...statusLines, ...demoStatus }
   const [draft, setDraft] = useState('')
-  const [picker, setPicker] = useState(demo.picker)
+  // ?picker=1 opens the stop picker for screenshots, only together with ?demo=1.
+  const [picker, setPicker] = useState(demo.enabled && demo.picker)
   const bottom = useRef<HTMLDivElement>(null)
+  const input = useRef<HTMLTextAreaElement>(null)
+  const pendingCursor = useRef<number | null>(null)
   const firstDay = firstDayByTag(itinerary)
   const stops = itinerary?.stops ?? []
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
   }, [savedMessages, demoMessages, error])
+
+  // After the picker inserts a tag, put the cursor right after it.
+  useEffect(() => {
+    const el = input.current
+    if (el && pendingCursor.current !== null) {
+      el.focus()
+      el.setSelectionRange(pendingCursor.current, pendingCursor.current)
+      pendingCursor.current = null
+    }
+  }, [draft])
+
+  // The "+" picker: "[C] " goes in at the cursor (or replaces the selected text).
+  function pickStop(tag: string) {
+    const el = input.current
+    const start = el?.selectionStart ?? draft.length
+    const end = el?.selectionEnd ?? draft.length
+    const next = insertTag(draft, start, end, tag)
+    pendingCursor.current = next.cursor
+    setDraft(next.text)
+    setPicker(false)
+  }
 
   // Sends to the backend through onSend; ?demo=1 answers locally with a canned v0 reply.
   function send() {
@@ -126,28 +164,6 @@ export function ChatPanel({
     <section className="flex h-full min-w-0 flex-col bg-white">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 px-5">
         <h2 className="font-semibold">Chat</h2>
-        <ol aria-label="Trip progress" className="flex items-center gap-1.5 text-xs text-gray-500">
-          {stepperState(profile, itinerary !== null).map((step, i) => (
-            <li key={step.id} className="flex items-center gap-1.5">
-              {i > 0 && <span className="h-px w-4 bg-gray-300" />}
-              {step.done ? (
-                <span
-                  aria-label={`${step.label} done`}
-                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700"
-                >
-                  <Check size={12} /> {step.label}
-                </span>
-              ) : (
-                <span
-                  aria-label={`${step.label} to do`}
-                  className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-400"
-                >
-                  <Circle size={12} /> {step.label}
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
@@ -160,16 +176,10 @@ export function ChatPanel({
                   <Check size={12} className="text-emerald-500" /> {label}
                 </p>
               ))}
-              {m.itinerary_version !== null && (
-                <div className="flex items-center gap-3 py-1 text-[11px] font-medium text-accent">
-                  <span className="h-px flex-1 bg-indigo-100" /> {versionLabel(m.itinerary_version)}{' '}
-                  <span className="h-px flex-1 bg-indigo-100" />
-                </div>
-              )}
               <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 {mine ? (
                   <p className="max-w-[80%] rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm leading-relaxed whitespace-pre-wrap text-white">
-                    {withTagChips(m.content, firstDay, onTagClick)}
+                    <UserText text={m.content} firstDay={firstDay} onTagClick={onTagClick} />
                   </p>
                 ) : (
                   <div className="max-w-[80%] space-y-2 rounded-2xl rounded-bl-md bg-gray-100 px-3.5 py-2 text-sm leading-relaxed text-gray-800 [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5">
@@ -183,6 +193,16 @@ export function ChatPanel({
                   </div>
                 )}
               </div>
+              {/* The version marker closes the message that came with the new plan (step 26). */}
+              {m.itinerary_version !== null && (
+                <div
+                  data-testid="version-marker"
+                  className="flex items-center gap-3 py-1 text-[11px] font-medium text-accent"
+                >
+                  <span className="h-px flex-1 bg-indigo-100" /> {versionLabel(m.itinerary_version)}{' '}
+                  <span className="h-px flex-1 bg-indigo-100" />
+                </div>
+              )}
             </Fragment>
           )
         })}
@@ -207,18 +227,20 @@ export function ChatPanel({
       </div>
 
       <div className="relative shrink-0 border-t border-gray-200 p-3">
-        {picker && (
-          <div className="absolute bottom-full left-3 mb-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+        {picker && stops.length > 0 && (
+          <div
+            role="menu"
+            aria-label="Refer to a stop"
+            className="absolute bottom-full left-3 mb-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+          >
             <p className="px-1 pb-1.5 text-xs font-medium text-gray-500">Refer to a stop</p>
             <div className="grid max-h-56 grid-cols-1 overflow-y-auto">
               {stops.map((s) => (
                 <button
                   key={s.tag}
                   type="button"
-                  onClick={() => {
-                    setDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}[${s.tag}] `)
-                    setPicker(false)
-                  }}
+                  role="menuitem"
+                  onClick={() => pickStop(s.tag)}
                   className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm hover:bg-gray-50"
                 >
                   <TagBadge tag={s.tag} day={firstDay.get(s.tag) ?? 1} size="sm" /> <span className="truncate">{s.name}</span>
@@ -228,16 +250,22 @@ export function ChatPanel({
           </div>
         )}
         <div className="flex items-center gap-2 rounded-xl border border-gray-300 px-2 py-1.5 focus-within:border-accent focus-within:ring-2 focus-within:ring-indigo-100">
+          {/* The picker lists the plan's stops, so it is off until a plan exists. */}
           <button
             type="button"
             onClick={() => setPicker((p) => !p)}
-            title="Refer to a stop by its letter"
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+            disabled={stops.length === 0}
+            title={stops.length > 0 ? 'Refer to a stop by its letter' : 'Stops appear here once there is a plan'}
+            aria-label="Refer to a stop"
+            aria-expanded={picker && stops.length > 0}
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <Plus size={18} />
           </button>
           {/* Enter sends; Shift+Enter adds a newline. Grows up to 5 lines. */}
           <textarea
+            ref={input}
+            aria-label="Message"
             value={draft}
             rows={Math.min(5, draft.split('\n').length)}
             disabled={streaming}
@@ -248,7 +276,7 @@ export function ChatPanel({
                 send()
               }
             }}
-            placeholder="Edit by letter — e.g. “replace H with something outdoors”"
+            placeholder={itinerary ? PLACEHOLDER_EDIT : PLACEHOLDER_INTAKE}
             className="min-w-0 flex-1 resize-none bg-transparent py-1 text-sm outline-none placeholder:text-gray-400 disabled:opacity-60"
           />
           {streaming && onStop ? (

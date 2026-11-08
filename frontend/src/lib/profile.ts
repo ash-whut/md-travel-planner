@@ -1,34 +1,13 @@
-// Display helpers for the trip profile (contracts §2.1): the chat-header stepper and the
-// plan-header chips. The server computes `missing_required`, so "known" here means "not in
-// missing_required"; that keeps the date rules (exact dates or length + rough timing) in one place.
+// Display helpers for the trip profile (contracts §2.1): the plan-header chips. The server
+// computes `missing_required`, so "known" here means "not in missing_required"; that keeps the
+// date rules (exact dates or length + rough timing) in one place.
 import type { RequiredField, TripProfile } from '@/types'
 import { formatDateRange, formatShortDate } from './format'
-
-export type StepId = 'profile' | 'trip' | 'plan'
-
-export interface StepState {
-  id: StepId
-  label: string
-  done: boolean
-}
 
 export interface ProfileChip {
   field: RequiredField | 'dietary'
   label: string
   missing: boolean // a required detail not given yet: shown muted
-}
-
-function isKnown(profile: TripProfile, fields: RequiredField[]): boolean {
-  return fields.every((f) => !profile.missing_required.includes(f))
-}
-
-/** Profile — Trip details — Plan. With no profile loaded yet, nothing is done. */
-export function stepperState(profile: TripProfile | null, hasPlan: boolean): StepState[] {
-  return [
-    { id: 'profile', label: 'Profile', done: profile !== null && isKnown(profile, ['origin', 'travelers', 'interests']) },
-    { id: 'trip', label: 'Trip details', done: profile !== null && isKnown(profile, ['destination', 'dates']) },
-    { id: 'plan', label: 'Plan', done: hasPlan },
-  ]
 }
 
 function travelersLabel(n: number): string {

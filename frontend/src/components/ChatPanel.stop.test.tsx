@@ -25,7 +25,7 @@ function renderChat(props: { messages?: Message[]; streaming?: boolean; withStop
       onTagClick={() => {}}
     />,
   )
-  const input = screen.getByPlaceholderText(/Edit by letter/) as HTMLTextAreaElement
+  const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
   return { ...view, onSend, onStop, input }
 }
 

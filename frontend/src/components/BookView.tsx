@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { ArrowRight, CheckCircle2, ExternalLink, ShieldCheck } from 'lucide-react'
 import { demo } from '@/demoParams'
 import { formatDuration, formatMoney } from '@/lib/format'
+import { firstDayByTag } from '@/lib/tags'
 import type { Booking, Itinerary } from '@/types'
-import { TagBadge, firstDayByTag } from './TagBadge'
+import { TagBadge } from './TagBadge'
 
 // "$300 | 6 hr" for a flight, "$240 total ($120/night)" for a hotel, else just the price.
 function estimateLabel(booking: Booking, itinerary: Itinerary): string {

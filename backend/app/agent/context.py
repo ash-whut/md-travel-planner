@@ -49,7 +49,7 @@ def build_system(
             "# Context",
             f"Today is {format_date(today)} ({today.isoformat()}).",
             "## Trip profile so far\n" + render_profile(profile),
-            render_plan(plan),
+            compact_itinerary(plan) if plan else "## Current plan\nNo plan yet.",
         ]
     )
 
@@ -69,26 +69,32 @@ def render_profile(profile: TripProfile) -> str:
     return "\n".join(lines)
 
 
-def render_plan(plan: Itinerary | None) -> str:
-    """The plan in a compact form: one line per day and per item, with the stop tags."""
-    if plan is None:
-        return "## Current plan\nNo plan yet."
-    stop_names = {stop.tag: stop.name for stop in plan.stops}
+def compact_itinerary(it: Itinerary) -> str:
+    """The plan in a compact form for the LLM context: a short header, then one line per day,
+    e.g. `Day 1 (Fri Mar 5): 06:00 [A] Home · 09:15 [B] IAH`.
+
+    Tagged items show their stop's tag and name; untagged items (free time) their description.
+    """
+    stop_names = {stop.tag: stop.name for stop in it.stops}
     lines = [
-        f"## Current plan (version {plan.version})",
-        f"{plan.title}: {format_date(plan.start_date)} – {format_date(plan.end_date)}, "
-        f"{plan.travelers} traveler(s)",
+        f"## Current plan (version {it.version})",
+        f"{it.title}: {format_date(it.start_date)} – {format_date(it.end_date)}, "
+        f"{it.travelers} traveler(s)",
     ]
-    if plan.cost_estimate:
-        cost = plan.cost_estimate
+    if it.cost_estimate:
+        cost = it.cost_estimate
         lines.append(f"Estimated cost per person: ${cost.low:,.0f}–${cost.high:,.0f} (estimate)")
-    for day in plan.days:
-        lines.append(f"Day {day.day_number} · {format_date(day.date)} · {day.city}: {day.title}")
-        for item in day.items:
-            stop = f"[{item.stop_tag}] {stop_names[item.stop_tag]}: " if item.stop_tag else ""
-            lines.append(f"  - {format_time(item.start_time)} {stop}{item.description}")
-    if plan.assumptions:
-        lines.append("Assumptions: " + "; ".join(plan.assumptions))
+    for day in it.days:
+        entries = [
+            f"{item.start_time} [{item.stop_tag}] {stop_names[item.stop_tag]}"
+            if item.stop_tag
+            else f"{item.start_time} {item.description}"
+            for item in day.items
+        ]
+        day_label = f"{day.date:%a} {day.date:%b} {day.date.day}"  # "Fri Mar 5"
+        lines.append(f"Day {day.day_number} ({day_label}): " + " · ".join(entries))
+    if it.assumptions:
+        lines.append("Assumptions: " + "; ".join(it.assumptions))
     return "\n".join(lines)
 
 
@@ -98,12 +104,6 @@ def format_value(value: object) -> str:
     if isinstance(value, date):
         return f"{format_date(value)} ({value.isoformat()})"
     return str(value)
-
-
-def format_time(hhmm: str) -> str:
-    """A 24-hour "HH:MM" as 12-hour time, e.g. "14:30" → "2:30 PM" (the prompt asks for 12h)."""
-    hours, minutes = (int(part) for part in hhmm.split(":"))
-    return f"{(hours - 1) % 12 + 1}:{minutes:02d} {'AM' if hours < 12 else 'PM'}"
 
 
 def format_date(day: date) -> str:

@@ -1,9 +1,10 @@
-// Step 17: stepper and profile chips, from contracts §2.1 and spec F3 ("📍 San Jose, CA", "🏠
+// Step 17: profile chips, from contracts §2.1 and spec F3 ("📍 San Jose, CA", "🏠
 // College Station, TX", "📅 Mar 5–7", …). The server's missing_required decides what is known.
+// (The chat-header stepper was removed by D22.)
 import { describe, expect, it } from 'vitest'
 import { sanJoseProfile } from '@/fixtures'
 import type { RequiredField, TripProfile } from '@/types'
-import { profileChips, stepperState } from './profile'
+import { profileChips } from './profile'
 
 const ALL_REQUIRED: RequiredField[] = ['destination', 'dates', 'origin', 'travelers', 'interests']
 
@@ -28,64 +29,9 @@ function emptyProfile(overrides: Partial<TripProfile> = {}): TripProfile {
   }
 }
 
-function done(profile: TripProfile | null, hasPlan: boolean) {
-  return Object.fromEntries(stepperState(profile, hasPlan).map((s) => [s.label, s.done]))
-}
-
 function chip(profile: TripProfile, field: string) {
   return profileChips(profile).find((c) => c.field === field)
 }
-
-describe('stepperState', () => {
-  it('lists Profile — Trip details — Plan in that order', () => {
-    expect(stepperState(null, false).map((s) => s.label)).toEqual(['Profile', 'Trip details', 'Plan'])
-  })
-
-  it('has nothing done with no profile loaded', () => {
-    expect(done(null, false)).toEqual({ Profile: false, 'Trip details': false, Plan: false })
-  })
-
-  it('has nothing done for an empty profile', () => {
-    expect(done(emptyProfile(), false)).toEqual({ Profile: false, 'Trip details': false, Plan: false })
-  })
-
-  it('ticks Trip details once destination and dates are known', () => {
-    const partial = emptyProfile({
-      cities: ['San Jose, CA'],
-      start_date: '2027-03-05',
-      end_date: '2027-03-07',
-      missing_required: ['origin', 'travelers', 'interests'],
-    })
-    expect(done(partial, false)).toEqual({ Profile: false, 'Trip details': true, Plan: false })
-  })
-
-  it('does not tick Trip details while dates are still missing', () => {
-    const partial = emptyProfile({ cities: ['San Jose, CA'], missing_required: ['dates', 'origin', 'travelers', 'interests'] })
-    expect(done(partial, false)['Trip details']).toBe(false)
-  })
-
-  it('ticks Trip details for a vibe plus length and rough timing', () => {
-    const vibe = emptyProfile({
-      vibe: 'beach, ≤4h drive',
-      duration_days: 3,
-      rough_timing: 'first weekend of March',
-      missing_required: ['origin', 'travelers', 'interests'],
-    })
-    expect(done(vibe, false)['Trip details']).toBe(true)
-  })
-
-  it('ticks Profile only when origin, travelers and interests are all known', () => {
-    const noInterests = emptyProfile({ origin: 'College Station, TX', travelers: 2, missing_required: ['destination', 'dates', 'interests'] })
-    expect(done(noInterests, false).Profile).toBe(false)
-    const all = { ...noInterests, interests: ['food'], missing_required: ['destination', 'dates'] as RequiredField[] }
-    expect(done(all, false)).toEqual({ Profile: true, 'Trip details': false, Plan: false })
-  })
-
-  it('ticks Profile and Trip details for a full profile, and Plan once an itinerary exists', () => {
-    expect(done(sanJoseProfile, false)).toEqual({ Profile: true, 'Trip details': true, Plan: false })
-    expect(done(sanJoseProfile, true)).toEqual({ Profile: true, 'Trip details': true, Plan: true })
-  })
-})
 
 describe('profileChips', () => {
   it('shows the full San Jose profile like the v0 header, in order', () => {

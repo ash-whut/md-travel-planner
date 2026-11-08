@@ -105,7 +105,7 @@ uvicorn app.main:app --reload --app-dir backend      # API docs: http://localhos
 cd frontend && npm run dev                           # http://localhost:5173
 ```
 `http://localhost:5173/?demo=1` loads the sample San Jose trip (screenshot mode). The v0 URL
-params also work: `?tab=map&day=2`, `?tab=book`, `?why=F`, `?picker=1`, `?history=1`.
+params also work: `?tab=map&day=2`, `?tab=book`, `?why=F`, `?picker=1` (only with `?demo=1`), `?history=1`.
 
 ### Run modes (set in `backend/.env`)
 | Mode | Settings | Needs |

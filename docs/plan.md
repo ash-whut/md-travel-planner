@@ -233,7 +233,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** stepper states for empty/partial/full profile; chip labels; missing items shown
   muted.
 - **Done when:** the stepper ticks as you chat.
-- **Notes:** The stepper reads the server's `missing_required` instead of re-deriving the field rules; `ProfileChips` is exported from PlanView. Not yet tried in a browser.
+- **Notes:** The stepper reads the server's `missing_required` instead of re-deriving the field rules; `ProfileChips` is exported from PlanView. Not yet tried in a browser. The stepper was later removed by user request (D22); the profile chips stay.
 
 ## C. Plan view (LLM only, no external tools yet)
 
@@ -325,7 +325,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## D. Edit by letter
 
-### 25 · Edit path with stable letters — ☐ *BE*
+### 25 · Edit path with stable letters — ☑ *BE*
 - **Builds:**
   - `context.compact_itinerary(it)` (`Day 1 (Fri Mar 5): 06:00 [A] Home · 09:15 [B] IAH …`),
     added to every turn's context;
@@ -339,9 +339,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `updated_in_version = 2` only on changed items; the assistant message has
   `itinerary_version = 2`; the compact listing format.
 - **Done when:** tests green; "replace [F] with something vegan" works in the browser.
-- **Notes:** `context.py` already has `render_plan` (step 23 puts the plan in every turn's context); rename/reuse it as `compact_itinerary` instead of adding a second one. `run_generation` still needs `change_request`, and `pipeline.build_system` doesn't give compose the previous plan yet. `FakeProvider(drafts=[...])` can serve the v2 draft.
+- **Notes:** `render_plan` → `compact_itinerary`; compose gets the previous plan as tag-keyed draft JSON + `change_request`. An edit with no plan runs as chat; the edit status line reads "Updating your plan…". "Replace [F] with something vegan" in the browser still to be checked by a human.
 
-### 26 · Version markers + "Updated in vN" — ☐ *FE* (needs 24)
+### 26 · Version markers + "Updated in vN" — ☑ *FE* (needs 24)
 - **Builds:** chat version markers ("Plan created · v1", "Plan updated · v2") after messages
   with `itinerary_version`, the header version badge, and the highlight bar + badge for items
   where `updated_in_version === itinerary.version > 1`. Also a **Regenerate** button in the
@@ -352,9 +352,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** markers render at the right places; only changed items are highlighted; there is no
   highlight on v1; Regenerate calls the API, is disabled while streaming, and a v2 replaces v1.
 - **Done when:** tests green; it matches the preview.
-- **Notes:** Step 8 draws the version divider above the message, but this step says after; settle it here. Also replace the hard-coded "updated just now" badge in PlanView. Once a plan exists, regenerating from chat shows no skeleton, only chat status lines; check the version marker is enough feedback.
+- **Notes:** Divider now after the message (D21; the preview still shows it above). Badge shows `created_at` ("v2 · updated Nov 1, 6:08 PM"). Only Generate/Regenerate swaps the plan for skeletons; a chat edit keeps it visible.
 
-### 27 · Tag chips in chat + stop picker — ☐ *FE*
+### 27 · Tag chips in chat + stop picker — ☑ *FE*
 - **Builds:**
   - `lib/tags.ts` `parseTagTokens(text)` → text/tag segments;
   - ChatPanel renders `[C]` as TagBadge chips inside markdown;
@@ -365,7 +365,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the parser handles `[A]`, `[AA]` and adjacent tags, and ignores `[abc]` and
   markdown links; the picker inserts at the cursor; a chip click sets the selected tag.
 - **Done when:** tests green.
-- **Notes:** Move `dayColor`/`firstDayByTag` from TagBadge.tsx into `lib/tags.ts`, and replace `withTagChips` in ChatPanel (it and `AssistantMarkdown` duplicate the tag regex; fold both into `lib/tags.ts`, and handle LLM text that is already a link like `[A](url)`, which today becomes a chip plus a stray "(url)"). `?picker=1` still works without `?demo=1`; gate it when the picker is rewritten.
+- **Notes:** Tag helpers in `lib/tags.ts`; selected tag now lives in the store; `[A](url)` → one chip (url dropped; `[F](Name)` with no space loses the name). `?picker=1` needs `?demo=1`. Chat input has `aria-label="Message"`.
 
 ## E. Weather (first real tool)
 
@@ -408,7 +408,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** weather comes from tool data, not the draft; a tool failure → weather `null`, the
   plan is still saved, and an assumption is added; the context contains the forecast.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Put the weather into or next to `context.compact_itinerary` and keep its one-line-per-day format, which `test_edit.py` checks. `compact_itinerary` dropped each day's city/title (step 25); if chat answers get thin, put `day.title` back.
 
 ### 31 · Weather chips + status lines in the UI — ☐ *FE*
 - **Builds:** a day weather chip ("☀ 66° / 48°", "avg" when climate), a header summary chip
@@ -454,7 +454,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** coordinates come from tools even if the draft has numbers; airport geocoded; a bad
   ref is handled; v2 tag stability by `place_id`.
 - **Done when:** tests green.
-- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached.
+- **Notes:** In `assign_tags`, two new stops with the same name but different place_ids can both name-match an older stop without a place_id → same letter, and postprocess `_stops` silently drops the second. Block a previous tag once it's used in this version. Also set `item.source` from code when tool data is attached. For edits, `as_draft` uses stop tags as draft keys, so map tag-keys and new keys (e.g. `s20`) to place_ids too.
 
 ### 35 · Travel estimates between stops — ☐ *BE*
 - **Builds:** postprocess sets `transit_from_previous` from the haversine distance and a simple
@@ -521,7 +521,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `backend/app/tools/links.py`, `agent/postprocess.py`, `tests/test_links.py`
 - **Tests:** URL encoding; date formats; links attached to the right stops.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Chat drops the url of an LLM-written `[A](url)` on purpose (step 27); real links must come from tools, not chat text.
 
 ### 41 · Hotel + flight display — ☐ *FE*
 - **Builds:** entries show "check link" when `est_cost` is null; the hotel shows per night +
@@ -601,7 +601,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list.
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**

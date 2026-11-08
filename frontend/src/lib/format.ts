@@ -44,6 +44,14 @@ export function formatDateRange(startDate: string, endDate: string): string {
   return `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`
 }
 
+/** An ISO timestamp → "Nov 1, 6:06 PM" in the user's local time (a moment, not a trip date). */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const hhmm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${formatTime(hhmm)}`
+}
+
 function formatAmount(amount: number, currency: string): string {
   const number = amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
   return currency === 'USD' ? `$${number}` : `${number} ${currency}`

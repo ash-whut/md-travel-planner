@@ -31,7 +31,11 @@ export default function App({ api = httpClient }: Props) {
   const streamingMessageId = useTripStore((s) => s.streamingMessageId)
   const generating = useTripStore((s) => s.generating)
   const planStatus = useTripStore((s) => s.planStatus)
+  // A Generate/Regenerate run (not a chat edit) swaps an existing plan for skeletons.
+  const regenerating = useTripStore((s) => s.generating && s.lastRequest?.kind === 'generate')
   const error = useTripStore((s) => s.error)
+  const selectedTag = useTripStore((s) => s.selectedTag)
+  const flashKey = useTripStore((s) => s.tagFlashKey)
   const started = useRef(false)
 
   // Load the fixture trip (?demo=1) or open a backend session, once. The ref survives
@@ -47,8 +51,6 @@ export default function App({ api = httpClient }: Props) {
   const [historyOpen, setHistoryOpen] = useState(demo.history)
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === demo.tab) ? (demo.tab as Tab) : 'plan')
   const [split, setSplit] = useState(56) // plan pane width, % of the main area
-  const [selectedTag, setSelectedTag] = useState<string | null>(null)
-  const [flashKey, setFlashKey] = useState(0)
   const main = useRef<HTMLDivElement>(null)
 
   // A new plan version from the stream (not from loading a session) brings the Plan tab forward.
@@ -68,8 +70,7 @@ export default function App({ api = httpClient }: Props) {
   // Clicking a tag anywhere: from chat/book jump to the plan entry; on the map, focus the pin.
   const onTagClick = useCallback(
     (tag: string) => {
-      setSelectedTag(tag)
-      setFlashKey((k) => k + 1)
+      useTripStore.getState().selectTag(tag)
       if (tab === 'book') setTab('plan')
     },
     [tab],
@@ -147,6 +148,7 @@ export default function App({ api = httpClient }: Props) {
                   selectedTag={selectedTag}
                   onTagClick={onTagClick}
                   generating={generating}
+                  regenerating={regenerating}
                   planStatus={planStatus}
                   canGenerate={!streaming}
                   onGenerate={() => void useTripStore.getState().generatePlan(api)}
@@ -175,7 +177,6 @@ export default function App({ api = httpClient }: Props) {
             <ChatPanel
               messages={messages}
               itinerary={itinerary}
-              profile={profile}
               statusLines={statusLines}
               streaming={streaming}
               streamingMessageId={streamingMessageId}

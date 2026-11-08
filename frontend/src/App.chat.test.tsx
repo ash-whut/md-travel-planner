@@ -31,7 +31,7 @@ function makeApi(send: ApiClient['sendMessage']) {
 
 async function typeAndSend(text: string) {
   await screen.findByText('Where to?')
-  const input = screen.getByPlaceholderText(/Edit by letter/)
+  const input = screen.getByRole('textbox', { name: 'Message' })
   fireEvent.change(input, { target: { value: text } })
   fireEvent.keyDown(input, { key: 'Enter' })
 }
@@ -49,7 +49,7 @@ describe('App chat', () => {
     expect(await screen.findByText('great')).toBeTruthy()
     expect(screen.getByText('San Jose')).toBeTruthy()
     expect(api.sendMessage.mock.calls[0].slice(0, 2)).toEqual(['s-1', 'San Jose'])
-    expect((screen.getByPlaceholderText(/Edit by letter/) as HTMLTextAreaElement).disabled).toBe(false)
+    expect((screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).disabled).toBe(false)
   })
 
   it('disables the input while the reply streams', async () => {
@@ -66,7 +66,7 @@ describe('App chat', () => {
     )
     render(<App api={api} />)
     await typeAndSend('San Jose')
-    const input = screen.getByPlaceholderText(/Edit by letter/) as HTMLTextAreaElement
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
     await waitFor(() => expect(input.disabled).toBe(true))
     finish()
     await waitFor(() => expect(input.disabled).toBe(false))

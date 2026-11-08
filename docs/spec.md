@@ -25,8 +25,8 @@ rail.
 ## 3. Core flow
 1. Opening the app shows the most recent trip, or a new one, with a greeting.
 2. The agent asks 1–2 questions per turn: destination → dates → origin → travelers →
-   interests. A typical intake is 3–5 turns. The chat-header stepper (Profile → Trip details
-   → Plan) ticks off as details arrive.
+   interests. A typical intake is 3–5 turns. The profile chips in the Plan header fill in as
+   details arrive.
 3. The user clicks **Generate** or types "just make the plan". Missing details are filled with
    defaults, which are listed as **assumptions**.
 4. The Plan tab shows the itinerary. Map and Book unlock.
@@ -84,7 +84,8 @@ rail.
 - **Empty state:** "Your trip plan will appear here", a **Generate** button, and skeleton day
   cards with the current status while generating.
 - **Header:** title, dates · travelers · per-person cost range, profile chips, weather summary
-  chip, version badge ("v2 · updated just now"), and a collapsible "N assumptions made".
+  chip, version badge ("v2 · updated Nov 1, 6:08 PM"), a **Regenerate** button (D20), and a
+  collapsible "N assumptions made".
 - **Day sections:** "Day 1 · Fri, Mar 5 — Travel day" + a weather chip ("☀ 66° / 48°", with
   "avg" when climate-based).
 - **Entry rows:**

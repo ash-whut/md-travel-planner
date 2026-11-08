@@ -30,7 +30,7 @@ function renderChat(
       onTagClick={() => {}}
     />,
   )
-  const input = screen.getByPlaceholderText(/Edit by letter/) as HTMLTextAreaElement
+  const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
   const sendButton = screen.getByTitle('Send') as HTMLButtonElement
   return { ...view, onSend, onRetry, input, sendButton }
 }

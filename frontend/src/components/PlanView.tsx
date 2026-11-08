@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  BedDouble, Car, ChevronDown, Clock, Info, Landmark, Plane, Sparkles, Ticket, Utensils,
+  BedDouble, Car, ChevronDown, Clock, Info, Landmark, Plane, RefreshCw, Sparkles, Ticket, Utensils,
 } from 'lucide-react'
 import { demo } from '@/demoParams'
 import {
-  formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatTime,
+  formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatTime, formatTimestamp,
 } from '@/lib/format'
 import { profileChips } from '@/lib/profile'
+import { firstDayByTag } from '@/lib/tags'
 import type { ItemKind, Itinerary, ItineraryItem, Stop, TripProfile } from '@/types'
-import { TagBadge, firstDayByTag } from './TagBadge'
+import { TagBadge } from './TagBadge'
 
 const KIND_ICON: Record<ItemKind, typeof Car> = {
   transit: Car,
@@ -54,6 +55,34 @@ interface EmptyPlanProps {
   onGenerate: () => void
 }
 
+/** The current status line and skeleton day cards, shown while a plan is being made. */
+function PlanSkeleton({ planStatus }: { planStatus: string | null }) {
+  return (
+    <>
+      <p role="status" className="mt-5 flex items-center gap-2 font-medium text-accent">
+        <Sparkles size={14} className="animate-pulse" /> {planStatus ?? 'Starting…'}
+      </p>
+      <div className="mt-5 w-full max-w-xl space-y-4" aria-hidden="true">
+        {[1, 2].map((n) => (
+          <div
+            key={n}
+            data-testid="skeleton-day"
+            className="animate-pulse rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm"
+          >
+            <div className="h-3 w-40 rounded bg-gray-200" />
+            {[1, 2, 3].map((row) => (
+              <div key={row} className="mt-4 flex items-center gap-3">
+                <div className="h-6 w-6 shrink-0 rounded-full bg-gray-200" />
+                <div className="h-3 flex-1 rounded bg-gray-100" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 /** No plan yet: the profile so far and a Generate button, or skeleton day cards while generating. */
 function EmptyPlan({ profile, generating, planStatus, canGenerate, onGenerate }: EmptyPlanProps) {
   return (
@@ -65,28 +94,7 @@ function EmptyPlan({ profile, generating, planStatus, canGenerate, onGenerate }:
         </div>
       )}
       {generating ? (
-        <>
-          <p role="status" className="mt-5 flex items-center gap-2 font-medium text-accent">
-            <Sparkles size={14} className="animate-pulse" /> {planStatus ?? 'Starting…'}
-          </p>
-          <div className="mt-5 w-full max-w-xl space-y-4" aria-hidden="true">
-            {[1, 2].map((n) => (
-              <div
-                key={n}
-                data-testid="skeleton-day"
-                className="animate-pulse rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm"
-              >
-                <div className="h-3 w-40 rounded bg-gray-200" />
-                {[1, 2, 3].map((row) => (
-                  <div key={row} className="mt-4 flex items-center gap-3">
-                    <div className="h-6 w-6 shrink-0 rounded-full bg-gray-200" />
-                    <div className="h-3 flex-1 rounded bg-gray-100" />
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </>
+        <PlanSkeleton planStatus={planStatus} />
       ) : (
         <button
           type="button"
@@ -107,15 +115,26 @@ interface Props {
   selectedTag: string | null
   onTagClick: (tag: string) => void
   generating?: boolean // a plan is being made (shows skeletons when there is no plan yet)
+  // The Regenerate button's run is in progress: skeletons replace the current plan. A chat edit
+  // keeps the plan on screen instead (its progress shows as chat status lines).
+  regenerating?: boolean
   planStatus?: string | null // the current status label while generating
   canGenerate?: boolean // false while a reply is streaming
-  onGenerate?: () => void
+  onGenerate?: () => void // the empty-state Generate button and the header Regenerate button
 }
 
 export function PlanView({
   itinerary, profile, selectedTag, onTagClick,
-  generating = false, planStatus = null, canGenerate = true, onGenerate = () => {},
+  generating = false, regenerating = false, planStatus = null, canGenerate = true, onGenerate = () => {},
 }: Props) {
+  if (itinerary && regenerating) {
+    return (
+      <div className="flex h-full flex-col items-center overflow-y-auto px-6 py-10 text-center text-sm text-gray-500">
+        <p>Making a new version of your plan…</p>
+        <PlanSkeleton planStatus={planStatus} />
+      </div>
+    )
+  }
   if (!itinerary) {
     return (
       <EmptyPlan
@@ -127,7 +146,16 @@ export function PlanView({
       />
     )
   }
-  return <PlanDetails itinerary={itinerary} profile={profile} selectedTag={selectedTag} onTagClick={onTagClick} />
+  return (
+    <PlanDetails
+      itinerary={itinerary}
+      profile={profile}
+      selectedTag={selectedTag}
+      onTagClick={onTagClick}
+      canGenerate={canGenerate}
+      onGenerate={onGenerate}
+    />
+  )
 }
 
 interface PlanDetailsProps {
@@ -135,9 +163,11 @@ interface PlanDetailsProps {
   profile: TripProfile | null
   selectedTag: string | null
   onTagClick: (tag: string) => void
+  canGenerate: boolean
+  onGenerate: () => void
 }
 
-function PlanDetails({ itinerary, profile, selectedTag, onTagClick }: PlanDetailsProps) {
+function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate, onGenerate }: PlanDetailsProps) {
   const [showAssumptions, setShowAssumptions] = useState(false)
   const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
   const firstDay = firstDayByTag(itinerary)
@@ -154,9 +184,20 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick }: PlanDetail
               {costRange}
             </p>
           </div>
-          <span className="shrink-0 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
-            v{itinerary.version} · updated just now
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
+              v{itinerary.version} · {itinerary.version === 1 ? 'created' : 'updated'} {formatTimestamp(itinerary.created_at)}
+            </span>
+            <button
+              type="button"
+              onClick={onGenerate}
+              disabled={!canGenerate}
+              title="Make a fresh version of this plan"
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw size={12} /> Regenerate
+            </button>
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {profile && <ProfileChips profile={profile} />}

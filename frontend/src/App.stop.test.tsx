@@ -38,7 +38,7 @@ describe('App Stop', () => {
     render(<App api={api} />)
 
     await screen.findByText('Where to?')
-    const input = screen.getByPlaceholderText(/Edit by letter/) as HTMLTextAreaElement
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: 'San Jose' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 

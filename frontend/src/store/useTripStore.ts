@@ -37,6 +37,8 @@ interface TripData {
   planStatus: string | null // the latest status label while generating, shown on the skeleton
   error: StoreError | null
   lastRequest: LastRequest | null // what Retry repeats
+  selectedTag: string | null // the stop picked by a tag click (Plan flashes it, Map focuses its pin)
+  tagFlashKey: number // bumped on every tag click, so clicking the same tag flashes it again
 }
 
 interface TripActions {
@@ -48,6 +50,7 @@ interface TripActions {
   retry: (api: ApiClient) => Promise<void>
   stop: () => void
   applyEvent: (event: SseEvent) => void
+  selectTag: (tag: string) => void
   reset: () => void
 }
 
@@ -65,6 +68,8 @@ const initialData: TripData = {
   planStatus: null,
   error: null,
   lastRequest: null,
+  selectedTag: null,
+  tagFlashKey: 0,
 }
 
 // The open SSE stream (chat reply or generation), kept so Stop can abort it.
@@ -247,6 +252,8 @@ export const useTripStore = create<TripState>()((set, get) => ({
   },
 
   applyEvent: (event) => set((state) => reduceEvent(state, event)),
+
+  selectTag: (tag) => set((state) => ({ selectedTag: tag, tagFlashKey: state.tagFlashKey + 1 })),
 
   reset: () => set(initialData),
 }))
