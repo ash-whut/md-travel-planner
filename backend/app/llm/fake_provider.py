@@ -43,6 +43,12 @@ PLANNER_EDIT_MARKER = "Change request:"
 # A found place in the compose system text (agent/pipeline.py render_places), e.g.
 # "- p1 · The Tech Interactive · entertainment.museum · …": the ref and the name.
 PLACE_LINE = re.compile(r"^- (p\d+) · (.+?) · ", re.MULTILINE)
+# A change request with one of these words adds or replaces a stop, so the fake planner looks one
+# up; any other change (move, remove…) needs no tools, as prompts/planner.md says.
+ADD_WORDS = ("replace", "swap", "change", "add", "instead")
+# A change that mentions one of these asks for a food place.
+FOOD_WORDS = ("vegan", "vegetarian", "food", "eat", "restaurant", "brunch", "lunch", "dinner",
+              "breakfast")
 
 
 class FakeProvider:
@@ -96,13 +102,20 @@ class FakeProvider:
         self, system: str, messages: list[Message], rounds: list[ToolRound], tools: list[ToolSpec]
     ) -> list[ToolCall]:
         """The scripted planner: in round 1 of a generate, `search_places` for each city ×
-        interest, then `search_hotels` per city when the exact dates are known. Only tools in
-        `tools` are asked for. A later round, or an edit, asks for none."""
-        if rounds or PLANNER_EDIT_MARKER in system:
+        interest, then `search_hotels` per city when the exact dates are known. In round 1 of an
+        edit, one `search_places` in the first city when the change adds or replaces a stop (see
+        `edit_search`), else none. Only tools in `tools` are asked for. A later round asks for
+        none."""
+        if rounds:
             return []
         profile = planner_profile(system)
         tool_names = {tool.name for tool in tools}
         wanted: list[tuple[str, dict[str, Any]]] = []
+        if PLANNER_EDIT_MARKER in system:
+            search = edit_search(change_request(system), profile)
+            if "search_places" in tool_names and search is not None:
+                return [ToolCall(id="call_1", name="search_places", arguments=search)]
+            return []
         if "search_places" in tool_names:
             for city in profile.cities:
                 for interest in profile.interests:
@@ -155,6 +168,31 @@ def planner_profile(system: str) -> TripProfile:
         return TripProfile()
     data, _ = json.JSONDecoder().raw_decode(system[start + len(PLANNER_PROFILE_MARKER):].lstrip())
     return TripProfile.model_validate(data)
+
+
+def change_request(system: str) -> str:
+    """The change request: the rest of the line after PLANNER_EDIT_MARKER in the planner's
+    system text ("" if there is none)."""
+    start = system.find(PLANNER_EDIT_MARKER)
+    if start < 0:
+        return ""
+    return system[start + len(PLANNER_EDIT_MARKER):].split("\n", 1)[0].strip()
+
+
+def edit_search(change: str, profile: TripProfile) -> dict[str, Any] | None:
+    """The `search_places` arguments for a change that adds or replaces a stop (an ADD_WORDS
+    word), in the profile's first city; None for any other change or without a city.
+
+    The interest is food (with the profile's dietary need, e.g. "vegan food") when the change
+    mentions a FOOD_WORDS word, else the profile's first interest, else "sights"."""
+    words = set(re.findall(r"[a-z]+", change.lower()))
+    if not words & set(ADD_WORDS) or not profile.cities:
+        return None
+    if words & set(FOOD_WORDS):
+        interest = f"{profile.dietary} food" if profile.dietary else "food"
+    else:
+        interest = profile.interests[0] if profile.interests else "sights"
+    return {"city": profile.cities[0], "interest": interest}
 
 
 def exact_dates(profile: TripProfile) -> tuple[str, str] | None:

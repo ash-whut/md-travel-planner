@@ -4,10 +4,13 @@ Code owns ids, version, tags, sources and `updated_in_version`. City coordinates
 and the weather summary come from the gathered weather (never from the draft). Stop
 coordinates, addresses and place ids come from the places tool, found by the pipeline
 (`StopPlace`); never from the draft or the weather's city coordinates. Things that later steps
-fill from tools (prices, links, transit, bookings) stay null or empty here. The finished itinerary is validated; any broken rules come back as a list of error
-strings instead of an exception, so the compose call can try once more with them (step 22).
+fill from tools (prices, links, bookings) stay null or empty here. Travel between stops
+(`transit_from_previous`) is a code estimate from the stops' coordinates. The finished
+itinerary is validated; any broken rules come back as a list of error strings instead of an
+exception, so the compose call can try once more with them (step 22).
 """
 
+import math
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
@@ -30,13 +33,27 @@ from app.schemas.itinerary import (
     Lodging,
     Money,
     Stop,
+    TransitLeg,
+    TransitMode,
 )
-from app.schemas.profile import TripProfile
+from app.schemas.profile import Transport, TripProfile
 
 DEFAULT_ITEM_SOURCE = "AI suggestion"
 BUDGET_ASSUMPTION = "Budget level assumed (none given)"
 WEATHER_ASSUMPTION = "Weather for {city} couldn't be loaded; check a forecast before you go"
 PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places search found
+
+EARTH_RADIUS_MI = 3958.8
+WALK_MAX_MI = 1.0  # legs up to this distance are walked
+SPEED_MPH: dict[TransitMode, float] = {"walk": 3, "transit": 12, "drive": 25, "rideshare": 25}
+# The profile's transport choice → the mode for legs too long to walk.
+MODE_FOR_TRANSPORT: dict[Transport, TransitMode] = {
+    "car": "drive",
+    "transit": "transit",
+    "rideshare": "rideshare",
+    "mixed": "rideshare",
+}
+DEFAULT_MODE: TransitMode = "rideshare"  # no transport stated
 
 
 @dataclass
@@ -113,6 +130,7 @@ def _assemble(
     """Copy the draft into an Itinerary. Raises ValidationError when a §2.2 rule breaks."""
     place_ids = {key: place.place_id for key, place in places.items() if place.place_id}
     tags = assign_tags(draft, previous_versions, place_ids)
+    stops = _stops(draft, tags, places)
     days = [
         Day(
             day_number=day.day_number,
@@ -127,6 +145,7 @@ def _assemble(
         )
         for day in draft.days
     ]
+    set_travel_estimates(days, stops, profile.transport)
     return Itinerary(
         id=latest.id if latest else str(uuid.uuid4()),
         version=latest.version + 1 if latest else 1,
@@ -142,7 +161,7 @@ def _assemble(
         cost_estimate=_cost_estimate(draft.cost_estimate),
         weather_summary=weather_summary(days),
         assumptions=_assumptions(draft, profile, weather),
-        stops=_stops(draft, tags, places),
+        stops=stops,
         lodging=[_lodging(lodging, tags) for lodging in draft.lodging],
         days=days,
         bookings=[],
@@ -299,6 +318,67 @@ def _item(
         why=item.why,
         source=(place.source if place and place.source else DEFAULT_ITEM_SOURCE),
     )
+
+
+def haversine_mi(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """The great-circle distance between two points, in miles."""
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lng2 - lng1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * EARTH_RADIUS_MI * math.asin(math.sqrt(a))
+
+
+def travel_mode(distance_mi: float, transport: Transport | None) -> TransitMode:
+    """Walk short legs; otherwise use the traveler's transport (rideshare when none given)."""
+    if distance_mi <= WALK_MAX_MI:
+        return "walk"
+    return MODE_FOR_TRANSPORT[transport] if transport else DEFAULT_MODE
+
+
+def estimate_leg(
+    origin: Stop, destination: Stop, transport: Transport | None, after_flight: bool = False
+) -> TransitLeg | None:
+    """An estimated leg between two stops; None when either stop has no coordinates.
+
+    After a flight item the leg is the flight itself: its distance is known, its duration isn't.
+    """
+    if (
+        origin.lat is None
+        or origin.lng is None
+        or destination.lat is None
+        or destination.lng is None
+    ):
+        return None
+    distance = haversine_mi(origin.lat, origin.lng, destination.lat, destination.lng)
+    if after_flight:
+        return TransitLeg(mode="flight", distance_mi=round(distance, 1), estimated=True)
+    mode = travel_mode(distance, transport)
+    minutes = max(1, round(distance / SPEED_MPH[mode] * 60))
+    return TransitLeg(
+        mode=mode, duration_min=minutes, distance_mi=round(distance, 1), estimated=True
+    )
+
+
+def set_travel_estimates(days: list[Day], stops: list[Stop], transport: Transport | None) -> None:
+    """Fill each item's `transit_from_previous` from the previous item of the same day.
+
+    It stays None for a day's first item, when either item has no stop or no coordinates, and
+    when both items are at the same stop.
+    """
+    stops_by_tag = {stop.tag: stop for stop in stops}
+    for day in days:
+        for previous, item in zip(day.items, day.items[1:]):
+            if previous.stop_tag is None or item.stop_tag is None:
+                continue
+            if previous.stop_tag == item.stop_tag:
+                continue
+            item.transit_from_previous = estimate_leg(
+                stops_by_tag[previous.stop_tag],
+                stops_by_tag[item.stop_tag],
+                transport,
+                after_flight=previous.kind == "flight",
+            )
 
 
 def _mark_updated_items(itinerary: Itinerary, previous: Itinerary) -> None:

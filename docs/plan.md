@@ -523,7 +523,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Done when:** tests green.
 - **Notes:** Built: `pipeline.locate_stops` (ref → previous-version name → geocode home/airport/lodging only, D27); assign_tags same-name bug fixed; `source` set from code; the fake cites mock places. The fake LLM makes no tool calls on edits, so new stops in a fake edit have no coordinates (step 34a).
 
-### 34a · Edits look up new stops — ☐ *BE* (needs 34)
+### 34a · Edits look up new stops — ☑ *BE* (needs 34)
 - **Builds:** an edit that adds or replaces a stop gets real place data, like a new plan.
   - The real planner already searches for a change request (`prompts/planner.md`). The fake
     planner should match it: an edit that adds or replaces a stop ("replace [F] with something
@@ -539,18 +539,18 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   for a specific match and none for a city-level match.
 - **Done when:** tests green; with the real LLM, a "replace [X]" edit shows a "Finding …" status
   line and the new stop has coordinates.
-- **Notes:** —
+- **Notes:** Built: fake edit searches once on replace/swap/change/add/instead (none on move/remove, never hotels); any unref'd stop falls back to a `precise=True` "name, day city" geocode (D27 widened, `GEOCODE_KINDS` → `FIXED_KINDS`); mock precise geocode now matches only house-number queries, so plain names get no pin. 3 old tests updated to the new rule.
 
-### 35 · Travel estimates between stops — ☐ *BE*
+### 35 · Travel estimates between stops — ☑ *BE*
 - **Builds:** postprocess sets `transit_from_previous` from the haversine distance and a simple
   speed per mode (walk 3 mph, transit 12 mph, drive/rideshare 25 mph), with
   `estimated: true`, when both stops have coordinates.
 - **Files:** `backend/app/agent/postprocess.py`, `tests/test_travel.py`
 - **Tests:** a known distance; a missing coordinate → `null`; the first item of a day → `null`.
 - **Done when:** tests green.
-- **Notes:** In mock mode, geocoded fixed stops (home, airports, hotel) can share the mock city's coordinates, so travel-estimate tests should use stops with place refs.
+- **Notes:** In mock mode, geocoded fixed stops (home, airports, hotel) can share the mock city's coordinates, so travel-estimate tests should use stops with place refs. Built: `set_travel_estimates` in postprocess; ≤1 mi walks, else mode from profile transport (default rideshare); leg after a flight item is mode "flight" with no duration; same-stop pairs get no leg (D28).
 
-### 36 · Map tab from real data — ☐ *FE*
+### 36 · Map tab from real data — ☑ *FE*
 - **Builds:**
   - `lib/map.ts` (`stopsForDay`, `dayColorForTag`, `polylineForDay`, `offMapStops`, `bounds`);
   - MapView from the store: day chips, TagBadge pins coloured by day, dashed polylines, the
@@ -560,7 +560,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** helper functions; MapView (mocked leaflet) lists the right stops per day; the tab
   enable rule.
 - **Done when:** a generated plan shows on the map.
-- **Notes:** In mock mode, `weather.geocode_city` falls back to San Jose's coordinates for unknown cities, so don't trust mock city coordinates for map pins. A stop can still lack coordinates (no usable ref and no specific geocode match), so the Map tab must show stops without a pin, e.g. listed without a marker.
+- **Notes:** In mock mode, `weather.geocode_city` falls back to San Jose's coordinates for unknown cities, so don't trust mock city coordinates for map pins. A stop can still lack coordinates (no usable ref and no specific geocode match), so the Map tab must show stops without a pin, e.g. listed without a marker. Since step 34, the v0 MapView already shows real pins: it reads the store's itinerary and plots any stop with lat/lng, with day polylines, an "Off map" list and OSM attribution. What's left: move that logic into the tested `lib/map.ts` helpers, add the MapView tests, and change the tab rule (today Map unlocks whenever a plan exists). Built: `lib/map.ts` helpers + `hasMapStops`; Map locks with "No stops with coordinates yet" until a stop has lat/lng; pins are `L.divIcon` styled like TagBadge (avoids `react-dom/server`).
 
 ## G. Hotels (+ flights note)
 
@@ -618,7 +618,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `frontend/src/components/PlanView.tsx`, `lib/format.ts`, tests
 - **Tests:** null cost → "check link"; the as-of format.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Since step 35, `transit_from_previous` is filled (`estimated: true`). The leg after a flight item is `mode: "flight"` with `duration_min: null`, so PlanView must handle a null duration and show that times are estimates.
 
 ## H. Book view
 
@@ -647,7 +647,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `frontend/src/components/BookView.tsx`, `api/http.ts`, store, tests
 - **Tests:** progress count; the dialog flow; optimistic update + revert.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** Today `lockReason` in `App.tsx` unlocks Book with any plan (spec F6 wants bookings). Add a `hasBookings` helper next to `hasMapStops` and a tab-rule test like `App.map.test.tsx`.
 
 ## I. History
 
@@ -713,7 +713,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 ### 49 · Real flight fares — ☐
 - **Builds:** `tools/flights.py` via SerpApi Google Flights (same key, cached), registered as a
   `search_flights` planner tool. Flight items and bookings get a fare estimate + "as of".
-- **Notes:** —
+- **Notes:** Fill the flight leg's `transit_from_previous.duration_min` from the tool result (step 35 leaves it null, D28).
 
 ### 50 · MCP server for the tools — ☐
 - **Builds:** a small MCP server (the `mcp` Python package; approve the new dependency first)

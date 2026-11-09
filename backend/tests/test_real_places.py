@@ -226,13 +226,15 @@ def test_unreferenced_ordinary_stop_ignores_draft_numbers() -> None:
 def test_weather_city_coordinates_never_become_stop_coordinates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _record_geocode(monkeypatch)  # fixed points land at 1, 2
+    _record_geocode(monkeypatch)  # every geocoded stop lands at 1, 2
     weather = [CityWeather(name="San Jose, CA", lat=37.33939, lng=-121.89496)]
 
     plan = _compose(_raw_v1(), [], weather=weather)
 
     assert all((s.lat, s.lng) != (37.33939, -121.89496) for s in plan.stops)
-    assert all(s.lat is None for s in plan.stops if s.kind not in FIXED_KINDS)
+    # Since step 34a every stop without a ref is geocoded (D27), so all coordinates are the
+    # geocoder's, none the weather's.
+    assert all((s.lat, s.lng) == (1.0, 2.0) for s in plan.stops)
 
 
 def test_items_at_found_places_have_source_geoapify() -> None:
@@ -275,14 +277,18 @@ def test_fixed_points_geocode_queries(monkeypatch: pytest.MonkeyPatch) -> None:
 
     plan = _compose(raw, [], profile=_profile(origin="College Station, TX"))
 
+    # Since step 34a ordinary stops are geocoded too, always by "name, day city", never by the
+    # address the LLM wrote for them (D27).
+    ordinary = [f"{s['name']}, San Jose" for s in raw["stops"] if s["kind"] not in FIXED_KINDS]
     assert sorted(queries) == sorted([
         "College Station, TX",              # home → the profile's origin
         "2800 N Terminal Rd, Houston, TX",  # IAH → its address
         "San Jose Airport, San Jose",       # no address → name, city of its day
         "301 S Market St, San Jose, CA",    # the hotel → its address
+        *ordinary,
     ])
-    assert all((s.lat, s.lng) == (1.0, 2.0) for s in plan.stops if s.kind in FIXED_KINDS)
-    assert all(s.lat is None for s in plan.stops if s.kind not in FIXED_KINDS)
+    assert "525 S Winchester Blvd, San Jose, CA" not in queries
+    assert all((s.lat, s.lng) == (1.0, 2.0) for s in plan.stops)
 
 
 def test_airport_and_hotel_geocode_precisely_but_home_does_not(

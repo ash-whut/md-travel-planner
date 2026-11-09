@@ -3,22 +3,14 @@ import L from 'leaflet'
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet'
 import { demo } from '@/demoParams'
 import { formatTime } from '@/lib/format'
+import { bounds, offMapStops, polylineForDay, stopsForDay, type DayFilter, type MapStop } from '@/lib/map'
 import { dayColor, firstDayByTag } from '@/lib/tags'
 import type { Itinerary } from '@/types'
 import { TagBadge } from './TagBadge'
 
-// One visit to a stop that has coordinates.
-interface Located {
-  tag: string
-  name: string
-  lat: number
-  lng: number
-  day: number
-  startTime: string
-}
-
 const US_CENTER: [number, number] = [39.8, -98.6]
 
+// A TagBadge-style pin: the tag in a day-coloured circle with a short stem.
 function pinIcon(tag: string, color: string, active: boolean) {
   const size = active ? 34 : 28
   return L.divIcon({
@@ -34,7 +26,7 @@ function pinIcon(tag: string, color: string, active: boolean) {
   })
 }
 
-function FitAndFocus({ points, focus }: { points: Located[]; focus: Located | null }) {
+function FitAndFocus({ stops, focus }: { stops: MapStop[]; focus: MapStop | null }) {
   const map = useMap()
   const container = useRef(map.getContainer())
 
@@ -46,12 +38,13 @@ function FitAndFocus({ points, focus }: { points: Located[]; focus: Located | nu
   }, [map])
 
   useEffect(() => {
+    const box = bounds(stops)
     if (focus) map.flyTo([focus.lat, focus.lng], 15, { duration: 0.6 })
-    else if (points.length) map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), {
+    else if (box) map.fitBounds(box, {
         paddingTopLeft: [40, 70],
         paddingBottomRight: [240, 40], // leave room for the stops list
       })
-  }, [map, points, focus])
+  }, [map, stops, focus])
   return null
 }
 
@@ -62,40 +55,12 @@ interface Props {
 }
 
 export function MapView({ itinerary, selectedTag, onTagClick }: Props) {
-  const [day, setDay] = useState<number | 'all'>(demo.day ? Number(demo.day) : 'all')
+  const [day, setDay] = useState<DayFilter>(demo.day ? Number(demo.day) : 'all')
   const firstDay = useMemo(() => firstDayByTag(itinerary), [itinerary])
-  const colorOf = (tag: string) => dayColor(firstDay.get(tag) ?? 1)
-
-  const located = useMemo<Located[]>(() => {
-    const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
-    const result: Located[] = []
-    for (const d of itinerary.days) {
-      for (const item of d.items) {
-        const stop = item.stop_tag ? stopsByTag.get(item.stop_tag) : undefined
-        if (stop && stop.lat !== null && stop.lng !== null) {
-          result.push({ tag: stop.tag, name: stop.name, lat: stop.lat, lng: stop.lng, day: d.day_number, startTime: item.start_time })
-        }
-      }
-    }
-    return result
-  }, [itinerary])
-  const visible = useMemo(() => located.filter((p) => day === 'all' || p.day === day), [located, day])
-  const markers = useMemo(() => {
-    const seen = new Map<string, Located>()
-    for (const p of visible) if (!seen.has(p.tag)) seen.set(p.tag, p)
-    return [...seen.values()]
-  }, [visible])
-  const focus = markers.find((m) => m.tag === selectedTag) ?? null
-
-  // Tags of the shown days whose stop has no coordinates.
-  const offMap = new Set<string>()
-  for (const d of itinerary.days) {
-    if (day !== 'all' && d.day_number !== day) continue
-    for (const item of d.items) {
-      const stop = itinerary.stops.find((s) => s.tag === item.stop_tag)
-      if (stop && (stop.lat === null || stop.lng === null)) offMap.add(stop.tag)
-    }
-  }
+  const stops = useMemo(() => stopsForDay(itinerary, day), [itinerary, day])
+  const offMap = offMapStops(itinerary, day)
+  const focus = stops.find((s) => s.tag === selectedTag) ?? null
+  const shownDays = itinerary.days.filter((d) => day === 'all' || d.day_number === day)
 
   const city = itinerary.cities[0]
   const center: [number, number] = city && city.lat !== null && city.lng !== null ? [city.lat, city.lng] : US_CENTER
@@ -107,32 +72,30 @@ export function MapView({ itinerary, selectedTag, onTagClick }: Props) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {itinerary.days
-          .filter((d) => day === 'all' || d.day_number === day)
-          .map((d) => (
-            <Polyline
-              key={d.day_number}
-              positions={located.filter((p) => p.day === d.day_number).map((p) => [p.lat, p.lng])}
-              pathOptions={{ color: dayColor(d.day_number), weight: 4, opacity: 0.75, dashArray: '8 8' }}
-            />
-          ))}
-        {markers.map((m) => (
+        {shownDays.map((d) => (
+          <Polyline
+            key={d.day_number}
+            positions={polylineForDay(itinerary, d.day_number)}
+            pathOptions={{ color: dayColor(d.day_number), weight: 4, opacity: 0.75, dashArray: '8 8' }}
+          />
+        ))}
+        {stops.map((s) => (
           <Marker
-            key={m.tag}
-            position={[m.lat, m.lng]}
-            icon={pinIcon(m.tag, colorOf(m.tag), m.tag === selectedTag)}
-            eventHandlers={{ click: () => onTagClick(m.tag) }}
+            key={s.tag}
+            position={[s.lat, s.lng]}
+            icon={pinIcon(s.tag, dayColor(firstDay.get(s.tag) ?? 1), s.tag === selectedTag)}
+            eventHandlers={{ click: () => onTagClick(s.tag) }}
           >
             <Popup>
               <b>
-                {m.tag} · {m.name}
+                {s.tag} · {s.name}
               </b>
               <br />
-              Day {m.day} · {formatTime(m.startTime)}
+              Day {s.day} · {formatTime(s.startTime)}
             </Popup>
           </Marker>
         ))}
-        <FitAndFocus points={visible} focus={focus} />
+        <FitAndFocus stops={stops} focus={focus} />
       </MapContainer>
 
       <div className="absolute top-3 left-3 z-[1000] flex gap-1.5">
@@ -153,24 +116,31 @@ export function MapView({ itinerary, selectedTag, onTagClick }: Props) {
       <div className="absolute top-3 right-3 z-[1000] flex max-h-[calc(100%-1.5rem)] w-52 flex-col overflow-hidden rounded-xl bg-white/95 shadow-lg backdrop-blur">
         <p className="border-b border-gray-100 px-3 py-2 text-xs font-semibold text-gray-500">Stops</p>
         <ul className="flex-1 overflow-y-auto py-1">
-          {markers.map((m) => (
-            <li key={m.tag}>
+          {stops.map((s) => (
+            <li key={s.tag}>
               <button
                 type="button"
-                onClick={() => onTagClick(m.tag)}
+                onClick={() => onTagClick(s.tag)}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-gray-50 ${
-                  m.tag === selectedTag ? 'bg-amber-50' : ''
+                  s.tag === selectedTag ? 'bg-amber-50' : ''
                 }`}
               >
-                <TagBadge tag={m.tag} day={firstDay.get(m.tag) ?? 1} size="sm" />
-                <span className="truncate">{m.name}</span>
+                <TagBadge tag={s.tag} day={firstDay.get(s.tag) ?? 1} size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate">{s.name}</span>
+                  {s.tag === selectedTag && (
+                    <span className="block text-[11px] text-gray-500">
+                      Day {s.day} · {formatTime(s.startTime)}
+                    </span>
+                  )}
+                </span>
               </button>
             </li>
           ))}
         </ul>
-        {offMap.size > 0 && (
+        {offMap.length > 0 && (
           <div className="border-t border-gray-100 px-3 py-2 text-[11px] text-gray-400">
-            Off map: {[...offMap].join(', ')}
+            Off map: {offMap.join(', ')}
           </div>
         )}
       </div>

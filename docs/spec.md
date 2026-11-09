@@ -29,7 +29,7 @@ rail.
    details arrive.
 3. The user clicks **Generate** or types "just make the plan". Missing details are filled with
    defaults, which are listed as **assumptions**.
-4. The Plan tab shows the itinerary. Map and Book unlock.
+4. The Plan tab shows the itinerary. Map unlocks once a stop has coordinates (F5) and Book once the plan has bookings (F6).
 5. The user edits by chat ("replace [H] with something outdoors"). A new version (v2, v3…)
    replaces the plan. Unchanged stops keep their letters, and the changed entry is highlighted
    "Updated in v2".

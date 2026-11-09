@@ -88,14 +88,18 @@ def geocode(query: str, client: httpx.Client | None = None, precise: bool = Fals
     Uses Geoapify when GEOAPIFY_KEY is set, and Nominatim when there is no key or Geoapify
     fails or finds nothing. Live results are cached for 30 days (Nominatim's policy asks for
     caching); errors are not. Mock mode: an unknown query falls back to the first mock city.
-    `precise=True` (a hotel or airport) treats a city-level match as not found, so the stop isn't
-    pinned at the city centre; mock mode ignores it (the mocks are all cities).
+    `precise=True` (any stop but home) treats a city-level match as not found, so the stop isn't
+    pinned at the city centre. The mocks are all cities, so in mock mode a precise lookup finds
+    only an address (a query that starts with a house number, standing in for a specific match
+    at its city's point); a place name like "Winchester Mystery House, San Jose" is not found.
     """
     query = query.strip()
     if not query:
         return tool_error("No place name given.")
 
     if is_mock():
+        if precise and not query[0].isdigit():
+            return tool_error(f"Place not found: {query}")
         try:
             return tool_ok(_mock_geocode(query))
         except (OSError, ValueError, KeyError, TypeError, IndexError) as error:

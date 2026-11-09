@@ -274,9 +274,41 @@ def test_fake_asks_only_for_tools_it_was_given() -> None:
     assert _turn(FakeProvider(), system=_planner_system(SAN_JOSE), tools=[]) == []
 
 
-def test_fake_edit_asks_for_no_tools() -> None:
+@pytest.mark.parametrize(
+    "change",
+    [
+        "replace [F] with something vegan",
+        "change [F] to something vegan",
+        "swap [H] for a museum",
+        "add a coffee stop on day 2",
+    ],
+)
+def test_fake_edit_that_adds_or_replaces_asks_for_one_place_search(change: str) -> None:
+    # Step 34a: one search_places in the trip city; never hotels on an edit, even with exact dates.
+    calls = _turn(FakeProvider(), system=_planner_system(SAN_JOSE, edit=change))
+    assert len(calls) == 1
+    assert calls[0].name == "search_places"
+    assert calls[0].arguments["city"] == "San Jose, CA"
+    assert isinstance(calls[0].arguments.get("interest"), str) and calls[0].arguments["interest"]
+
+
+@pytest.mark.parametrize("change", ["move [E] to day 2", "remove [H]", "drop [F] please"])
+def test_fake_edit_that_moves_or_removes_asks_for_no_tools(change: str) -> None:
+    assert _turn(FakeProvider(), system=_planner_system(SAN_JOSE, edit=change)) == []
+
+
+def test_fake_edit_asks_only_for_offered_tools() -> None:
     system = _planner_system(SAN_JOSE, edit="replace [F] with something vegan")
-    assert _turn(FakeProvider(), system=system) == []
+    assert _turn(FakeProvider(), system=system, tools=[HOTELS_TOOL]) == []
+
+
+def test_fake_edit_later_round_asks_for_no_tools() -> None:
+    earlier = ToolRound(
+        calls=[ToolCall(id="call_1", name="search_places", arguments={"city": "San Jose, CA", "interest": "food"})],
+        results=['{"ok": true}'],
+    )
+    system = _planner_system(SAN_JOSE, edit="replace [F] with something vegan")
+    assert _turn(FakeProvider(), system=system, rounds=[earlier]) == []
 
 
 def test_fake_later_round_asks_for_no_tools() -> None:

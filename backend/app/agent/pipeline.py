@@ -53,9 +53,9 @@ DRAFTING_LABEL = "Drafting your plan…"
 UPDATING_LABEL = "Updating your plan…"
 # Planner tools whose findings are places a stop can cite with `place_ref`.
 PLACE_TOOLS = {"search_places"}
-# Stops that may have no found place but are still put on the map with the geocoder: the trip's
-# fixed points. Other stops without a valid ref stay off the map (D27).
-GEOCODE_KINDS = {"home", "airport", "lodging"}
+# The trip's fixed points: geocoded by their address (home: the profile's origin) when they have
+# no found place. Other stops without one are geocoded by "name, city" (D27).
+FIXED_KINDS = {"home", "airport", "lodging"}
 
 
 async def run_generation(
@@ -304,9 +304,9 @@ async def locate_stops(
        rating; source "Geoapify"). An unknown ref is ignored;
     2. a stop with the same name in an earlier version had coordinates → copy them (an edit
        copies stops with their letter tags as keys and no ref, so they keep their place);
-    3. home, airports and the hotel → the geocoder (see `geocode_query`); for airports and the
-       hotel a city-level match counts as not found.
-    Any other stop is left out and stays off the map.
+    3. the geocoder (see `geocode_query`). For every stop but home a city-level match counts as
+       not found, so a stop is pinned only where a real, specific match exists.
+    A stop the geocoder doesn't find is left out and stays off the map.
     """
     found = {finding.ref: finding.data for finding in findings if finding.tool in PLACE_TOOLS}
     newest_first = sorted(previous_versions, key=lambda itinerary: itinerary.version, reverse=True)
@@ -349,31 +349,34 @@ async def locate_stops(
         query = geocode_query(stop, draft, profile)
         if query is None:
             continue
-        # Home is the origin city, so a city-level match is right for it; for an airport or the
-        # hotel it would pin the city centre, so it counts as not found (D27).
+        # Home is the origin city, so a city-level match is right for it; for any other stop it
+        # would pin the city centre, so it counts as not found (D27).
         precise = stop.kind != "home"
         result = await asyncio.to_thread(places_tool.geocode, query, precise=precise)
         if result.ok:
+            # A fixed point was looked up by its draft address; other stops by name, so the
+            # geocoder's address is the better one for them.
+            if stop.kind in FIXED_KINDS:
+                address = stop.address or result.data.get("address")
+            else:
+                address = result.data.get("address") or stop.address
             places[stop.key] = StopPlace(
-                lat=result.data["lat"],
-                lng=result.data["lng"],
-                address=stop.address or result.data.get("address"),
+                lat=result.data["lat"], lng=result.data["lng"], address=address
             )
     return places
 
 
 def geocode_query(stop: DraftStop, draft: ItineraryDraft, profile: TripProfile) -> str | None:
-    """What to geocode for a stop with no found place, or None if it isn't geocoded.
+    """What to geocode for a stop with no found place, or None if there is nothing to look up.
 
-    Only GEOCODE_KINDS are. Home is the profile's origin (or its address). Others use their
-    address when the draft has one, since geocoders handle addresses best, else "name, city"
-    with the city of the first day that visits the stop.
+    Home is the profile's origin (or its address). The other FIXED_KINDS use their address when
+    the draft has one, since geocoders handle addresses best. Every other stop, and a fixed point
+    without an address, uses "name, city" with the city of the first day that visits the stop
+    (an address the LLM wrote for an ordinary stop may be made up; its name is what it means).
     """
-    if stop.kind not in GEOCODE_KINDS:
-        return None
     if stop.kind == "home":
         return profile.origin or stop.address
-    if stop.address:
+    if stop.kind in FIXED_KINDS and stop.address:
         return stop.address
     return f"{stop.name}, {stop_city(stop.key, draft)}"
 

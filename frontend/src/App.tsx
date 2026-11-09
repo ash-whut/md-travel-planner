@@ -8,6 +8,7 @@ import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
 import { demo } from './demoParams'
+import { hasMapStops } from './lib/map'
 import { useTripStore } from './store/useTripStore'
 
 type Tab = 'plan' | 'map' | 'book'
@@ -64,8 +65,14 @@ export default function App({ api = httpClient }: Props) {
     [],
   )
 
-  // Map and Book stay locked until there is a plan.
-  const activeTab: Tab = itinerary ? tab : 'plan'
+  // Book unlocks with a plan; Map only once a stop has coordinates (docs/spec.md F5).
+  function lockReason(id: Tab): string | null {
+    if (id === 'plan') return null
+    if (!itinerary) return 'Generate a plan to unlock'
+    if (id === 'map' && !hasMapStops(itinerary)) return 'No stops with coordinates yet'
+    return null
+  }
+  const activeTab: Tab = lockReason(tab) ? 'plan' : tab
 
   // Clicking a tag anywhere: from chat/book jump to the plan entry; on the map, focus the pin.
   const onTagClick = useCallback(
@@ -104,14 +111,15 @@ export default function App({ api = httpClient }: Props) {
           {/* Vertical tabs down the pane's edge, as in the sketch */}
           <nav className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-gray-200 bg-white pt-14">
             {TABS.map((t) => {
-              const locked = t.id !== 'plan' && !itinerary
+              const reason = lockReason(t.id)
+              const locked = reason !== null
               return (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => !locked && setTab(t.id)}
                   aria-disabled={locked}
-                  title={locked ? 'Generate a plan to unlock' : undefined}
+                  title={reason ?? undefined}
                   className={`flex w-full justify-center py-5 text-xs font-semibold tracking-wider uppercase ${
                     activeTab === t.id
                       ? 'border-l-2 border-accent bg-accent-soft text-accent'
