@@ -28,10 +28,9 @@ def google_flights_url(origin: str, destination: str, depart: date, return_date:
     return f"{GOOGLE_FLIGHTS_URL}?{_query({'q': text})}"
 
 
-def google_hotels_url(hotel_name: str, city: str, serpapi_link: str | None = None) -> str:
-    """The hotel's link from SerpApi when it has one; otherwise a Google Hotels search."""
-    if serpapi_link:
-        return serpapi_link
+def google_hotels_url(hotel_name: str, city: str) -> str:
+    """A Google Hotels search for the hotel. (SerpApi's own `link` is the hotel's website, so
+    postprocess shows it separately as "Hotel site".)"""
     return f"{GOOGLE_HOTELS_URL}?{_query({'q': f'{hotel_name} {city}'})}"
 
 

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chat, health, sessions
+from app.api import bookings, chat, health, sessions
 from app.db.engine import create_tables, get_engine
 
 FRONTEND_ORIGIN = "http://localhost:5173"
@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(sessions.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(bookings.router, prefix="/api")
     return app
 
 

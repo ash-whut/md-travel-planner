@@ -6,7 +6,7 @@ from sqlalchemy import literal_column
 from sqlmodel import Session, select
 
 from app.db.tables import ItineraryRow, MessageRow, SessionRow
-from app.schemas.itinerary import Itinerary
+from app.schemas.itinerary import Booking, BookingStatus, Itinerary
 
 Role = Literal["user", "assistant"]
 
@@ -100,6 +100,28 @@ def list_itineraries(db: Session, session_id: str) -> list[Itinerary]:
         .order_by(ItineraryRow.version)  # type: ignore[arg-type]
     )
     return [Itinerary.model_validate(row.data) for row in db.exec(statement).all()]
+
+
+def update_booking_status(
+    db: Session, session_id: str, booking_id: str, status: BookingStatus
+) -> Booking | None:
+    """Set one booking's status in the session's latest itinerary, in place (no new version).
+
+    Returns the updated booking, or None when there is no plan or no booking with that id.
+    """
+    row = _latest_itinerary_row(db, session_id)
+    if row is None:
+        return None
+    itinerary = Itinerary.model_validate(row.data)
+    booking = next((entry for entry in itinerary.bookings if entry.id == booking_id), None)
+    if booking is None:
+        return None
+    booking.status = status
+    # Assign new data (not an in-place edit) so SQLAlchemy sees the JSON column changed.
+    row.data = itinerary.model_dump(mode="json")
+    db.add(row)
+    db.commit()
+    return booking
 
 
 def _latest_itinerary_row(db: Session, session_id: str) -> ItineraryRow | None:

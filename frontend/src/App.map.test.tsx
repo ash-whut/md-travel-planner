@@ -23,6 +23,7 @@ function apiWith(itinerary: Itinerary): ApiClient {
     getSession: async () => session,
     sendMessage: async () => {},
     generate: async () => {},
+    patchBooking: async () => { throw new Error('patchBooking is not used here') },
   }
 }
 

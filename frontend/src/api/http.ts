@@ -1,6 +1,14 @@
 // The real ApiClient: REST calls to the FastAPI backend, and SSE for the chat stream.
 import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source'
-import type { SendMessageBody, SessionDetail, SseEvent, SseEventName } from '@/types'
+import type {
+  Booking,
+  BookingStatus,
+  SendMessageBody,
+  SessionDetail,
+  SseEvent,
+  SseEventName,
+  UpdateBookingBody,
+} from '@/types'
 import { ApiError, type ApiClient } from './client'
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
@@ -66,9 +74,19 @@ function generate(sessionId: string, onEvent: (event: SseEvent) => void, signal?
   return streamPost(`/sessions/${encodeURIComponent(sessionId)}/generate`, {}, onEvent, signal)
 }
 
+function patchBooking(sessionId: string, bookingId: string, status: BookingStatus): Promise<Booking> {
+  const body: UpdateBookingBody = { status }
+  return request<Booking>(`/sessions/${encodeURIComponent(sessionId)}/bookings/${encodeURIComponent(bookingId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 export const httpClient: ApiClient = {
   createSession: () => request<SessionDetail>('/sessions', { method: 'POST' }),
   getSession: (id) => request<SessionDetail>(`/sessions/${encodeURIComponent(id)}`),
   sendMessage,
   generate,
+  patchBooking,
 }

@@ -87,3 +87,8 @@ export function bounds(points: { lat: number; lng: number }[]): [LatLng, LatLng]
 export function hasMapStops(itinerary: Itinerary | null): boolean {
   return itinerary?.stops.some(hasCoords) ?? false
 }
+
+// The Book tab rule (docs/spec.md F6): it unlocks once the plan has bookings.
+export function hasBookings(itinerary: Itinerary | null): boolean {
+  return (itinerary?.bookings.length ?? 0) > 0
+}

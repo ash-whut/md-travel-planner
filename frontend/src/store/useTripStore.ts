@@ -3,10 +3,23 @@
 import { create } from 'zustand'
 import { ApiError, type ApiClient } from '@/api/client'
 import { sanJoseMessages, sanJoseProfile, sanJoseStatusLines, sanJoseV2 } from '@/fixtures'
-import type { Itinerary, Message, SessionDetail, SessionStatus, SseEvent, StatusState, TripProfile } from '@/types'
+import type {
+  Booking,
+  BookingStatus,
+  Itinerary,
+  Message,
+  SessionDetail,
+  SessionStatus,
+  SseEvent,
+  StatusState,
+  TripProfile,
+} from '@/types'
 
 // localStorage key holding the id of the session to reopen on the next visit.
 export const SESSION_KEY = 'md-travel-planner.sessionId'
+
+// The session id of the ?demo=1 fixture trip, which has no backend behind it.
+const DEMO_SESSION_ID = 'demo'
 
 // Appended to a reply the user stopped; the backend saves the same text (contracts §5).
 export const STOPPED_MARKER = ' *(stopped)*'
@@ -45,6 +58,7 @@ interface TripData {
   lastRequest: LastRequest | null // what Retry repeats
   selectedTag: string | null // the stop picked by a tag click (Plan flashes it, Map focuses its pin)
   tagFlashKey: number // bumped on every tag click, so clicking the same tag flashes it again
+  bookingError: string | null // the last failed "Mark booked" save, shown on the Book tab
 }
 
 interface TripActions {
@@ -57,6 +71,7 @@ interface TripActions {
   stop: () => void
   applyEvent: (event: SseEvent) => void
   selectTag: (tag: string) => void
+  setBookingStatus: (api: ApiClient, bookingId: string, status: BookingStatus) => Promise<void>
   reset: () => void
 }
 
@@ -76,6 +91,7 @@ const initialData: TripData = {
   lastRequest: null,
   selectedTag: null,
   tagFlashKey: 0,
+  bookingError: null,
 }
 
 // The open SSE stream (chat reply or generation), kept so Stop can abort it.
@@ -94,6 +110,16 @@ function isRetryable(err: unknown): boolean {
 // bubble is left behind (and Retry doesn't add a second one).
 function withoutEmptyReply(messages: Message[], id: string | null): Message[] {
   return messages.filter((m) => !(m.id === id && m.content === ''))
+}
+
+// The itinerary with one booking changed (matched by id); unchanged if it has no such booking.
+function withBooking(
+  itinerary: Itinerary | null,
+  bookingId: string,
+  change: (booking: Booking) => Booking,
+): Itinerary | null {
+  if (!itinerary) return null
+  return { ...itinerary, bookings: itinerary.bookings.map((b) => (b.id === bookingId ? change(b) : b)) }
 }
 
 // Reopen the stored session, or create a new one if none is stored or it no longer exists.
@@ -188,7 +214,7 @@ export const useTripStore = create<TripState>()((set, get) => ({
   loadDemo: () =>
     set({
       ...initialData,
-      session: { id: 'demo', title: sanJoseV2.title, status: 'planned' },
+      session: { id: DEMO_SESSION_ID, title: sanJoseV2.title, status: 'planned' },
       messages: sanJoseMessages,
       profile: sanJoseProfile,
       itinerary: sanJoseV2,
@@ -264,6 +290,29 @@ export const useTripStore = create<TripState>()((set, get) => ({
   applyEvent: (event) => set((state) => reduceEvent(state, event)),
 
   selectTag: (tag) => set((state) => ({ selectedTag: tag, tagFlashKey: state.tagFlashKey + 1 })),
+
+  // "Mark booked" (or undo): shows the new status right away, saves it, and puts the old
+  // status back if the save fails. A reply only counts while the booking still shows the
+  // status this request set; a later click (e.g. Undo) has already replaced it otherwise.
+  setBookingStatus: async (api, bookingId, status) => {
+    const { session, itinerary } = get()
+    const previous = itinerary?.bookings.find((b) => b.id === bookingId)
+    if (!session || !previous || previous.status === status) return
+
+    set((state) => ({ bookingError: null, itinerary: withBooking(state.itinerary, bookingId, (b) => ({ ...b, status })) }))
+    if (session.id === DEMO_SESSION_ID) return // the demo trip only changes locally
+
+    try {
+      await api.patchBooking(session.id, bookingId, status)
+    } catch (err) {
+      const current = get().itinerary?.bookings.find((b) => b.id === bookingId)
+      if (current?.status !== status) return // a newer click owns this booking now
+      set((state) => ({
+        bookingError: `Couldn't save the booking: ${errorText(err)}`,
+        itinerary: withBooking(state.itinerary, bookingId, (b) => ({ ...b, status: previous.status })),
+      }))
+    }
+  },
 
   reset: () => set(initialData),
 }))

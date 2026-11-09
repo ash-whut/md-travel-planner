@@ -32,6 +32,7 @@ function makeApi(overrides: Partial<ApiClient> = {}) {
     getSession: vi.fn(async () => plannedSession),
     sendMessage: vi.fn<ApiClient['sendMessage']>(async () => {}),
     generate: vi.fn<ApiClient['generate']>(async () => {}),
+    patchBooking: vi.fn(),
     ...overrides,
   }
 }

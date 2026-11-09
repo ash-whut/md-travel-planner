@@ -6,9 +6,9 @@ coordinates, addresses and place ids come from the places tool, found by the pip
 (`StopPlace`); never from the draft or the weather's city coordinates. A hotel stop that cites a
 hotels-tool result gets its lodging price and `price_as_of` from the tool (`HotelPrice`), which
 wins over the draft's estimate. Links come from `tools/links.py` (contracts §6): a `map_url` per
-stop and the hotel links per lodging; flight items have no price ("check link"), and
-`flight_link` gives the trip's Google Flights link for the bookings (step 42, still empty
-here). Travel between stops
+stop and the hotel links per lodging; flight items have no price ("check link"). The Book
+tab's `bookings` (a round-trip flight, one per hotel, one per booking-required activity) are
+built by code too, and keep their status from the previous version. Travel between stops
 (`transit_from_previous`) is a code estimate from the stops' coordinates. The finished
 itinerary is validated; any broken rules come back as a list of error strings instead of an
 exception, so the compose call can try once more with them (step 22).
@@ -25,6 +25,7 @@ from pydantic_core import ErrorDetails
 
 from app.agent.tags import assign_tags, index_for_tag
 from app.schemas.itinerary import (
+    Booking,
     City,
     CostEstimate,
     CostSource,
@@ -53,7 +54,12 @@ PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places se
 HOTELS_SOURCE = "SerpApi Google Hotels"  # + " · as of …" for items at a priced hotel
 GOOGLE_HOTELS_LABEL = "Google Hotels"
 BOOKING_COM_LABEL = "Booking.com"
+HOTEL_SITE_LABEL = "Hotel site"  # SerpApi's `link`: the hotel's own website
 GOOGLE_FLIGHTS_LABEL = "Google Flights"
+TICKETS_LABEL = "Find tickets"
+FLIGHT_BOOKING_ID = "bk-flight"
+FLIGHT_BOOKING_TITLE = "Flight Booking"
+HOTEL_BOOKING_TITLE = "Hotel Booking"
 
 EARTH_RADIUS_MI = 3958.8
 WALK_MAX_MI = 1.0  # legs up to this distance are walked
@@ -90,7 +96,7 @@ class HotelPrice:
     `source` "serpapi_google_hotels" has a per-night price and `as_of` (when SerpApi was
     asked); "none" has no price, so the plan shows "check link". `from_serpapi` marks a hotel
     SerpApi found even without a price (else it is a places-search fallback). `link` is the
-    hotel's link from SerpApi, if any (the lodging's "Google Hotels" link).
+    hotel's link from SerpApi, if any: its own website (the lodging's "Hotel site" link).
     """
 
     per_night: Money | None
@@ -157,6 +163,7 @@ def build_itinerary(
     except ValidationError as error:
         return [line for detail in error.errors() for line in _error_lines(detail)]
 
+    build_bookings(itinerary, latest)
     if latest is not None:
         _mark_updated_items(itinerary, latest)
     return itinerary
@@ -364,8 +371,9 @@ def _lodging(
 ) -> Lodging:
     """The lodging entry. At a hotel the hotels tool found, the tool's per-night price and
     `price_as_of` win over the draft's estimate (null when the tool had no price). The total is
-    per night × nights, since the tool's total is for the dates it was asked about. Links:
-    Google Hotels (the SerpApi link when there is one) and a Booking.com search."""
+    per night × nights, since the tool's total is for the dates it was asked about. Links: a
+    Google Hotels search, a Booking.com search and, when SerpApi gave one, the hotel's own
+    website ("Hotel site")."""
     place = places.get(lodging.stop_key)
     hotel = place.hotel if place else None
     if hotel is not None:
@@ -381,10 +389,7 @@ def _lodging(
     name = next(stop.name for stop in draft.stops if stop.key == lodging.stop_key)
     city = cities[lodging.stop_key]
     hotel_links = [
-        Link(
-            label=GOOGLE_HOTELS_LABEL,
-            url=links.google_hotels_url(name, city, hotel.link if hotel else None),
-        ),
+        Link(label=GOOGLE_HOTELS_LABEL, url=links.google_hotels_url(name, city)),
         Link(
             label=BOOKING_COM_LABEL,
             url=links.booking_com_url(
@@ -392,6 +397,8 @@ def _lodging(
             ),
         ),
     ]
+    if hotel is not None and hotel.link:
+        hotel_links.append(Link(label=HOTEL_SITE_LABEL, url=hotel.link))
     return Lodging(
         stop_tag=tags[lodging.stop_key],
         check_in=lodging.check_in,
@@ -440,33 +447,161 @@ def _item(
     )
 
 
-def flight_link(itinerary: Itinerary) -> Link | None:
-    """The trip's round-trip Google Flights link, kept for the flight booking (step 42); None
-    when no flight item has a stop.
+@dataclass
+class FlightRoute:
+    """The trip's outbound flight: the departure airport, the arrival airport (None when the
+    plan has no airport after it) and the destination text for the flight search."""
 
-    From the first flight item's stop (the departure airport) to the next airport stop after
-    it (the arrival), else that day's city, on the trip's start and end dates.
-    """
+    departure: Stop
+    arrival: Stop | None
+    destination: str
+
+
+def flight_route(itinerary: Itinerary) -> FlightRoute | None:
+    """From the first flight item's stop (the departure airport) to the next airport stop after
+    it (the arrival), else that day's city; None when no flight item has a stop."""
     stops = {stop.tag: stop for stop in itinerary.stops}
     items = [(day, item) for day in itinerary.days for item in day.items]
     for index, (day, item) in enumerate(items):
         if item.kind != "flight" or item.stop_tag is None:
             continue
-        destination = next(
+        arrival = next(
             (
-                stops[later.stop_tag].name
+                stops[later.stop_tag]
                 for _, later in items[index + 1 :]
                 if later.stop_tag is not None
                 and later.stop_tag != item.stop_tag
                 and stops[later.stop_tag].kind == "airport"
             ),
-            day.city,
+            None,
         )
-        url = links.google_flights_url(
-            stops[item.stop_tag].name, destination, itinerary.start_date, itinerary.end_date
-        )
-        return Link(label=GOOGLE_FLIGHTS_LABEL, url=url)
+        destination = arrival.name if arrival else day.city
+        return FlightRoute(stops[item.stop_tag], arrival, destination)
     return None
+
+
+def flight_link(itinerary: Itinerary) -> Link | None:
+    """The trip's round-trip Google Flights link (for the flight booking), on the trip's start
+    and end dates; None when no flight item has a stop."""
+    route = flight_route(itinerary)
+    if route is None:
+        return None
+    return _route_link(route, itinerary)
+
+
+def _route_link(route: FlightRoute, itinerary: Itinerary) -> Link:
+    url = links.google_flights_url(
+        route.departure.name, route.destination, itinerary.start_date, itinerary.end_date
+    )
+    return Link(label=GOOGLE_FLIGHTS_LABEL, url=url)
+
+
+def build_bookings(itinerary: Itinerary, previous: Itinerary | None) -> None:
+    """Fill `itinerary.bookings` (the Book tab) and the items' `booking_id`, in place.
+
+    - one round-trip flight booking ("bk-flight") when the plan has a flight;
+    - one lodging booking per hotel ("bk-hotel-D"): its total, `price_as_of` and links;
+    - one per stop of a booking-required activity ("bk-activity-G"): a tickets search.
+    Ids come from stop tags, which stay the same across versions, so each booking keeps its
+    status from `previous` (the version before). A booking-required item gets the id of the
+    booking for its stop (a flight item: the flight booking).
+    """
+    stops = {stop.tag: stop for stop in itinerary.stops}
+    bookings: list[Booking] = []
+    flight = _flight_booking(itinerary)
+    if flight is not None:
+        bookings.append(flight)
+    lodging_ids: dict[str, str] = {}
+    for lodging in itinerary.lodging:
+        booking = _lodging_booking(lodging, stops[lodging.stop_tag])
+        lodging_ids[lodging.stop_tag] = booking.id
+        bookings.append(booking)
+    activity_ids: dict[str, str] = {}
+    for day in itinerary.days:
+        for item in day.items:
+            if not item.booking_required or item.kind != "activity" or item.stop_tag is None:
+                continue
+            if item.stop_tag not in activity_ids:
+                booking = _activity_booking(item, day, stops[item.stop_tag])
+                activity_ids[item.stop_tag] = booking.id
+                bookings.append(booking)
+
+    for day in itinerary.days:
+        for item in day.items:
+            if not item.booking_required:
+                continue
+            if item.kind == "flight" and flight is not None:
+                item.booking_id = flight.id
+            elif item.kind == "lodging" and item.stop_tag in lodging_ids:
+                item.booking_id = lodging_ids[item.stop_tag]
+            elif item.kind == "activity" and item.stop_tag in activity_ids:
+                item.booking_id = activity_ids[item.stop_tag]
+
+    earlier_bookings = previous.bookings if previous else []
+    earlier_status = {booking.id: booking.status for booking in earlier_bookings}
+    for booking in bookings:
+        booking.status = earlier_status.get(booking.id, "todo")
+    itinerary.bookings = bookings
+
+
+def _flight_booking(itinerary: Itinerary) -> Booking | None:
+    route = flight_route(itinerary)
+    if route is None:
+        return None
+    tags = [route.departure.tag] + ([route.arrival.tag] if route.arrival else [])
+    dates = _date_range(itinerary.start_date, itinerary.end_date)
+    return Booking(
+        id=FLIGHT_BOOKING_ID,
+        kind="flight",
+        tags=tags,
+        title=FLIGHT_BOOKING_TITLE,
+        details=f"{route.departure.name} → {route.destination} round trip · {dates}",
+        estimate=None,  # flights are link-only until real fares (step 49)
+        links=[_route_link(route, itinerary)],
+    )
+
+
+def _lodging_booking(lodging: Lodging, stop: Stop) -> Booking:
+    nights = f"{lodging.nights} night" + ("" if lodging.nights == 1 else "s")
+    return Booking(
+        id=f"bk-hotel-{stop.tag}",
+        kind="lodging",
+        tags=[stop.tag],
+        title=HOTEL_BOOKING_TITLE,
+        details=f"{stop.name} · {nights} · {_date_range(lodging.check_in, lodging.check_out)}",
+        estimate=lodging.total_price,
+        price_as_of=lodging.price_as_of,
+        links=list(lodging.links),
+    )
+
+
+def _activity_booking(item: ItineraryItem, day: Day, stop: Stop) -> Booking:
+    return Booking(
+        id=f"bk-activity-{stop.tag}",
+        kind="activity",
+        tags=[stop.tag],
+        title=stop.name,
+        details=f"{day.date:%a}, {_short_date(day.date)} · {_time_12h(item.start_time)}",
+        estimate=item.est_cost,  # per person, an AI estimate
+        links=[Link(label=TICKETS_LABEL, url=links.tickets_url(stop.name, day.city))],
+    )
+
+
+def _short_date(value: date) -> str:
+    """A date like "Mar 5" (no zero padding)."""
+    return f"{value:%b} {value.day}"
+
+
+def _date_range(start: date, end: date) -> str:
+    """Two dates like "Mar 5 – Mar 7"."""
+    return f"{_short_date(start)} – {_short_date(end)}"
+
+
+def _time_12h(time: str) -> str:
+    """A local "HH:MM" time in 12h: "13:30" → "1:30 PM"."""
+    hours, minutes = (int(part) for part in time.split(":"))
+    suffix = "AM" if hours < 12 else "PM"
+    return f"{(hours % 12) or 12}:{minutes:02d} {suffix}"
 
 
 def haversine_mi(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

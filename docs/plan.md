@@ -622,7 +622,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## H. Book view
 
-### 42 · Bookings in the plan + PATCH — ☐ *BE*
+### 42 · Bookings in the plan + PATCH — ☑ *BE*
 - **Builds:**
   - postprocess `build_bookings`:
     - flight = origin airport tag → destination airport tag, round trip, Google Flights link;
@@ -636,9 +636,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the expected bookings for the fixture; carry-over across v1 → v2; PATCH persists;
   unknown id → 404.
 - **Done when:** tests green.
-- **Notes:** `postprocess.flight_link(itinerary)` (step 40) already builds the round-trip Google Flights link; call it from `build_bookings`. Lodging `links[0]` is labelled "Google Hotels" but holds SerpApi's `link`, which is the hotel's own website: label it honestly ("Hotel site") or always use the Google Hotels search URL, and update contracts §6.
+- **Notes:** `postprocess.flight_link(itinerary)` (step 40) already builds the round-trip Google Flights link; call it from `build_bookings`. Lodging `links[0]` is labelled "Google Hotels" but holds SerpApi's `link`, which is the hotel's own website: label it honestly ("Hotel site") or always use the Google Hotels search URL, and update contracts §6. **Built:** `build_bookings` (ids `bk-flight`, `bk-hotel-{tag}`, `bk-activity-{tag}`; status carried by id) + PATCH in `api/bookings.py` (in place, 404/422); "Google Hotels" is always the search URL, SerpApi's link is a separate "Hotel site" (D31). Fake plan → 4 bookings.
 
-### 43 · Book tab from real data — ☐ *FE*
+### 43 · Book tab from real data — ☑ *FE*
 - **Builds:**
   - BookView from the store with the "N of M booked" progress bar;
   - Book → the approval dialog → opens the link (`noopener noreferrer`);
@@ -647,7 +647,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `frontend/src/components/BookView.tsx`, `api/http.ts`, store, tests
 - **Tests:** progress count; the dialog flow; optimistic update + revert.
 - **Done when:** tests green.
-- **Notes:** Today `lockReason` in `App.tsx` unlocks Book with any plan (spec F6 wants bookings). Add a `hasBookings` helper next to `hasMapStops` and a tab-rule test like `App.map.test.tsx`.
+- **Notes:** Today `lockReason` in `App.tsx` unlocks Book with any plan (spec F6 wants bookings). Add a `hasBookings` helper next to `hasMapStops` and a tab-rule test like `App.map.test.tsx`. **Built:** `api.patchBooking`, optimistic store `setBookingStatus` (revert + `bookingError`; demo is local-only), BookView progress/dialog/Mark booked/Undo, Book tab locked by `hasBookings`; "Continue" uses `window.open(..., 'noopener,noreferrer')`.
 
 ## I. History
 
@@ -690,7 +690,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached). From the 38–41 review: geocode each city once per plan, or add a rate gate, so a parallel round can't burst Geoapify past 5 requests/second (D25). With a SerpApi key, hotel searches add no Geoapify calls; only the no-key fallback does. Optionally take a cited hotel's (`h` ref) name from the tool. That needs a contracts §2.3 line and the edit's name match handled. A "skipped: limit" hotel call returns `ok: false`, so its planner status line ends in error; decide whether a skipped call should end as error or end.
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached). From the 38–41 review: geocode each city once per plan, or add a rate gate, so a parallel round can't burst Geoapify past 5 requests/second (D25). With a SerpApi key, hotel searches add no Geoapify calls; only the no-key fallback does. Optionally take a cited hotel's (`h` ref) name from the tool. That needs a contracts §2.3 line and the edit's name match handled. A "skipped: limit" hotel call returns `ok: false`, so its planner status line ends in error; decide whether a skipped call should end as error or end. From the 42–43 review: a booking PATCH that lands while a generate/edit is streaming is lost (`build_bookings` carries status from the version read before the PATCH), so either block "Mark booked" while `generating` or merge the latest statuses on save. `bookingError` stays until the next booking action; clear it on a new plan version or tab change. If Mark booked then Undo are clicked and both PATCHes fail, the store shows "booked" while the server has "todo"; disable a card's buttons while its save is pending.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**
@@ -700,7 +700,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   - a README demo walkthrough;
   - a clean-clone setup check.
 - **Done when:** a teammate runs the demo from a clean clone by following the README.
-- **Notes:** —
+- **Notes:** The demo fixtures (`sanjose-v1/v2.json`) don't match backend bookings yet. Activity booking titles should be the stop name with details like "Sat, Mar 6 · 1:00 PM". Flight details should read "IAH → San Jose Airport". The hotel's first link should be Google Hotels. Update the matching strings in `BookView.flow.test.tsx` too.
 
 ## Stretch (after the MVP works end to end)
 

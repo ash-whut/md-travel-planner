@@ -24,6 +24,7 @@ const fakeApi: ApiClient = {
   getSession: async () => sanJoseSession,
   sendMessage: async () => {},
   generate: async () => {},
+  patchBooking: async () => { throw new Error('patchBooking is not used here') },
 }
 
 beforeEach(() => {
@@ -68,7 +69,7 @@ describe('App session start (fake ApiClient)', () => {
   }
 
   function spyApi(getSession: ApiClient['getSession'] = async () => sanJoseSession) {
-    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}), generate: vi.fn(async () => {}) }
+    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}), generate: vi.fn(async () => {}), patchBooking: vi.fn() }
   }
 
   it('creates a session when none is stored, stores its id and shows the backend greeting', async () => {
@@ -125,6 +126,7 @@ describe('App session start (fake ApiClient)', () => {
       getSession: vi.fn(async () => sanJoseSession),
       sendMessage: vi.fn(async () => {}),
       generate: vi.fn(async () => {}),
+      patchBooking: vi.fn(),
     }
     render(<App api={api} />)
     expect((await screen.findByRole('alert')).textContent).toMatch(/Failed to fetch/)

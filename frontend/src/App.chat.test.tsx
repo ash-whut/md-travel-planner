@@ -26,7 +26,7 @@ const reply: SseEvent[] = [
 ]
 
 function makeApi(send: ApiClient['sendMessage']) {
-  return { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn() }
+  return { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn(), patchBooking: vi.fn() }
 }
 
 async function typeAndSend(text: string) {

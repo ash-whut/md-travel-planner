@@ -25,6 +25,7 @@ function fakeApi(): ApiClient {
     getSession: vi.fn(async () => session),
     sendMessage: vi.fn(),
     generate: vi.fn(),
+    patchBooking: vi.fn(),
   }
 }
 

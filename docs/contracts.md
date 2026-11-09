@@ -119,7 +119,7 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
       "total_price":     { "amount": 240, "currency": "USD" },
       "price_source": "serpapi_google_hotels",                   // ai_estimate | serpapi_google_hotels | none
       "price_as_of": "2026-11-01T18:04:05Z",                     // null unless from a tool
-      "links": [ { "label": "Google Hotels", "url": "https://…" } ]
+      "links": [ { "label": "Google Hotels", "url": "https://…" } ]   // Google Hotels, Booking.com, + "Hotel site" when SerpApi has one (§6)
     }
   ],
 
@@ -139,7 +139,7 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
           "est_cost": { "amount": 300, "currency": "USD" },  // per person (a lodging item: per night); null = "check link"
           "cost_source": "ai_estimate",      // ai_estimate | tool | null
           "booking_required": true,
-          "booking_id": "bk-flight",         // set when booking_required (step 42+)
+          "booking_id": "bk-flight",         // set when booking_required and its booking exists (step 42+)
           "why": "Lowest fare with one stop that lands before 2 PM.",
           "source": "AI suggestion",         // shown under "Why this?" e.g. "Geoapify", "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC"
           "transit_from_previous": { "mode": "rideshare", "duration_min": 12, "distance_mi": 4.1, "estimated": true }, // null for the first item; mode: walk|transit|drive|rideshare|flight
@@ -149,13 +149,13 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
     }
   ],
 
-  "bookings": [                              // the Book tab (step 42+); [] before that
+  "bookings": [                              // the Book tab (step 42+), built by code; [] before that
     {
-      "id": "bk-flight",
+      "id": "bk-flight",                     // "bk-flight" | "bk-hotel-{tag}" | "bk-activity-{tag}"
       "kind": "flight",                      // flight | lodging | activity
       "tags": ["B", "C"],                    // shown as B → C
       "title": "Flight Booking",
-      "details": "IAH → SJC round trip · Mar 5 – Mar 7",
+      "details": "IAH → San Jose Airport round trip · Mar 5 – Mar 7",
       "estimate": null,                      // Money or null ("check link")
       "price_as_of": null,
       "links": [ { "label": "Google Flights", "url": "https://…" } ],
@@ -165,6 +165,17 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
   "created_at": "2026-11-01T18:04:05Z"
 }
 ```
+
+**Bookings (step 42, `postprocess.build_bookings`):**
+- Flight: one round trip from the first flight's airport to the next airport stop (tags
+  `[departure, arrival]`), Google Flights link, `estimate: null`.
+- Lodging: one per `lodging` entry: title "Hotel Booking", details "{hotel} · 2 nights · Mar 5 –
+  Mar 7", `estimate` = `total_price`, its `price_as_of` and links.
+- Activity: one per stop of a `booking_required` activity item: title = the stop name, details
+  "Sat, Mar 6 · 1:30 PM", `estimate` = the item's `est_cost` (per person), a "Find tickets" link.
+- Ids come from tags, so `status` carries over from the previous version by id (new → `todo`).
+  `PATCH …/bookings/{booking_id}` changes `status` in the latest version in place (no new
+  version).
 
 **Validation (Pydantic, run after postprocessing):**
 - 1–7 days; number of days = `end_date − start_date + 1`; `day_number` runs 1..N without gaps;
@@ -296,7 +307,8 @@ Order: `message_start` comes first and `done` or `error` comes last. If the clie
 ## 6. Deep links (`backend/app/tools/links.py`, built by code, never by the LLM)
 URL-encode every parameter.
 - Google Flights: `https://www.google.com/travel/flights?q=Flights%20from%20{origin}%20to%20{dest}%20on%20{YYYY-MM-DD}%20returning%20{YYYY-MM-DD}`
-- Google Hotels: the `link` from SerpApi when present; otherwise `https://www.google.com/travel/hotels?q={hotel name} {city}`
+- Google Hotels: always the search `https://www.google.com/travel/hotels?q={hotel name} {city}`
+- Hotel site: SerpApi's `link` (the hotel's own website), added as a third lodging link only when present
 - Booking.com: `https://www.booking.com/searchresults.html?ss={hotel name, city}&checkin={YYYY-MM-DD}&checkout={YYYY-MM-DD}&group_adults={n}`
 - Activity tickets: `https://www.google.com/search?q={stop name} {city} tickets`
 - Map link for a stop: `https://www.google.com/maps/search/?api=1&query={name}, {address or city}` (a plain link; no Google API key needed)

@@ -127,16 +127,11 @@ def test_google_flights_url_dates_are_zero_padded_iso() -> None:
     assert _query(url)["q"] == ["Flights from AUS to SFO on 2027-01-02 returning 2027-01-09"]
 
 
-def test_google_hotels_url_uses_the_serpapi_link_when_present() -> None:
-    assert links.google_hotels_url("Pacific Inn", "San Jose", SERPAPI_LINK) == SERPAPI_LINK
-
-
-def test_google_hotels_url_falls_back_to_a_search() -> None:
+def test_google_hotels_url_is_always_a_search() -> None:
+    # Step 42: SerpApi's `link` is the hotel's own site, shown separately as "Hotel site".
     expected = "https://www.google.com/travel/hotels?q=Pacific%20Inn%20San%20Jose"
 
     assert links.google_hotels_url("Pacific Inn", "San Jose") == expected
-    assert links.google_hotels_url("Pacific Inn", "San Jose", None) == expected
-    assert links.google_hotels_url("Pacific Inn", "San Jose", "") == expected
 
 
 def test_booking_com_url_matches_the_contract_format() -> None:
@@ -354,7 +349,7 @@ def test_lodging_links_use_the_stays_dates_and_the_plans_travelers() -> None:
     assert query["group_adults"] == ["3"]
 
 
-def test_lodging_at_a_found_hotel_uses_the_serpapi_link() -> None:
+def test_lodging_at_a_found_hotel_adds_the_serpapi_link_as_hotel_site() -> None:
     as_of = datetime(2026, 11, 9, 1, 30, tzinfo=timezone.utc)
     hotel = HotelPrice(Money(amount=79, currency="USD"), "serpapi_google_hotels", as_of,
                        link=SERPAPI_LINK)
@@ -364,7 +359,11 @@ def test_lodging_at_a_found_hotel_uses_the_serpapi_link() -> None:
     plan = _build(places_by_key=stop_places)
     lodging = plan.lodging[0]
 
-    assert _link(lodging, "Google Hotels") == SERPAPI_LINK
+    assert [link.label for link in lodging.links] == ["Google Hotels", "Booking.com", "Hotel site"]
+    assert _link(lodging, "Hotel site") == SERPAPI_LINK
+    assert _link(lodging, "Google Hotels") == links.google_hotels_url(
+        "Pacific Inn San Jose", "San Jose"
+    )
     assert _query(_link(lodging, "Booking.com"))["ss"] == ["Pacific Inn San Jose, San Jose"]
 
 
@@ -374,6 +373,7 @@ def test_found_hotel_without_a_link_falls_back_to_the_search_url() -> None:
 
     plan = _build(places_by_key=stop_places)
 
+    assert [link.label for link in plan.lodging[0].links] == ["Google Hotels", "Booking.com"]
     assert _link(plan.lodging[0], "Google Hotels") == links.google_hotels_url(
         "Pacific Inn San Jose", "San Jose"
     )
@@ -396,7 +396,7 @@ def test_hotel_ref_in_compose_gives_the_lodging_the_serpapi_link() -> None:
 
     plan = _compose(raw, [Finding(ref="h1", tool="search_hotels", data=dict(PACIFIC))])
 
-    assert _link(plan.lodging[0], "Google Hotels") == SERPAPI_LINK
+    assert _link(plan.lodging[0], "Hotel site") == SERPAPI_LINK
 
 
 def test_edit_that_keeps_the_hotel_keeps_its_serpapi_link() -> None:
@@ -407,7 +407,7 @@ def test_edit_that_keeps_the_hotel_keeps_its_serpapi_link() -> None:
     v2 = _compose(pipeline.as_draft(v1).model_dump(mode="json"), [], previous=[v1])
 
     assert v2.lodging[0].stop_tag == v1.lodging[0].stop_tag
-    assert _link(v2.lodging[0], "Google Hotels") == SERPAPI_LINK
+    assert _link(v2.lodging[0], "Hotel site") == SERPAPI_LINK
 
 
 # --- flights: no price, a Google Flights link -----------------------------------------------

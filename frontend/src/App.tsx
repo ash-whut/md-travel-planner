@@ -8,7 +8,7 @@ import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
 import { demo } from './demoParams'
-import { hasMapStops } from './lib/map'
+import { hasBookings, hasMapStops } from './lib/map'
 import { useTripStore } from './store/useTripStore'
 
 type Tab = 'plan' | 'map' | 'book'
@@ -37,6 +37,7 @@ export default function App({ api = httpClient }: Props) {
   const error = useTripStore((s) => s.error)
   const selectedTag = useTripStore((s) => s.selectedTag)
   const flashKey = useTripStore((s) => s.tagFlashKey)
+  const bookingError = useTripStore((s) => s.bookingError)
   const started = useRef(false)
 
   // Load the fixture trip (?demo=1) or open a backend session, once. The ref survives
@@ -65,11 +66,12 @@ export default function App({ api = httpClient }: Props) {
     [],
   )
 
-  // Book unlocks with a plan; Map only once a stop has coordinates (docs/spec.md F5).
+  // Map unlocks once a stop has coordinates, Book once the plan has bookings (docs/spec.md F5, F6).
   function lockReason(id: Tab): string | null {
     if (id === 'plan') return null
     if (!itinerary) return 'Generate a plan to unlock'
     if (id === 'map' && !hasMapStops(itinerary)) return 'No stops with coordinates yet'
+    if (id === 'book' && !hasBookings(itinerary)) return 'Nothing to book yet'
     return null
   }
   const activeTab: Tab = lockReason(tab) ? 'plan' : tab
@@ -165,7 +167,14 @@ export default function App({ api = httpClient }: Props) {
               {itinerary && activeTab === 'map' && (
                 <MapView itinerary={itinerary} selectedTag={selectedTag} onTagClick={onTagClick} />
               )}
-              {itinerary && activeTab === 'book' && <BookView itinerary={itinerary} onTagClick={onTagClick} />}
+              {itinerary && activeTab === 'book' && (
+                <BookView
+                  itinerary={itinerary}
+                  onTagClick={onTagClick}
+                  onSetStatus={(id, status) => void useTripStore.getState().setBookingStatus(api, id, status)}
+                  error={bookingError}
+                />
+              )}
             </div>
           </div>
         </section>

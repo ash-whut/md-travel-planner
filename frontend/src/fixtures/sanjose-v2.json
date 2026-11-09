@@ -219,11 +219,8 @@
           "start_time": "09:15",
           "duration_min": 360,
           "nights": null,
-          "est_cost": {
-            "amount": 300,
-            "currency": "USD"
-          },
-          "cost_source": "ai_estimate",
+          "est_cost": null,
+          "cost_source": null,
           "booking_required": true,
           "booking_id": "bk-flight",
           "why": "Lowest fare with one stop that lands before 2 PM local time.",
@@ -275,7 +272,7 @@
           },
           "cost_source": "tool",
           "booking_required": true,
-          "booking_id": "bk-hotel",
+          "booking_id": "bk-hotel-D",
           "why": "Cheapest 4★ option within walking distance of downtown food.",
           "source": "SerpApi Google Hotels · as of Nov 1, 6:04 PM",
           "transit_from_previous": {
@@ -360,7 +357,7 @@
           },
           "cost_source": "ai_estimate",
           "booking_required": true,
-          "booking_id": "bk-tech",
+          "booking_id": "bk-activity-G",
           "why": "Matches \"tech\" interest; indoor in case of afternoon clouds.",
           "source": "Geoapify",
           "transit_from_previous": {
@@ -385,7 +382,7 @@
           },
           "cost_source": "ai_estimate",
           "booking_required": true,
-          "booking_id": "bk-winchester",
+          "booking_id": "bk-activity-H",
           "why": "Most-visited sight in San Jose; tours sell out on weekends.",
           "source": "Geoapify",
           "transit_from_previous": {
@@ -519,10 +516,7 @@
       ],
       "title": "Flight Booking",
       "details": "IAH → SJC round trip · Mar 5 – Mar 7",
-      "estimate": {
-        "amount": 300,
-        "currency": "USD"
-      },
+      "estimate": null,
       "price_as_of": null,
       "links": [
         {
@@ -533,13 +527,13 @@
       "status": "todo"
     },
     {
-      "id": "bk-hotel",
+      "id": "bk-hotel-D",
       "kind": "lodging",
       "tags": [
         "D"
       ],
       "title": "Hotel Booking",
-      "details": "San Jose Marriott · 2 nights · as of Nov 1, 6:04 PM",
+      "details": "San Jose Marriott · 2 nights · Mar 5 – Mar 7",
       "estimate": {
         "amount": 240,
         "currency": "USD"
@@ -558,7 +552,7 @@
       "status": "todo"
     },
     {
-      "id": "bk-tech",
+      "id": "bk-activity-G",
       "kind": "activity",
       "tags": [
         "G"
@@ -579,7 +573,7 @@
       "status": "booked"
     },
     {
-      "id": "bk-winchester",
+      "id": "bk-activity-H",
       "kind": "activity",
       "tags": [
         "H"

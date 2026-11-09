@@ -39,6 +39,7 @@ function fakeApi(send: SendImpl) {
     getSession: vi.fn(async () => session),
     sendMessage: vi.fn(send),
     generate: vi.fn(),
+    patchBooking: vi.fn(),
   }
 }
 

@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.db.tables import MessageRow, SessionRow
-from app.schemas.itinerary import Itinerary
+from app.schemas.itinerary import BookingStatus, Itinerary
 from app.schemas.profile import TripProfile, load_profile
 
 
@@ -20,6 +20,12 @@ class SendMessageBody(BaseModel):
     def strip_content(cls, value: object) -> object:
         # Strip first, so whitespace-only content fails min_length (422).
         return value.strip() if isinstance(value, str) else value
+
+
+class UpdateBookingBody(BaseModel):
+    """Body of PATCH /api/sessions/{id}/bookings/{booking_id}."""
+
+    status: BookingStatus
 
 
 class MessageOut(BaseModel):

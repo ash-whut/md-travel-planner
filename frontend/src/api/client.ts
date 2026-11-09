@@ -1,6 +1,6 @@
 // The backend API as seen by the app (docs/contracts.md §4). Components never call fetch:
 // the app talks to an ApiClient, which tests replace with a fake.
-import type { SessionDetail, SseEvent } from '@/types'
+import type { Booking, BookingStatus, SessionDetail, SseEvent } from '@/types'
 
 export interface ApiClient {
   createSession(): Promise<SessionDetail>
@@ -16,6 +16,8 @@ export interface ApiClient {
   ): Promise<void>
   // Makes (or remakes) the plan: POST /generate, streamed the same way as sendMessage.
   generate(sessionId: string, onEvent: (event: SseEvent) => void, signal?: AbortSignal): Promise<void>
+  // PATCH /sessions/{id}/bookings/{booking_id}: saves a booking's status, returns the updated booking.
+  patchBooking(sessionId: string, bookingId: string, status: BookingStatus): Promise<Booking>
 }
 
 // A non-2xx response. `message` is the backend's `detail` text when there is one.

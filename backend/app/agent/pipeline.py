@@ -17,7 +17,7 @@ from sqlmodel import Session
 from app.agent import context, sse
 from app.agent.planner import PLANNER_REQUEST, Finding, run_parallel, run_planner
 from app.agent.postprocess import (
-    GOOGLE_HOTELS_LABEL,
+    HOTEL_SITE_LABEL,
     PLACES_SOURCE,
     CityWeather,
     HotelPrice,
@@ -417,7 +417,7 @@ def earlier_hotel_price(version: Itinerary, tag: str) -> HotelPrice | None:
     if lodging is None or lodging.price_source != PRICED_SOURCE:
         return None
     hotels_link = next(
-        (link.url for link in lodging.links if link.label == GOOGLE_HOTELS_LABEL), None
+        (link.url for link in lodging.links if link.label == HOTEL_SITE_LABEL), None
     )
     return HotelPrice(
         per_night=lodging.price_per_night,

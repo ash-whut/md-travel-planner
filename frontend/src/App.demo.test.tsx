@@ -23,6 +23,9 @@ function unusedApi() {
     generate: vi.fn(async () => {
       throw new Error('generate must not be called in demo mode')
     }),
+    patchBooking: vi.fn(async () => {
+      throw new Error('patchBooking must not be called in demo mode')
+    }),
   }
 }
 

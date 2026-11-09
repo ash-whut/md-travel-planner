@@ -3,7 +3,7 @@
 Specified by plan step 21 and contracts §2.2, §2.3, §3: a good draft -> a valid itinerary with the
 expected letters; a v2 draft -> `updated_in_version` only on the changed item; a bad draft ->
 errors, no exception. Also checks the fields code owns (ids, version, null coordinates,
-cost_source, default source, weather null, bookings []).
+cost_source, default source, weather null; bookings are code-built since step 42).
 """
 
 import copy
@@ -118,13 +118,14 @@ def test_v1_item_ids_follow_draft_order(v1: Itinerary) -> None:
 
 
 def test_v1_code_owned_fields(v1: Itinerary) -> None:
-    assert v1.bookings == []
+    # Bookings and booking ids are built by code since step 42 (see test_bookings.py).
+    booking_ids = {booking.id for booking in v1.bookings}
     assert v1.weather_summary is None
     assert all(day.weather is None for day in v1.days)
     for item in all_items(v1):
         assert item.updated_in_version is None
         assert item.transit_from_previous is None
-        assert item.booking_id is None
+        assert item.booking_id is None or item.booking_id in booking_ids
 
 
 def test_lodging_points_at_the_hotel_tag(v1: Itinerary) -> None:
