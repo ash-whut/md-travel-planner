@@ -44,9 +44,9 @@
     },
     {
       "key": "s4",
-      "name": "San Jose Marriott",
+      "name": "Pacific Inn San Jose",
       "kind": "lodging",
-      "address": "301 S Market St, San Jose, CA",
+      "address": "San Jose, CA",
       "place_ref": null
     },
     {
@@ -149,7 +149,7 @@
         {
           "kind": "transit",
           "stop_key": "s3",
-          "description": "Head to the Marriott Hotel via Uber.",
+          "description": "Head to Pacific Inn via Uber.",
           "start_time": "13:30",
           "duration_min": 30,
           "nights": null,

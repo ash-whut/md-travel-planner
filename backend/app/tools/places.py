@@ -63,6 +63,9 @@ INTEREST_CATEGORIES: list[tuple[str, str]] = [
     ("beach", "beach"),
     ("shop", "commercial.shopping_mall,commercial.marketplace"),
     ("zoo", "entertainment.zoo,entertainment.aquarium"),
+    ("hostel", "accommodation.hostel"),
+    ("hotel", "accommodation.hotel,accommodation.motel"),
+    ("lodging", "accommodation.hotel,accommodation.motel,accommodation.hostel"),  # hotels fallback
 ]
 DEFAULT_CATEGORIES = "tourism.sights,tourism.attraction"
 

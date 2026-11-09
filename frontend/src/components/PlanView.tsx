@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  BedDouble, Car, ChevronDown, Clock, Info, Landmark, Plane, RefreshCw, Sparkles, Ticket, Utensils,
+  BedDouble, Car, ChevronDown, Clock, ExternalLink, Info, Landmark, Plane, RefreshCw, Sparkles, Ticket, Utensils,
 } from 'lucide-react'
 import { demo } from '@/demoParams'
 import {
-  formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatTime, formatTimestamp,
+  formatAsOf, formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatPerNight, formatTime,
+  formatTimestamp, formatTransitLeg,
 } from '@/lib/format'
 import { profileChips } from '@/lib/profile'
 import { firstDayByTag } from '@/lib/tags'
-import type { DayWeather, ItemKind, Itinerary, ItineraryItem, Stop, TripProfile } from '@/types'
+import type { DayWeather, ItemKind, Itinerary, ItineraryItem, Lodging, Stop, TripProfile } from '@/types'
 import { TagBadge } from './TagBadge'
 
 const KIND_ICON: Record<ItemKind, typeof Car> = {
@@ -170,6 +171,7 @@ interface PlanDetailsProps {
 function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate, onGenerate }: PlanDetailsProps) {
   const [showAssumptions, setShowAssumptions] = useState(false)
   const stopsByTag = new Map(itinerary.stops.map((s) => [s.tag, s]))
+  const lodgingByTag = new Map(itinerary.lodging.map((l) => [l.stop_tag, l]))
   const firstDay = firstDayByTag(itinerary)
   const costRange = itinerary.cost_estimate ? ` · ${formatCostRange(itinerary.cost_estimate)} per person` : ''
   // The summary chip borrows the first day's icon; the credit shows whenever any weather is shown.
@@ -241,6 +243,7 @@ function PlanDetails({ itinerary, profile, selectedTag, onTagClick, canGenerate,
                 key={item.id}
                 item={item}
                 stop={item.stop_tag ? stopsByTag.get(item.stop_tag) : undefined}
+                lodging={item.stop_tag ? lodgingByTag.get(item.stop_tag) : undefined}
                 day={item.stop_tag ? (firstDay.get(item.stop_tag) ?? day.day_number) : day.day_number}
                 version={itinerary.version}
                 selected={item.stop_tag !== null && selectedTag === item.stop_tag}
@@ -286,19 +289,25 @@ function WeatherChip({ weather }: { weather: DayWeather }) {
 interface EntryProps {
   item: ItineraryItem
   stop: Stop | undefined
+  lodging: Lodging | undefined // the hotel details when this item is a lodging stop
   day: number
   version: number
   selected: boolean
   onTagClick: (tag: string) => void
 }
 
-function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
+function Entry({ item, stop, lodging, day, version, selected, onTagClick }: EntryProps) {
   const tag = item.stop_tag
   const [open, setOpen] = useState(tag !== null && demo.why === tag)
   const ref = useRef<HTMLLIElement>(null)
   const Icon = KIND_ICON[item.kind]
   const updated = version > 1 && item.updated_in_version === version
-  const length = item.kind === 'lodging' && item.nights !== null ? formatNights(item.nights) : formatDuration(item.duration_min)
+  // A hotel item's est_cost is per night; its "as of" time comes from the lodging entry (tool price).
+  const nights = item.kind === 'lodging' ? item.nights : null
+  const cost = nights !== null ? formatPerNight(item.est_cost) : formatMoney(item.est_cost)
+  const length = nights !== null ? formatNights(nights) : formatDuration(item.duration_min)
+  const asOf = nights !== null && item.est_cost && lodging?.price_as_of ? formatAsOf(lodging.price_as_of) : null
+  const leg = item.transit_from_previous
 
   useEffect(() => {
     if (selected) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -316,6 +325,15 @@ function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
           <span className="text-[11px] text-gray-400">{formatTime(item.start_time)}</span>
         </div>
         <div className="min-w-0 flex-1">
+          {leg && (
+            <p
+              data-testid="transit-leg"
+              title={leg.estimated ? 'Estimated travel time from the previous stop' : undefined}
+              className="mb-1 text-[11px] text-gray-400"
+            >
+              ↓ {formatTransitLeg(leg)}
+            </p>
+          )}
           <p className="leading-snug">
             {stop && (
               <>
@@ -323,6 +341,18 @@ function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
                   <Icon size={13} className="text-gray-500" />
                   {stop.name}
                 </span>
+                {stop.map_url && (
+                  <a
+                    href={stop.map_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${stop.name} in Google Maps`}
+                    title="Open in Google Maps"
+                    className="mr-0.5 inline-flex align-middle text-gray-400 hover:text-gray-700"
+                  >
+                    <ExternalLink size={12} />
+                  </a>
+                )}
                 <span className="text-gray-400">: </span>
               </>
             )}
@@ -330,8 +360,9 @@ function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
             <span className="font-medium text-gray-600">
-              Est: {formatMoney(item.est_cost)}{length && ` | ${length}`}
+              Est: {cost}{length && ` | ${length}`}
             </span>
+            {asOf && <span className="text-gray-400">{asOf}</span>}
             {item.booking_required && (
               <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">
                 <Ticket size={11} /> Needs booking
@@ -342,7 +373,7 @@ function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
                 Updated in v{item.updated_in_version}
               </span>
             )}
-            {item.why && (
+            {(item.why || item.source) && (
               <button
                 type="button"
                 onClick={() => setOpen((o) => !o)}
@@ -352,10 +383,10 @@ function Entry({ item, stop, day, version, selected, onTagClick }: EntryProps) {
               </button>
             )}
           </div>
-          {open && item.why && (
+          {open && (item.why || item.source) && (
             <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              <p>{item.why}</p>
-              {item.source && <p className="mt-1 text-gray-400">Source: {item.source}</p>}
+              {item.why && <p className="mb-1">{item.why}</p>}
+              {item.source && <p className="text-gray-400">Source: {item.source}</p>}
             </div>
           )}
         </div>

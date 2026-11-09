@@ -251,11 +251,12 @@ def test_items_at_found_places_have_source_geoapify() -> None:
 
 def test_a_ref_from_a_non_places_tool_is_not_used_as_a_place() -> None:
     raw = _raw_v1()
-    _stop(raw, "s4")["place_ref"] = "h1"  # a hotel finding; hotels get refs in step 37 (D27)
+    # Places (p…) and, since step 39, hotels (h…) can be cited; any other tool's result can't.
+    _stop(raw, "s4")["place_ref"] = "r1"
 
-    plan = _compose(raw, [_found("h1", {**TECH, "id": "hotel:1"}, tool="search_hotels")])
+    plan = _compose(raw, [_found("r1", {**TECH, "id": "other:1"}, tool="search_flights")])
 
-    assert _stop_named(plan, "San Jose Marriott").place_id is None
+    assert _stop_named(plan, "Pacific Inn San Jose").place_id is None
 
 
 # --- fixed points are geocoded --------------------------------------------------------------
@@ -278,13 +279,14 @@ def test_fixed_points_geocode_queries(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = _compose(raw, [], profile=_profile(origin="College Station, TX"))
 
     # Since step 34a ordinary stops are geocoded too, always by "name, day city", never by the
-    # address the LLM wrote for them (D27).
-    ordinary = [f"{s['name']}, San Jose" for s in raw["stops"] if s["kind"] not in FIXED_KINDS]
+    # address the LLM wrote for them (D27). Since step 39 a hotel without a hotel ref is one of
+    # them ("Pacific Inn San Jose, San Jose").
+    by_address = {"home", "airport"}
+    ordinary = [f"{s['name']}, San Jose" for s in raw["stops"] if s["kind"] not in by_address]
     assert sorted(queries) == sorted([
         "College Station, TX",              # home → the profile's origin
         "2800 N Terminal Rd, Houston, TX",  # IAH → its address
         "San Jose Airport, San Jose",       # no address → name, city of its day
-        "301 S Market St, San Jose, CA",    # the hotel → its address
         *ordinary,
     ])
     assert "525 S Winchester Blvd, San Jose, CA" not in queries
@@ -303,7 +305,7 @@ def test_airport_and_hotel_geocode_precisely_but_home_does_not(
 
     assert flags["College Station, TX"] is False
     assert flags["2800 N Terminal Rd, Houston, TX"] is True
-    assert flags["301 S Market St, San Jose, CA"] is True
+    assert flags["Pacific Inn San Jose, San Jose"] is True  # by name since step 39
 
 
 def test_home_without_origin_uses_its_address(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -47,7 +47,7 @@ V1_TAGS = {
     "A": "Home",
     "B": "IAH",
     "C": "San Jose Airport",
-    "D": "San Jose Marriott",
+    "D": "Pacific Inn San Jose",
     "E": "San Pedro Square",
     "F": "Baconhouse",
     "G": "The Tech Interactive",
@@ -188,7 +188,7 @@ def test_compact_itinerary_lists_one_line_per_day_with_tags() -> None:
     assert lines[0] == "## Current plan (version 1)"
     assert (
         "Day 1 (Fri Mar 5): 06:00 [A] Home · 09:15 [B] IAH · 13:30 [C] San Jose Airport · "
-        "14:15 [D] San Jose Marriott · 18:30 [E] San Pedro Square"
+        "14:15 [D] Pacific Inn San Jose · 18:30 [E] San Pedro Square"
     ) in lines
     assert (
         "Day 2 (Sat Mar 6): 11:00 [F] Baconhouse · 13:00 [G] The Tech Interactive · "

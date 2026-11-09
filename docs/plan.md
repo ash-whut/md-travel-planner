@@ -570,7 +570,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Done when:** one Google Hotels search returns prices.
 - **Notes:** Key added; free plan = 250 searches/month, 250/hour (account API, 2026-11-08). A live `google_hotels` search (San Jose, Dec 4–6, `sort_by=3`) returned 18 properties with per-night and total prices, ratings, GPS and links. Quota counter lags.
 
-### 38 · Hotels tool (SerpApi Google Hotels) — ☐ *BE*
+### 38 · Hotels tool (SerpApi Google Hotels) — ☑ *BE*
 - **Builds:** `hotels.search(city, check_in, check_out, adults, budget_level)`:
   - the `google_hotels` engine sorted by lowest price;
   - normalized to name, coordinates, rating, per night, total, link;
@@ -582,9 +582,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** normalization; the cache prevents a second call; the fallback path; error →
   `ok: false`; the registry entry.
 - **Done when:** tests green.
-- **Notes:** The fake planner (step 32b) asks for `search_hotels {city, check_in, check_out}`; the registry entry must use these argument names. Each `search_places` sends 2 Geoapify requests (geocode + search), so a 6-call round can burst about 12 requests and break D25's assumption that the cap keeps Geoapify under 5 requests/second. Geocode each city once per plan, or add a small rate gate, before hotel calls add more. SerpApi's free plan is about 250 searches/month, so guard it in code, not only in the prompt: cache by (city, check_in, check_out) only, and allow at most one hotel search per city per plan (extra calls get a "skipped: limit" reply). Lowest-price sort puts poorly rated places first (the live check's cheapest had a 1.8 rating), so filter by rating (e.g. ≥ 3.5) or pass several results and let compose pick. Results include `gps_coordinates`, so the hotel stop can take coordinates from the tool.
+- **Notes:** The fake planner (step 32b) asks for `search_hotels {city, check_in, check_out}`; the registry entry must use these argument names. Each `search_places` sends 2 Geoapify requests (geocode + search), so a 6-call round can burst about 12 requests and break D25's assumption that the cap keeps Geoapify under 5 requests/second. Geocode each city once per plan, or add a small rate gate, before hotel calls add more. SerpApi's free plan is about 250 searches/month, so guard it in code, not only in the prompt: cache by (city, check_in, check_out) only, and allow at most one hotel search per city per plan (extra calls get a "skipped: limit" reply). Lowest-price sort puts poorly rated places first (the live check's cheapest had a 1.8 rating), so filter by rating (e.g. ≥ 3.5) or pass several results and let compose pick. Results include `gps_coordinates`, so the hotel stop can take coordinates from the tool. **Built:** `hotels.search` (rating ≥ 3.5, max 5, cheapest first; cache key ignores `adults`), places-lodging fallback, `registry.PlanLimits` (one `search_hotels` per city, D29); the Geoapify burst is still open.
 
-### 39 · Hotel in the plan — ☐ *BE*
+### 39 · Hotel in the plan — ☑ *BE*
 - **Builds:**
   - the planner calls `search_hotels` (its prompt says: one search per city for the whole
     stay);
@@ -598,9 +598,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** tool price wins over a draft price; no-price fallback → `null` + "check link"; the
   fake planner's hotel call reaches compose as an `h` ref.
 - **Done when:** tests green.
-- **Notes:** Hotel stops are geocoded by name for now (D27, `GEOCODE_KINDS` in pipeline.py). Once hotels get refs (`h1`…), drop "lodging" from `GEOCODE_KINDS` and use the hotel result's coordinates.
+- **Notes:** Hotel stops are geocoded by name for now (D27, `GEOCODE_KINDS` in pipeline.py). Once hotels get refs (`h1`…), drop "lodging" from `GEOCODE_KINDS` and use the hotel result's coordinates. From step 38: create one `registry.PlanLimits()` per `run_planner` and pass it to every `run_tool` (don't also call `limits.allow()`, it uses up the slot); compose's `PLACE_TOOLS` ignores hotel findings so far. **Built:** one `PlanLimits` per plan; hotels reach compose as `h1…`; lodging price/as-of from the tool, total = per night × nights (D30); edits keep the tool price; source text in UTC.
 
-### 40 · Deep links + flights as links — ☐ *BE*
+### 40 · Deep links + flights as links — ☑ *BE*
 - **Builds:**
   - `links.py` (contracts §6);
   - postprocess sets `map_url` per stop and lodging links;
@@ -610,15 +610,15 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** `backend/app/tools/links.py`, `agent/postprocess.py`, `tests/test_links.py`
 - **Tests:** URL encoding; date formats; links attached to the right stops.
 - **Done when:** tests green.
-- **Notes:** Chat drops the url of an LLM-written `[A](url)` on purpose (step 27); real links must come from tools, not chat text.
+- **Notes:** Chat drops the url of an LLM-written `[A](url)` on purpose (step 27); real links must come from tools, not chat text. **Built:** `tools/links.py`; `map_url` on every stop, 2 lodging links (Google Hotels/SerpApi link + Booking.com), flight items `est_cost: null`; `postprocess.flight_link()` exists but nothing calls it until step 42.
 
-### 41 · Hotel + flight display — ☐ *FE*
+### 41 · Hotel + flight display — ☑ *FE*
 - **Builds:** entries show "check link" when `est_cost` is null; the hotel shows per night +
   nights + "as of {time}"; "Why this?" shows the source; map links open in a new tab.
 - **Files:** `frontend/src/components/PlanView.tsx`, `lib/format.ts`, tests
 - **Tests:** null cost → "check link"; the as-of format.
 - **Done when:** tests green.
-- **Notes:** Since step 35, `transit_from_previous` is filled (`estimated: true`). The leg after a flight item is `mode: "flight"` with `duration_min: null`, so PlanView must handle a null duration and show that times are estimates.
+- **Notes:** Since step 35, `transit_from_previous` is filled (`estimated: true`). The leg after a flight item is `mode: "flight"` with `duration_min: null`, so PlanView must handle a null duration and show that times are estimates. **Built:** `formatPerNight`, `formatAsOf`, `formatTransitLeg`; PlanView shows "check link", hotel per night + nights + as-of, source in "Why this?", map icon links (new tab), transit-leg rows.
 
 ## H. Book view
 
@@ -636,7 +636,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** the expected bookings for the fixture; carry-over across v1 → v2; PATCH persists;
   unknown id → 404.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** `postprocess.flight_link(itinerary)` (step 40) already builds the round-trip Google Flights link; call it from `build_bookings`. Lodging `links[0]` is labelled "Google Hotels" but holds SerpApi's `link`, which is the hotel's own website: label it honestly ("Hotel site") or always use the Google Hotels search URL, and update contracts §6.
 
 ### 43 · Book tab from real data — ☐ *FE*
 - **Builds:**
@@ -690,7 +690,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached).
+- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached). From the 38–41 review: geocode each city once per plan, or add a rate gate, so a parallel round can't burst Geoapify past 5 requests/second (D25). With a SerpApi key, hotel searches add no Geoapify calls; only the no-key fallback does. Optionally take a cited hotel's (`h` ref) name from the tool. That needs a contracts §2.3 line and the edit's name match handled. A "skipped: limit" hotel call returns `ok: false`, so its planner status line ends in error; decide whether a skipped call should end as error or end.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
 - **Builds:**
@@ -713,7 +713,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 ### 49 · Real flight fares — ☐
 - **Builds:** `tools/flights.py` via SerpApi Google Flights (same key, cached), registered as a
   `search_flights` planner tool. Flight items and bookings get a fare estimate + "as of".
-- **Notes:** Fill the flight leg's `transit_from_previous.duration_min` from the tool result (step 35 leaves it null, D28).
+- **Notes:** Fill the flight leg's `transit_from_previous.duration_min` from the tool result (step 35 leaves it null, D28). The draft's AI `cost_estimate` may still include a flight guess while flight items are `est_cost: null` (step 40). Drop the guess or mark the range "excl. flights" once real fares arrive.
 
 ### 50 · MCP server for the tools — ☐
 - **Builds:** a small MCP server (the `mcp` Python package; approve the new dependency first)

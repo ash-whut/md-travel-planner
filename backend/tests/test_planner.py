@@ -647,8 +647,13 @@ def test_generate_through_the_api_shows_the_places_status_lines(client: TestClie
 def test_run_planner_with_the_fake_and_mock_places_numbers_real_results() -> None:
     statuses, findings = _run(FakeProvider(), _profile(interests=["food"]))
 
-    assert findings, "the mock places search should give results"
-    assert [f.ref for f in findings] == [f"p{i}" for i in range(1, len(findings) + 1)]
-    assert all(f.tool == "search_places" for f in findings)
+    # The profile has dates, so the fake also searches hotels (registered since step 38).
+    found_places = [f for f in findings if f.tool == "search_places"]
+    found_hotels = [f for f in findings if f.tool == "search_hotels"]
+    assert found_places, "the mock places search should give results"
+    assert found_hotels, "the mock hotel search should give results"
+    assert len(found_places) + len(found_hotels) == len(findings)
+    assert [f.ref for f in found_places] == [f"p{i}" for i in range(1, len(found_places) + 1)]
+    assert [f.ref for f in found_hotels] == [f"h{i}" for i in range(1, len(found_hotels) + 1)]
     assert all({"id", "name", "lat", "lng"} <= set(f.data) for f in findings)
-    assert _call_labels(statuses) == ["Finding food spots in San Jose"]
+    assert _call_labels(statuses) == ["Finding food spots in San Jose", "Finding hotels in San Jose"]

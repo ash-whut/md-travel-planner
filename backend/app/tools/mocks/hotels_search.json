@@ -1,0 +1,85 @@
+{
+  "search_metadata": {
+    "id": "mock_google_hotels_san_jose",
+    "status": "Success",
+    "google_hotels_url": "https://www.google.com/_/TravelFrontendUi/data/batchexecute?q=San+Jose"
+  },
+  "search_parameters": {
+    "engine": "google_hotels",
+    "q": "San Jose, CA",
+    "check_in_date": "2027-03-05",
+    "check_out_date": "2027-03-07",
+    "adults": 1,
+    "currency": "USD",
+    "gl": "us",
+    "hl": "en",
+    "sort_by": "3"
+  },
+  "properties": [
+    {
+      "type": "hotel",
+      "name": "Budget Lodge San Jose",
+      "link": "https://www.example.com/budget-lodge-san-jose",
+      "property_token": "mock_budget_lodge",
+      "gps_coordinates": { "latitude": 37.3466, "longitude": -121.8724 },
+      "hotel_class": "1-star hotel",
+      "extracted_hotel_class": 1,
+      "rate_per_night": { "lowest": "$58", "extracted_lowest": 58, "before_taxes_fees": "$50", "extracted_before_taxes_fees": 50 },
+      "total_rate": { "lowest": "$116", "extracted_lowest": 116, "before_taxes_fees": "$100", "extracted_before_taxes_fees": 100 },
+      "overall_rating": 1.8,
+      "reviews": 214,
+      "amenities": ["Free parking"]
+    },
+    {
+      "type": "hotel",
+      "name": "Pacific Inn San Jose",
+      "link": "https://www.example.com/pacific-inn-san-jose",
+      "property_token": "mock_pacific_inn",
+      "gps_coordinates": { "latitude": 37.3398, "longitude": -121.881 },
+      "hotel_class": "2-star hotel",
+      "extracted_hotel_class": 2,
+      "rate_per_night": { "lowest": "$79", "extracted_lowest": 79, "before_taxes_fees": "$69", "extracted_before_taxes_fees": 69 },
+      "total_rate": { "lowest": "$158", "extracted_lowest": 158, "before_taxes_fees": "$138", "extracted_before_taxes_fees": 138 },
+      "overall_rating": 3.6,
+      "reviews": 892,
+      "amenities": ["Free Wi-Fi", "Free parking"]
+    },
+    {
+      "type": "vacation rental",
+      "name": "Downtown Studio near SAP Center",
+      "property_token": "mock_downtown_studio",
+      "gps_coordinates": { "latitude": 37.3327, "longitude": -121.9004 },
+      "rate_per_night": { "lowest": "$85", "extracted_lowest": 85 },
+      "total_rate": { "lowest": "$170", "extracted_lowest": 170 },
+      "amenities": ["Kitchen"]
+    },
+    {
+      "type": "hotel",
+      "name": "Hotel De Anza",
+      "link": "https://www.example.com/hotel-de-anza",
+      "property_token": "mock_hotel_de_anza",
+      "gps_coordinates": { "latitude": 37.3307, "longitude": -121.8936 },
+      "hotel_class": "3-star hotel",
+      "extracted_hotel_class": 3,
+      "rate_per_night": { "lowest": "$119", "extracted_lowest": 119, "before_taxes_fees": "$104", "extracted_before_taxes_fees": 104 },
+      "total_rate": { "lowest": "$238", "extracted_lowest": 238, "before_taxes_fees": "$208", "extracted_before_taxes_fees": 208 },
+      "overall_rating": 4.2,
+      "reviews": 1530,
+      "amenities": ["Free Wi-Fi", "Restaurant"]
+    },
+    {
+      "type": "hotel",
+      "name": "Westin San Jose",
+      "link": "https://www.example.com/westin-san-jose",
+      "property_token": "mock_westin_san_jose",
+      "gps_coordinates": { "latitude": 37.3329, "longitude": -121.8889 },
+      "hotel_class": "4-star hotel",
+      "extracted_hotel_class": 4,
+      "rate_per_night": { "lowest": "$164", "extracted_lowest": 164, "before_taxes_fees": "$143", "extracted_before_taxes_fees": 143 },
+      "total_rate": { "lowest": "$328", "extracted_lowest": 328, "before_taxes_fees": "$286", "extracted_before_taxes_fees": 286 },
+      "overall_rating": 4.4,
+      "reviews": 2410,
+      "amenities": ["Fitness centre", "Restaurant", "Pool"]
+    }
+  ]
+}

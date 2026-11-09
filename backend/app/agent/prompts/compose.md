@@ -34,11 +34,15 @@ profile below, then reply with one JSON object (no other text): the full day-by-
 - **Use the places found.** When the context has a "Places found" list, build the sights, meals
   and activities from it and put the place's ref in the stop's `place_ref` (e.g. `"p3"`). Copy
   only refs from that list, never make one up. Stops that aren't in the list (home, airports,
-  the hotel, anything else) get `place_ref: null`. The app adds addresses and coordinates from
-  the ref, so a place without one won't show on the map.
+  the hotel when no hotel was found, anything else) get `place_ref: null`. The app adds
+  addresses and coordinates from the ref, so a place without one won't show on the map.
+- **Use the hotels found.** When the context has a "Hotels found" list, pick one hotel per city
+  from it (budget first, but prefer a good rating), name the hotel stop after it and put its ref
+  in the stop's `place_ref` (e.g. `"h1"`). The app adds the hotel's real price.
 - One `lodging` entry per city with `check_in`, `check_out`, `nights` and an estimated
-  `price_per_night`. Add a `lodging` item on the check-in day.
-- `est_cost` is per person in USD and is a rough estimate; use `null` if you can't guess.
+  `price_per_night`. Add a `lodging` item on the check-in day with its `nights`.
+- `est_cost` is per person in USD and is a rough estimate; use `null` if you can't guess. A
+  `lodging` item's `est_cost` is the per-night price.
   `cost_estimate` is the per-person total range for the trip.
 - Set `booking_required: true` for flights, hotels and tickets that sell out.
 

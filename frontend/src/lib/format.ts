@@ -1,6 +1,6 @@
 // Display formatting used across the UI (contracts conventions: 12h times, US dates, °F,
 // miles, USD). Dates are parsed by hand so the user's timezone can never shift the day.
-import type { CostEstimate, Money } from '../types/index'
+import type { CostEstimate, Money, TransitLeg } from '../types/index'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -79,6 +79,28 @@ export function formatDuration(minutes: number | null): string {
 /** 1 → "1 night", 2 → "2 nights". */
 export function formatNights(nights: number): string {
   return `${nights} ${nights === 1 ? 'night' : 'nights'}`
+}
+
+/** { amount: 120, currency: "USD" } → "$120/night"; null → "check link". */
+export function formatPerNight(money: Money | null): string {
+  if (money === null) return 'check link'
+  return `${formatAmount(money.amount, money.currency)}/night`
+}
+
+/** A tool price time → "as of Nov 9, 1:21 AM" (the user's local time, like formatTimestamp). */
+export function formatAsOf(iso: string): string {
+  return `as of ${formatTimestamp(iso)}`
+}
+
+/**
+ * The travel leg before an item: "~12 min rideshare · 4.1 mi", "~8 min walk · 0.4 mi", or
+ * "flight" when there is no duration. "~" marks code estimates (straight-line distance).
+ */
+export function formatTransitLeg(leg: TransitLeg): string {
+  const approx = leg.estimated ? '~' : ''
+  const parts = [leg.duration_min === null ? leg.mode : `${approx}${formatDuration(leg.duration_min)} ${leg.mode}`]
+  if (leg.distance_mi !== null) parts.push(formatMiles(leg.distance_mi))
+  return parts.join(' · ')
 }
 
 /** 66 → "66 °F" (rounded to whole degrees). */

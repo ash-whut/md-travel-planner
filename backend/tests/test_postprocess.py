@@ -93,7 +93,7 @@ def test_v1_stops_one_per_place_sorted_by_letter(v1: Itinerary) -> None:
     names = {stop.tag: stop.name for stop in v1.stops}
     assert names["A"] == "Home"
     assert names["C"] == "San Jose Airport"
-    assert names["D"] == "San Jose Marriott"
+    assert names["D"] == "Pacific Inn San Jose"
     assert names["F"] == "Baconhouse"
 
 
@@ -101,7 +101,9 @@ def test_v1_stops_have_no_tool_data(v1: Itinerary) -> None:
     for stop in v1.stops:
         assert stop.lat is None and stop.lng is None
         assert stop.place_id is None
-        assert stop.map_url is None
+        # map_url is a code-built search link (step 40), so every stop has one.
+        assert stop.map_url is not None
+        assert stop.map_url.startswith("https://www.google.com/maps/search/?api=1&query=")
     for city in v1.cities:
         assert city.lat is None and city.lng is None
 
@@ -134,8 +136,12 @@ def test_lodging_points_at_the_hotel_tag(v1: Itinerary) -> None:
 def test_cost_source_and_default_source(v1: Itinerary) -> None:
     items = {item.id: item for item in all_items(v1)}
     # est_cost given -> ai_estimate; no est_cost -> no cost_source.
-    assert items["d1-i2"].est_cost is not None
-    assert items["d1-i2"].cost_source == "ai_estimate"
+    assert items["d1-i1"].est_cost is not None
+    assert items["d1-i1"].cost_source == "ai_estimate"
+    # A flight never keeps the draft's price (step 40): "check link".
+    assert items["d1-i2"].kind == "flight"
+    assert items["d1-i2"].est_cost is None
+    assert items["d1-i2"].cost_source is None
     assert items["d3-i2"].est_cost is not None  # 0 USD still counts as a cost
     assert items["d3-i2"].cost_source == "ai_estimate"
     assert items["d3-i3"].est_cost is None

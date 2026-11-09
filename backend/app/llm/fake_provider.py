@@ -43,6 +43,9 @@ PLANNER_EDIT_MARKER = "Change request:"
 # A found place in the compose system text (agent/pipeline.py render_places), e.g.
 # "- p1 · The Tech Interactive · entertainment.museum · …": the ref and the name.
 PLACE_LINE = re.compile(r"^- (p\d+) · (.+?) · ", re.MULTILINE)
+# A found hotel in the compose system text (agent/pipeline.py render_hotels), e.g.
+# "- h1 · Pacific Inn San Jose · $79/night · …": the ref and the name.
+HOTEL_LINE = re.compile(r"^- (h\d+) · (.+?) · ", re.MULTILINE)
 # A change request with one of these words adds or replaces a stop, so the fake planner looks one
 # up; any other change (move, remove…) needs no tools, as prompts/planner.md says.
 ADD_WORDS = ("replace", "swap", "change", "add", "instead")
@@ -139,19 +142,29 @@ def load_fake_data(name: str) -> dict[str, Any]:
 def cite_found_places(draft: dict[str, Any], system: str) -> dict[str, Any]:
     """Set `place_ref` on each stop whose name matches a found place listed in `system` (equal
     names, or one starts with the other: "San Pedro Square" ↔ "San Pedro Square Market"), as a
-    real model would cite them."""
+    real model would cite them. A lodging stop cites the found hotel with its name (the demo
+    drafts name "Pacific Inn San Jose", the mock's cheapest well-rated hotel)."""
     found = [(ref, simple_name(name)) for ref, name in PLACE_LINE.findall(system)]
+    hotels = [(ref, simple_name(name)) for ref, name in HOTEL_LINE.findall(system)]
     for stop in draft["stops"]:
         name = simple_name(stop["name"])
-        stop["place_ref"] = next(
-            (
-                ref
-                for ref, found_name in found
-                if found_name.startswith(name) or name.startswith(found_name)
-            ),
-            None,
-        )
+        if stop["kind"] == "lodging":
+            stop["place_ref"] = matching_ref(name, hotels)
+        else:
+            stop["place_ref"] = matching_ref(name, found)
     return draft
+
+
+def matching_ref(name: str, found: list[tuple[str, str]]) -> str | None:
+    """The ref of the first found name equal to `name` or starting with it (or the reverse)."""
+    return next(
+        (
+            ref
+            for ref, found_name in found
+            if found_name.startswith(name) or name.startswith(found_name)
+        ),
+        None,
+    )
 
 
 def simple_name(name: str) -> str:

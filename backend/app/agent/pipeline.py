@@ -2,13 +2,14 @@
 
 Weather: each profile city over the trip dates (when both are known), all cities in parallel.
 Planner: the planner agent's tool rounds (agent/planner.py).
-Compose cites the planner's places by ref (`place_ref: "p3"`); `locate_stops` turns the draft's
-stops into tool locations for postprocess.
+Compose cites the planner's places and hotels by ref (`place_ref: "p3"`, `"h1"`); `locate_stops`
+turns the draft's stops into tool locations (and hotel prices) for postprocess.
 """
 
 import asyncio
 from collections.abc import AsyncIterator, Callable
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from typing import Any
 
 from pydantic import ValidationError
 from sqlmodel import Session
@@ -16,10 +17,13 @@ from sqlmodel import Session
 from app.agent import context, sse
 from app.agent.planner import PLANNER_REQUEST, Finding, run_parallel, run_planner
 from app.agent.postprocess import (
+    GOOGLE_HOTELS_LABEL,
     PLACES_SOURCE,
     CityWeather,
+    HotelPrice,
     StopPlace,
     build_itinerary,
+    hotel_source,
     short_city_name,
 )
 from app.agent.sse import SseEvent
@@ -35,6 +39,8 @@ from app.schemas.itinerary import (
     DraftStop,
     Itinerary,
     ItineraryDraft,
+    Money,
+    PriceSource,
 )
 from app.schemas.profile import TripProfile
 from app.tools import places as places_tool
@@ -51,11 +57,15 @@ EDIT_REQUEST = (
 )
 DRAFTING_LABEL = "Drafting your plan…"
 UPDATING_LABEL = "Updating your plan…"
-# Planner tools whose findings are places a stop can cite with `place_ref`.
+# Planner tools whose findings a stop can cite with `place_ref`: places (p1…) and hotels (h1…).
 PLACE_TOOLS = {"search_places"}
+HOTELS_TOOL = "search_hotels"
+CITABLE_TOOLS = PLACE_TOOLS | {HOTELS_TOOL}
+PRICED_SOURCE: PriceSource = "serpapi_google_hotels"  # a hotel result with a SerpApi price
 # The trip's fixed points: geocoded by their address (home: the profile's origin) when they have
-# no found place. Other stops without one are geocoded by "name, city" (D27).
-FIXED_KINDS = {"home", "airport", "lodging"}
+# no found place. Other stops without one, the hotel too, are geocoded by "name, city" (D27);
+# a hotel normally cites a hotels-tool result and takes its coordinates.
+FIXED_KINDS = {"home", "airport"}
 
 
 async def run_generation(
@@ -300,41 +310,54 @@ async def locate_stops(
     and never from the city coordinates gathered for the weather.
 
     For each stop, the first that applies:
-    1. its `place_ref` names a place the planner found → that place (id, address, coordinates,
-       rating; source "Geoapify"). An unknown ref is ignored;
+    1. its `place_ref` names a place or hotel the planner found → that result (id, address,
+       coordinates, rating; source "Geoapify", or for a hotel its price and the "SerpApi Google
+       Hotels · as of …" source). An unknown ref is ignored;
     2. a stop with the same name in an earlier version had coordinates → copy them (an edit
-       copies stops with their letter tags as keys and no ref, so they keep their place);
+       copies stops with their letter tags as keys and no ref, so they keep their place), and a
+       hotel keeps its tool price from that version;
     3. the geocoder (see `geocode_query`). For every stop but home a city-level match counts as
        not found, so a stop is pinned only where a real, specific match exists.
     A stop the geocoder doesn't find is left out and stays off the map.
     """
-    found = {finding.ref: finding.data for finding in findings if finding.tool in PLACE_TOOLS}
+    found = {finding.ref: finding for finding in findings if finding.tool in CITABLE_TOOLS}
     newest_first = sorted(previous_versions, key=lambda itinerary: itinerary.version, reverse=True)
     earlier_stops = [
-        stop
+        (version, stop)
         for version in newest_first
         for stop in version.stops
         if stop.lat is not None and stop.lng is not None
     ]
     places: dict[str, StopPlace] = {}
     for stop in draft.stops:
-        data = found.get(stop.place_ref or "")
-        if data is not None and data.get("lat") is not None and data.get("lng") is not None:
+        finding = found.get(stop.place_ref or "")
+        data = finding.data if finding is not None else {}
+        if finding is not None and data.get("lat") is not None and data.get("lng") is not None:
+            hotel = hotel_price(data) if finding.tool == HOTELS_TOOL else None
             places[stop.key] = StopPlace(
                 lat=data["lat"],
                 lng=data["lng"],
                 address=data.get("address"),
                 place_id=data.get("id"),
                 rating=data.get("rating"),
-                source=PLACES_SOURCE,
+                source=hotel_source(hotel) if hotel else PLACES_SOURCE,
+                hotel=hotel,
             )
             continue
 
-        earlier = next(
-            (s for s in earlier_stops if normalize_name(s.name) == normalize_name(stop.name)),
+        match = next(
+            (
+                (version, s)
+                for version, s in earlier_stops
+                if normalize_name(s.name) == normalize_name(stop.name)
+            ),
             None,
         )
-        if earlier is not None and earlier.lat is not None and earlier.lng is not None:
+        if match is not None:
+            version, earlier = match
+            # earlier_stops only holds stops with coordinates; the asserts narrow the types.
+            assert earlier.lat is not None and earlier.lng is not None
+            hotel = earlier_hotel_price(version, earlier.tag)
             places[stop.key] = StopPlace(
                 lat=earlier.lat,
                 lng=earlier.lng,
@@ -342,7 +365,10 @@ async def locate_stops(
                 place_id=earlier.place_id,
                 rating=earlier.rating,
                 # Only places from the places search have a place_id.
-                source=PLACES_SOURCE if earlier.place_id else None,
+                source=(
+                    hotel_source(hotel) if hotel else PLACES_SOURCE if earlier.place_id else None
+                ),
+                hotel=hotel,
             )
             continue
 
@@ -364,6 +390,42 @@ async def locate_stops(
                 lat=result.data["lat"], lng=result.data["lng"], address=address
             )
     return places
+
+
+def hotel_price(data: dict[str, Any]) -> HotelPrice:
+    """The price of a hotels-tool result (see tools/hotels.search): per night and `as_of` from
+    SerpApi, or none for a SerpApi hotel without a rate or a no-price fallback result."""
+    per_night = data.get("price_per_night")
+    as_of = data.get("price_as_of")
+    link = data.get("link")
+    from_serpapi = data.get("price_source") == PRICED_SOURCE
+    if not from_serpapi or per_night is None:
+        return HotelPrice(per_night=None, source="none", link=link, from_serpapi=from_serpapi)
+    return HotelPrice(
+        per_night=Money.model_validate(per_night),
+        source=PRICED_SOURCE,
+        as_of=datetime.fromisoformat(as_of) if as_of else None,
+        link=link,
+        from_serpapi=True,
+    )
+
+
+def earlier_hotel_price(version: Itinerary, tag: str) -> HotelPrice | None:
+    """The tool price (and hotel link) of the lodging at this tag in an earlier version, or None
+    if it had none (an AI estimate or no price is not carried over; the draft decides those)."""
+    lodging = next((entry for entry in version.lodging if entry.stop_tag == tag), None)
+    if lodging is None or lodging.price_source != PRICED_SOURCE:
+        return None
+    hotels_link = next(
+        (link.url for link in lodging.links if link.label == GOOGLE_HOTELS_LABEL), None
+    )
+    return HotelPrice(
+        per_night=lodging.price_per_night,
+        source=PRICED_SOURCE,
+        as_of=lodging.price_as_of,
+        link=hotels_link,
+        from_serpapi=True,
+    )
 
 
 def geocode_query(stop: DraftStop, draft: ItineraryDraft, profile: TripProfile) -> str | None:
@@ -433,9 +495,9 @@ def build_system(
     ]
     if weather:
         parts.append(context.render_weather(weather))
-    places_text = render_places(findings or [])
-    if places_text:
-        parts.append(places_text)
+    for text in (render_places(findings or []), render_hotels(findings or [])):
+        if text:
+            parts.append(text)
     if current_plan is not None:
         parts.append(
             f"## Current plan (version {current_plan.version})\n"
@@ -470,6 +532,34 @@ def render_places(findings: list[Finding]) -> str:
     return (
         "## Places found (from the places service, Geoapify)\n"
         "Cite a place with its ref in the stop's `place_ref`.\n" + "\n".join(lines)
+    )
+
+
+def render_hotels(findings: list[Finding]) -> str:
+    """The found hotels for the compose prompt, one line each, e.g.
+    `- h1 · Pacific Inn San Jose · $79/night · rating 3.6`, or "no price" for a fallback
+    result. Empty text when none. The fake provider reads these lines (fake_provider.HOTEL_LINE),
+    so keep the format.
+    """
+    lines: list[str] = []
+    for finding in findings:
+        if finding.tool != HOTELS_TOOL:
+            continue
+        data = finding.data
+        price = data.get("price_per_night")
+        parts = [finding.ref, str(data.get("name"))]
+        parts.append(f"${price['amount']:g}/night" if price else "no price")
+        if data.get("address"):
+            parts.append(str(data["address"]))
+        if data.get("rating") is not None:
+            parts.append(f"rating {data['rating']}")
+        lines.append("- " + " · ".join(parts))
+    if not lines:
+        return ""
+    return (
+        "## Hotels found (from the hotels service)\n"
+        "Pick one hotel per city and put its ref in the hotel stop's `place_ref`. The app adds "
+        "its real price.\n" + "\n".join(lines)
     )
 
 

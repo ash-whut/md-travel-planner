@@ -38,7 +38,7 @@ START, END = date(2027, 3, 5), date(2027, 3, 7)
 LABEL = "Checking weather for San Jose · Mar 5–7"
 DAY_LINES = [
     "Day 1 (Fri Mar 5): 06:00 [A] Home · 09:15 [B] IAH · 13:30 [C] San Jose Airport · "
-    "14:15 [D] San Jose Marriott · 18:30 [E] San Pedro Square",
+    "14:15 [D] Pacific Inn San Jose · 18:30 [E] San Pedro Square",
     "Day 2 (Sat Mar 6): 11:00 [F] Baconhouse · 13:00 [G] The Tech Interactive · "
     "16:00 [H] Winchester Mystery House · 18:30 [I] Santana Row",
     "Day 3 (Sun Mar 7): 09:30 [J] Japantown · 11:15 [K] Guadalupe River Park · "
@@ -546,9 +546,10 @@ def test_generation_weather_status_comes_before_drafting(db: Session) -> None:
         {"label": LABEL, "state": "start"},
         {"label": LABEL, "state": "end"},
     ]
-    # Then the planner's line (step 33a), then the draft.
+    # Then the planner's lines (step 33a; its hotel search since step 38), then the draft.
     assert statuses[2] == {"label": planner.CHOOSING_LABEL, "state": "start"}
-    assert statuses[4] == {"label": pipeline.DRAFTING_LABEL, "state": "start"}
+    choosing_end = statuses.index({"label": planner.CHOOSING_LABEL, "state": "end"})
+    assert statuses[choosing_end + 1] == {"label": pipeline.DRAFTING_LABEL, "state": "start"}
 
 
 def test_generation_saves_the_tool_weather(db: Session) -> None:

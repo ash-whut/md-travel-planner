@@ -359,6 +359,87 @@
           37.3339
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Hotel De Anza",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8936,
+        "lat": 37.3307,
+        "formatted": "Hotel De Anza, 233 West Santa Clara Street, San Jose, CA 95113, United States of America",
+        "address_line1": "Hotel De Anza",
+        "address_line2": "233 West Santa Clara Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "accommodation",
+          "accommodation.hotel"
+        ],
+        "place_id": "mock_hotel_de_anza"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8936,
+          37.3307
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Westin San Jose",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.8889,
+        "lat": 37.3329,
+        "formatted": "Westin San Jose, 302 South Market Street, San Jose, CA 95113, United States of America",
+        "address_line1": "Westin San Jose",
+        "address_line2": "302 South Market Street, San Jose, CA 95113, United States of America",
+        "categories": [
+          "accommodation",
+          "accommodation.hotel"
+        ],
+        "place_id": "mock_westin_san_jose"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.8889,
+          37.3329
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Pacific Inn San Jose",
+        "country": "United States",
+        "state": "California",
+        "city": "San Jose",
+        "postcode": "95113",
+        "lon": -121.881,
+        "lat": 37.3398,
+        "formatted": "Pacific Inn San Jose, 500 North 1st Street, San Jose, CA 95112, United States of America",
+        "address_line1": "Pacific Inn San Jose",
+        "address_line2": "500 North 1st Street, San Jose, CA 95112, United States of America",
+        "categories": [
+          "accommodation",
+          "accommodation.motel"
+        ],
+        "place_id": "mock_pacific_inn"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.881,
+          37.3398
+        ]
+      }
     }
   ]
 }

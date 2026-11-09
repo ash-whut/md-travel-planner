@@ -3,8 +3,12 @@
 Code owns ids, version, tags, sources and `updated_in_version`. City coordinates, day weather
 and the weather summary come from the gathered weather (never from the draft). Stop
 coordinates, addresses and place ids come from the places tool, found by the pipeline
-(`StopPlace`); never from the draft or the weather's city coordinates. Things that later steps
-fill from tools (prices, links, bookings) stay null or empty here. Travel between stops
+(`StopPlace`); never from the draft or the weather's city coordinates. A hotel stop that cites a
+hotels-tool result gets its lodging price and `price_as_of` from the tool (`HotelPrice`), which
+wins over the draft's estimate. Links come from `tools/links.py` (contracts §6): a `map_url` per
+stop and the hotel links per lodging; flight items have no price ("check link"), and
+`flight_link` gives the trip's Google Flights link for the bookings (step 42, still empty
+here). Travel between stops
 (`transit_from_previous`) is a code estimate from the stops' coordinates. The finished
 itinerary is validated; any broken rules come back as a list of error strings instead of an
 exception, so the compose call can try once more with them (step 22).
@@ -23,6 +27,7 @@ from app.agent.tags import assign_tags, index_for_tag
 from app.schemas.itinerary import (
     City,
     CostEstimate,
+    CostSource,
     Day,
     DayWeather,
     DraftItem,
@@ -30,18 +35,25 @@ from app.schemas.itinerary import (
     Itinerary,
     ItineraryDraft,
     ItineraryItem,
+    Link,
     Lodging,
     Money,
+    PriceSource,
     Stop,
     TransitLeg,
     TransitMode,
 )
 from app.schemas.profile import Transport, TripProfile
+from app.tools import links
 
 DEFAULT_ITEM_SOURCE = "AI suggestion"
 BUDGET_ASSUMPTION = "Budget level assumed (none given)"
 WEATHER_ASSUMPTION = "Weather for {city} couldn't be loaded; check a forecast before you go"
 PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places search found
+HOTELS_SOURCE = "SerpApi Google Hotels"  # + " · as of …" for items at a priced hotel
+GOOGLE_HOTELS_LABEL = "Google Hotels"
+BOOKING_COM_LABEL = "Booking.com"
+GOOGLE_FLIGHTS_LABEL = "Google Flights"
 
 EARTH_RADIUS_MI = 3958.8
 WALK_MAX_MI = 1.0  # legs up to this distance are walked
@@ -72,11 +84,30 @@ class CityWeather:
 
 
 @dataclass
+class HotelPrice:
+    """A hotel's price from the hotels tool, for the stop that cites the hotel.
+
+    `source` "serpapi_google_hotels" has a per-night price and `as_of` (when SerpApi was
+    asked); "none" has no price, so the plan shows "check link". `from_serpapi` marks a hotel
+    SerpApi found even without a price (else it is a places-search fallback). `link` is the
+    hotel's link from SerpApi, if any (the lodging's "Google Hotels" link).
+    """
+
+    per_night: Money | None
+    source: PriceSource
+    as_of: datetime | None = None
+    link: str | None = None
+    from_serpapi: bool = False
+
+
+@dataclass
 class StopPlace:
     """Where one draft stop is, from a tool (the pipeline finds it; see pipeline.locate_stops).
 
     `source` is the item source for items at this stop (e.g. "Geoapify" for a place the
     places search found); None keeps the default "AI suggestion" (e.g. a geocoded home).
+    `hotel` is set when the stop is a hotel the hotels tool found; its price replaces the
+    draft's lodging estimate.
     """
 
     lat: float
@@ -85,11 +116,23 @@ class StopPlace:
     place_id: str | None = None
     rating: float | None = None
     source: str | None = None
+    hotel: HotelPrice | None = None
 
 
 def short_city_name(name: str) -> str:
     """The name without its region: "San Jose, CA" → "San Jose"."""
     return name.split(",")[0].strip()
+
+
+def hotel_source(hotel: HotelPrice) -> str:
+    """The item source for a hotel stop: "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC"
+    for a priced hotel, plain "SerpApi Google Hotels" for a SerpApi hotel with no price; a
+    fallback hotel came from the places search ("Geoapify")."""
+    if hotel.source != "serpapi_google_hotels" or hotel.as_of is None:
+        return HOTELS_SOURCE if hotel.from_serpapi else PLACES_SOURCE
+    as_of = hotel.as_of.astimezone(timezone.utc)
+    time = as_of.strftime("%I:%M %p").lstrip("0")
+    return f"{HOTELS_SOURCE} · as of {as_of:%b} {as_of.day}, {time} UTC"
 
 
 def build_itinerary(
@@ -130,7 +173,9 @@ def _assemble(
     """Copy the draft into an Itinerary. Raises ValidationError when a §2.2 rule breaks."""
     place_ids = {key: place.place_id for key, place in places.items() if place.place_id}
     tags = assign_tags(draft, previous_versions, place_ids)
-    stops = _stops(draft, tags, places)
+    cities = stop_cities(draft)
+    stops = _stops(draft, tags, places, cities, profile.origin)
+    nights = {lodging.stop_key: lodging.nights for lodging in draft.lodging}
     days = [
         Day(
             day_number=day.day_number,
@@ -139,7 +184,7 @@ def _assemble(
             city=day.city,
             weather=_day_weather(day.city, day.date, weather, len(draft.cities)),
             items=[
-                _item(item, f"d{day.day_number}-i{index}", tags, places)
+                _item(item, f"d{day.day_number}-i{index}", tags, places, nights)
                 for index, item in enumerate(day.items, start=1)
             ],
         )
@@ -162,7 +207,9 @@ def _assemble(
         weather_summary=weather_summary(days),
         assumptions=_assumptions(draft, profile, weather),
         stops=stops,
-        lodging=[_lodging(lodging, tags) for lodging in draft.lodging],
+        lodging=[
+            _lodging(lodging, draft, tags, places, cities) for lodging in draft.lodging
+        ],
         days=days,
         bookings=[],
         created_at=datetime.now(timezone.utc),
@@ -257,38 +304,94 @@ def _feel(average_high_f: float) -> str:
     return "Cold"
 
 
+def stop_cities(draft: ItineraryDraft) -> dict[str, str]:
+    """Each draft stop key → the city of the first day with an item at it. A lodging stop that
+    only the lodging list names gets the city of its check-in day. Any other stop falls back to
+    the trip's first city."""
+    cities: dict[str, str] = {}
+    for day in draft.days:
+        for item in day.items:
+            if item.stop_key is not None:
+                cities.setdefault(item.stop_key, day.city)
+    city_by_date = {day.date: day.city for day in draft.days}
+    first_city = draft.cities[0].name
+    for stay in draft.lodging:
+        cities.setdefault(stay.stop_key, city_by_date.get(stay.check_in, first_city))
+    return {stop.key: cities.get(stop.key, first_city) for stop in draft.stops}
+
+
 def _stops(
-    draft: ItineraryDraft, tags: dict[str, str], places: dict[str, StopPlace]
+    draft: ItineraryDraft,
+    tags: dict[str, str],
+    places: dict[str, StopPlace],
+    cities: dict[str, str],
+    origin: str | None,
 ) -> list[Stop]:
     """One stop per tag (two draft keys can be the same place), sorted by letter. Coordinates,
-    place_id, rating and (when the tool has one) the address come from `places`; map_url comes
-    from links (step 41)."""
+    place_id, rating and (when the tool has one) the address come from `places`. Every stop gets
+    a Google Maps `map_url` for "name, address", or "name, city" when it has no address (home:
+    the profile's origin)."""
     stops_by_tag: dict[str, Stop] = {}
     for draft_stop in draft.stops:
         tag = tags[draft_stop.key]
         if tag in stops_by_tag:
             continue
         place = places.get(draft_stop.key)
+        address = place.address if place and place.address else draft_stop.address
+        city = cities[draft_stop.key]
+        if draft_stop.kind == "home" and origin:
+            city = origin
         stops_by_tag[tag] = Stop(
             tag=tag,
             name=draft_stop.name,
             kind=draft_stop.kind,
-            address=(place.address if place and place.address else draft_stop.address),
+            address=address,
             lat=place.lat if place else None,
             lng=place.lng if place else None,
             place_id=place.place_id if place else None,
             rating=place.rating if place else None,
+            map_url=links.map_url(draft_stop.name, address or city),
         )
     return sorted(stops_by_tag.values(), key=lambda stop: index_for_tag(stop.tag))
 
 
-def _lodging(lodging: DraftLodging, tags: dict[str, str]) -> Lodging:
-    per_night = lodging.price_per_night
+def _lodging(
+    lodging: DraftLodging,
+    draft: ItineraryDraft,
+    tags: dict[str, str],
+    places: dict[str, StopPlace],
+    cities: dict[str, str],
+) -> Lodging:
+    """The lodging entry. At a hotel the hotels tool found, the tool's per-night price and
+    `price_as_of` win over the draft's estimate (null when the tool had no price). The total is
+    per night × nights, since the tool's total is for the dates it was asked about. Links:
+    Google Hotels (the SerpApi link when there is one) and a Booking.com search."""
+    place = places.get(lodging.stop_key)
+    hotel = place.hotel if place else None
+    if hotel is not None:
+        per_night, price_source, as_of = hotel.per_night, hotel.source, hotel.as_of
+    else:
+        per_night, as_of = lodging.price_per_night, None
+        price_source = "ai_estimate" if per_night is not None else "none"
     total = (
         Money(amount=per_night.amount * lodging.nights, currency=per_night.currency)
         if per_night is not None
         else None
     )
+    name = next(stop.name for stop in draft.stops if stop.key == lodging.stop_key)
+    city = cities[lodging.stop_key]
+    hotel_links = [
+        Link(
+            label=GOOGLE_HOTELS_LABEL,
+            url=links.google_hotels_url(name, city, hotel.link if hotel else None),
+        ),
+        Link(
+            label=BOOKING_COM_LABEL,
+            url=links.booking_com_url(
+                name, city, lodging.check_in, lodging.check_out, draft.travelers
+            ),
+        ),
+    ]
     return Lodging(
         stop_tag=tags[lodging.stop_key],
         check_in=lodging.check_in,
@@ -296,14 +399,31 @@ def _lodging(lodging: DraftLodging, tags: dict[str, str]) -> Lodging:
         nights=lodging.nights,
         price_per_night=per_night,
         total_price=total,
-        price_source="ai_estimate" if per_night is not None else "none",
+        price_source=price_source,
+        price_as_of=as_of,
+        links=hotel_links,
     )
 
 
 def _item(
-    item: DraftItem, item_id: str, tags: dict[str, str], places: dict[str, StopPlace]
+    item: DraftItem,
+    item_id: str,
+    tags: dict[str, str],
+    places: dict[str, StopPlace],
+    lodging_nights: dict[str, int],
 ) -> ItineraryItem:
+    """One item. A lodging item at a hotel the hotels tool found shows the tool's per-night
+    price (null = "check link") and the stay's nights. A flight never shows a price until real
+    fares exist (step 49): `est_cost` is null ("check link"), whatever the draft guessed."""
     place = places.get(item.stop_key) if item.stop_key else None
+    est_cost = None if item.kind == "flight" else item.est_cost
+    cost_source: CostSource | None = "ai_estimate" if est_cost is not None else None
+    nights = item.nights
+    if item.kind == "lodging" and place is not None and place.hotel is not None:
+        est_cost = place.hotel.per_night
+        cost_source = "tool" if est_cost is not None else None
+        if nights is None and item.stop_key is not None:
+            nights = lodging_nights.get(item.stop_key)
     return ItineraryItem(
         id=item_id,
         kind=item.kind,
@@ -311,13 +431,42 @@ def _item(
         description=item.description,
         start_time=item.start_time,
         duration_min=item.duration_min,
-        nights=item.nights,
-        est_cost=item.est_cost,
-        cost_source="ai_estimate" if item.est_cost is not None else None,
+        nights=nights,
+        est_cost=est_cost,
+        cost_source=cost_source,
         booking_required=item.booking_required,
         why=item.why,
         source=(place.source if place and place.source else DEFAULT_ITEM_SOURCE),
     )
+
+
+def flight_link(itinerary: Itinerary) -> Link | None:
+    """The trip's round-trip Google Flights link, kept for the flight booking (step 42); None
+    when no flight item has a stop.
+
+    From the first flight item's stop (the departure airport) to the next airport stop after
+    it (the arrival), else that day's city, on the trip's start and end dates.
+    """
+    stops = {stop.tag: stop for stop in itinerary.stops}
+    items = [(day, item) for day in itinerary.days for item in day.items]
+    for index, (day, item) in enumerate(items):
+        if item.kind != "flight" or item.stop_tag is None:
+            continue
+        destination = next(
+            (
+                stops[later.stop_tag].name
+                for _, later in items[index + 1 :]
+                if later.stop_tag is not None
+                and later.stop_tag != item.stop_tag
+                and stops[later.stop_tag].kind == "airport"
+            ),
+            day.city,
+        )
+        url = links.google_flights_url(
+            stops[item.stop_tag].name, destination, itinerary.start_date, itinerary.end_date
+        )
+        return Link(label=GOOGLE_FLIGHTS_LABEL, url=url)
+    return None
 
 
 def haversine_mi(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

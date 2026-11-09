@@ -136,12 +136,12 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
           "start_time": "09:15",
           "duration_min": 360,               // null if unknown
           "nights": null,                    // lodging items only
-          "est_cost": { "amount": 300, "currency": "USD" },  // per person; null = "check link"
+          "est_cost": { "amount": 300, "currency": "USD" },  // per person (a lodging item: per night); null = "check link"
           "cost_source": "ai_estimate",      // ai_estimate | tool | null
           "booking_required": true,
           "booking_id": "bk-flight",         // set when booking_required (step 42+)
           "why": "Lowest fare with one stop that lands before 2 PM.",
-          "source": "AI suggestion",         // shown under "Why this?" e.g. "Geoapify", "SerpApi Google Hotels · as of Nov 1, 6:04 PM"
+          "source": "AI suggestion",         // shown under "Why this?" e.g. "Geoapify", "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC"
           "transit_from_previous": { "mode": "rideshare", "duration_min": 12, "distance_mi": 4.1, "estimated": true }, // null for the first item; mode: walk|transit|drive|rideshare|flight
           "updated_in_version": null         // set by code to the version that last changed this item
         }
@@ -186,8 +186,15 @@ Same shape as `Itinerary` **minus** everything code owns:
 
 Stops get a temporary `key` (`"s1"`, `"s2"`…) and items refer to it with `stop_key`. A stop
 may carry a `place_ref` that points at a tool result id (step 34+): the short ref code gave a
-found place (`"p3"`). Code copies the coordinates, address, `place_id` and rating from that
-tool result and sets the item `source` ("Geoapify"); an unknown ref is ignored.
+found place (`"p3"`) or hotel (`"h1"`, step 39). Code copies the coordinates, address,
+`place_id` and rating from that tool result and sets the item `source` ("Geoapify"); an unknown
+ref is ignored. For a hotel ref, the stop's `lodging` entry takes `price_per_night`,
+`price_source` and `price_as_of` from the tool (`total_price` = per night × nights), replacing
+the draft's estimate; a no-price result gives `null` prices and `price_source: "none"`. The
+hotel's `lodging` item gets the per-night price as `est_cost` (`cost_source: "tool"`) and the
+source "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC". The source text is in UTC on purpose
+(the backend doesn't know the user's timezone); the UI's price chip formats `price_as_of` in
+the user's local time.
 
 ### 2.4 `TurnAnalysis` (internal, one JSON call per user turn)
 ```jsonc
