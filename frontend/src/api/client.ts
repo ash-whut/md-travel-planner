@@ -1,10 +1,16 @@
 // The backend API as seen by the app (docs/contracts.md §4). Components never call fetch:
 // the app talks to an ApiClient, which tests replace with a fake.
-import type { Booking, BookingStatus, SessionDetail, SseEvent } from '@/types'
+import type { Booking, BookingStatus, SessionDetail, SessionSummary, SseEvent } from '@/types'
 
 export interface ApiClient {
   createSession(): Promise<SessionDetail>
   getSession(id: string): Promise<SessionDetail>
+  // The history list: every session, most recently updated first.
+  listSessions(): Promise<SessionSummary[]>
+  // The user's own title (1–80 chars); the backend stops auto-titling that session.
+  renameSession(id: string, title: string): Promise<SessionSummary>
+  // Deletes the session with its messages and plans.
+  deleteSession(id: string): Promise<void>
   // Streams the reply to a user message (contracts §5). Calls onEvent for each SSE event and
   // resolves when the stream ends or `signal` aborts it. Rejects (ApiError for a non-2xx
   // status, e.g. 404) if the stream cannot be opened or breaks.

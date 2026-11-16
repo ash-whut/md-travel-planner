@@ -288,10 +288,15 @@ Errors are `{ "detail": "message" }` with status 400/404/500, or 422 (invalid bo
 
 Order: `message_start` comes first and `done` or `error` comes last. If the client aborts
 (Stop), the server stops and saves the partial text with " *(stopped)*" appended.
-- Chat turn: `message_start → [profile] → token… → done`.
+- Chat turn: `message_start → [profile] → [title] → token… → done`.
 - Making the plan (`/generate`, or a chat turn whose action is `generate`):
-  `message_start → [profile] → status… → itinerary → token… → done`. The tokens are a short
+  `message_start → [profile] → [title] → status… → itinerary → token… → done`. The tokens are a short
   summary; its saved message gets `itinerary_version`. `/generate` saves no user message.
+- Auto-title (step 44, built by code): once the profile has a city and a `start_date`, and the
+  session isn't `title_is_custom`. Format: `San Jose · Mar 5–7`, `Austin · Mar 30–Apr 2`,
+  `Dallas & Fort Worth · Mar 6–9`, `Austin · Mar 5` (one day). The end is `end_date`, or
+  `start_date + duration_days − 1`. A city's ", CA" part is dropped. `title` is sent only when
+  the title changes, so it follows a changed city or dates until the user renames the trip.
 - A failed generation → `status` with `state: "error"`, then `error`; no version is saved.
   A tool status (e.g. weather) may also end in `error` while generation carries on to `done`;
   only the `error` event means the plan failed.

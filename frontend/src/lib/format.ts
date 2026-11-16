@@ -52,6 +52,29 @@ export function formatTimestamp(iso: string): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${formatTime(hhmm)}`
 }
 
+/**
+ * An ISO timestamp → how long ago, for the history rail: "Just now", "5 min ago", "3 hr ago",
+ * "Yesterday", "3 days ago", then the date: "Oct 20" (this year) or "Oct 20, 2025".
+ */
+export function formatRelative(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const minutes = Math.floor((now.getTime() - d.getTime()) / 60_000)
+  if (minutes < 1) return 'Just now' // also a timestamp slightly in the future (clock skew)
+  if (minutes < 60) return `${minutes} min ago`
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)} hr ago`
+  // Whole calendar days between the two local dates, so "Yesterday" means the day before today.
+  const days = Math.round(
+    (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) /
+      86_400_000,
+  )
+  if (days <= 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  const date = `${MONTHS[d.getMonth()]} ${d.getDate()}`
+  return d.getFullYear() === now.getFullYear() ? date : `${date}, ${d.getFullYear()}`
+}
+
 function formatAmount(amount: number, currency: string): string {
   const number = amount.toLocaleString('en-US', { maximumFractionDigits: 0 })
   return currency === 'USD' ? `$${number}` : `${number} ${currency}`

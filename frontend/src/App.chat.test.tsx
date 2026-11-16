@@ -6,6 +6,7 @@ import { sanJoseProfile } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { SessionDetail, SseEvent } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 const session: SessionDetail = {
   id: 's-1',
@@ -26,7 +27,7 @@ const reply: SseEvent[] = [
 ]
 
 function makeApi(send: ApiClient['sendMessage']) {
-  return { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn(), patchBooking: vi.fn() }
+  return { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn(), patchBooking: vi.fn(), ...noHistory }
 }
 
 async function typeAndSend(text: string) {

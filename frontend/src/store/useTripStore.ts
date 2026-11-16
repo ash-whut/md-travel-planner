@@ -65,6 +65,8 @@ interface TripActions {
   loadSession: (detail: SessionDetail) => void
   loadDemo: () => void
   startSession: (api: ApiClient) => Promise<void>
+  openTrip: (api: ApiClient, id: string) => Promise<void>
+  newTrip: (api: ApiClient) => Promise<void>
   sendMessage: (api: ApiClient, content: string, opts?: { retry?: boolean }) => Promise<void>
   generatePlan: (api: ApiClient) => Promise<void>
   retry: (api: ApiClient) => Promise<void>
@@ -122,7 +124,8 @@ function withBooking(
   return { ...itinerary, bookings: itinerary.bookings.map((b) => (b.id === bookingId ? change(b) : b)) }
 }
 
-// Reopen the stored session, or create a new one if none is stored or it no longer exists.
+// Reopen the stored session. With none stored (or it no longer exists), open the most recent
+// session, and create a new one only when there are none.
 async function openSession(api: ApiClient): Promise<SessionDetail> {
   const storedId = localStorage.getItem(SESSION_KEY)
   if (storedId) {
@@ -132,7 +135,8 @@ async function openSession(api: ApiClient): Promise<SessionDetail> {
       if (!(err instanceof ApiError && err.status === 404)) throw err
     }
   }
-  return api.createSession()
+  const [mostRecent] = await api.listSessions()
+  return mostRecent ? api.getSession(mostRecent.id) : api.createSession()
 }
 
 // Pure reducer for one SSE event (contracts §5). Kept outside the store so it is easy to test.
@@ -228,6 +232,31 @@ export const useTripStore = create<TripState>()((set, get) => ({
       get().loadSession(detail)
     } catch (err) {
       set({ error: { message: `Couldn't load your trip: ${errorText(err)}`, retryable: true } })
+    }
+  },
+
+  // A history rail click: stop any reply still streaming (so it can't spill into the other
+  // trip), then load that trip and remember it for the next visit.
+  openTrip: async (api, id) => {
+    if (get().streaming) get().stop()
+    try {
+      const detail = await api.getSession(id)
+      localStorage.setItem(SESSION_KEY, detail.id)
+      get().loadSession(detail)
+    } catch (err) {
+      set({ error: { message: `Couldn't open that trip: ${errorText(err)}`, retryable: false } })
+    }
+  },
+
+  // The New trip button (and deleting the last trip): same as openTrip, with a fresh session.
+  newTrip: async (api) => {
+    if (get().streaming) get().stop()
+    try {
+      const detail = await api.createSession()
+      localStorage.setItem(SESSION_KEY, detail.id)
+      get().loadSession(detail)
+    } catch (err) {
+      set({ error: { message: `Couldn't start a new trip: ${errorText(err)}`, retryable: false } })
     }
   },
 

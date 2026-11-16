@@ -8,6 +8,7 @@ vi.hoisted(() => window.history.replaceState(null, '', '/?demo=1'))
 import { sanJoseMessages, sanJoseV2 } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 function unusedApi() {
   return {
@@ -26,6 +27,7 @@ function unusedApi() {
     patchBooking: vi.fn(async () => {
       throw new Error('patchBooking must not be called in demo mode')
     }),
+    ...noHistory,
   }
 }
 

@@ -7,6 +7,7 @@ import { sanJoseProfile } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { SessionDetail, SseEvent, TripProfile } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 const emptyProfile: TripProfile = {
   cities: [],
@@ -61,7 +62,7 @@ beforeEach(() => {
 
 describe('App profile progress', () => {
   it('starts with muted chips in the empty Plan state', async () => {
-    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(), generate: vi.fn(), patchBooking: vi.fn() }
+    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(), generate: vi.fn(), patchBooking: vi.fn(), ...noHistory }
     render(<App api={api} />)
     await screen.findByText('Where to?')
     expect(screen.getAllByTitle(/Not given yet/).length).toBe(5)
@@ -74,6 +75,7 @@ describe('App profile progress', () => {
       sendMessage: vi.fn<ApiClient['sendMessage']>(async (_id, _c, onEvent) => turn(sanJoseProfile).forEach(onEvent)),
       generate: vi.fn(),
       patchBooking: vi.fn(),
+      ...noHistory,
     }
     await send(api, 'San Jose, first weekend of March, from College Station, solo, tech and food')
     expect(await screen.findByText('📍 San Jose, CA')).toBeTruthy()

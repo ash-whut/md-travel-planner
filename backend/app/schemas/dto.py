@@ -22,6 +22,18 @@ class SendMessageBody(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class RenameSessionBody(BaseModel):
+    """Body of PATCH /api/sessions/{id}."""
+
+    title: str = Field(min_length=1, max_length=80)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def strip_title(cls, value: object) -> object:
+        # Strip first, so a whitespace-only title fails min_length (422).
+        return value.strip() if isinstance(value, str) else value
+
+
 class UpdateBookingBody(BaseModel):
     """Body of PATCH /api/sessions/{id}/bookings/{booking_id}."""
 
@@ -34,6 +46,15 @@ class MessageOut(BaseModel):
     content: str
     itinerary_version: int | None
     created_at: datetime
+
+
+class SessionSummary(BaseModel):
+    """One trip in the history list (GET /api/sessions)."""
+
+    id: str
+    title: str
+    status: Literal["intake", "planned"]
+    updated_at: datetime
 
 
 class SessionDetail(BaseModel):
@@ -61,6 +82,15 @@ def message_out(row: MessageRow) -> MessageOut:
         content=row.content,
         itinerary_version=row.itinerary_version,
         created_at=as_utc(row.created_at),
+    )
+
+
+def session_summary(session_row: SessionRow) -> SessionSummary:
+    return SessionSummary(
+        id=session_row.id,
+        title=session_row.title,
+        status=session_row.status,  # type: ignore[arg-type]  (stored values are always intake|planned)
+        updated_at=as_utc(session_row.updated_at),
     )
 
 

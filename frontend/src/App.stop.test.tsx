@@ -7,6 +7,7 @@ import { sanJoseProfile } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { SessionDetail } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 const session: SessionDetail = {
   id: 's-1',
@@ -34,7 +35,7 @@ describe('App Stop', () => {
         onEvent({ event: 'token', data: { text: 'San Jose has ' } })
         s?.addEventListener('abort', () => resolve())
       })
-    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn(), patchBooking: vi.fn() }
+    const api = { createSession: vi.fn(async () => session), getSession: vi.fn(async () => session), sendMessage: vi.fn(send), generate: vi.fn(), patchBooking: vi.fn(), ...noHistory }
     render(<App api={api} />)
 
     await screen.findByText('Where to?')

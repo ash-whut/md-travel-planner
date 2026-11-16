@@ -7,6 +7,7 @@ import { sanJoseMessages, sanJoseProfile, sanJoseV2 } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { SessionDetail } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 const session: SessionDetail = {
   id: 's-1',
@@ -26,6 +27,7 @@ function fakeApi(): ApiClient {
     sendMessage: vi.fn(),
     generate: vi.fn(),
     patchBooking: vi.fn(),
+    ...noHistory,
   }
 }
 

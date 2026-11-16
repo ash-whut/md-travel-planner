@@ -37,6 +37,11 @@ def itinerary(plan: dict[str, Any]) -> SseEvent:
     return sse_event("itinerary", plan)
 
 
+def title(text: str) -> SseEvent:
+    """The session got a new auto-title."""
+    return sse_event("title", {"title": text})
+
+
 def done(message_id: str) -> SseEvent:
     return sse_event("done", {"message_id": message_id})
 

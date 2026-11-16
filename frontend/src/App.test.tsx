@@ -6,6 +6,7 @@ import { sanJoseMessages, sanJoseProfile, sanJoseV2 } from './fixtures'
 import { SESSION_KEY, useTripStore } from './store/useTripStore'
 import type { SessionDetail } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 // A backend session that already holds the San Jose trip.
 const sanJoseSession: SessionDetail = {
@@ -25,6 +26,7 @@ const fakeApi: ApiClient = {
   sendMessage: async () => {},
   generate: async () => {},
   patchBooking: async () => { throw new Error('patchBooking is not used here') },
+  ...noHistory,
 }
 
 beforeEach(() => {
@@ -69,7 +71,7 @@ describe('App session start (fake ApiClient)', () => {
   }
 
   function spyApi(getSession: ApiClient['getSession'] = async () => sanJoseSession) {
-    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}), generate: vi.fn(async () => {}), patchBooking: vi.fn() }
+    return { createSession: vi.fn(async () => newSession), getSession: vi.fn(getSession), sendMessage: vi.fn(async () => {}), generate: vi.fn(async () => {}), patchBooking: vi.fn(), ...noHistory }
   }
 
   it('creates a session when none is stored, stores its id and shows the backend greeting', async () => {
@@ -127,6 +129,7 @@ describe('App session start (fake ApiClient)', () => {
       sendMessage: vi.fn(async () => {}),
       generate: vi.fn(async () => {}),
       patchBooking: vi.fn(),
+      ...noHistory,
     }
     render(<App api={api} />)
     expect((await screen.findByRole('alert')).textContent).toMatch(/Failed to fetch/)

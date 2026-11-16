@@ -23,6 +23,44 @@ def get_session(db: Session, session_id: str) -> SessionRow | None:
     return db.get(SessionRow, session_id)
 
 
+def list_sessions(db: Session) -> list[SessionRow]:
+    """All sessions for the history list, most recently updated first."""
+    statement = select(SessionRow).order_by(
+        SessionRow.updated_at.desc(),  # type: ignore[attr-defined]
+        literal_column("session.rowid").desc(),  # newest-created first on a timestamp tie
+    )
+    return list(db.exec(statement).all())
+
+
+def rename_session(db: Session, session_id: str, title: str) -> SessionRow:
+    """The user's own title. It stops auto-titling for good. updated_at is left alone, so a
+    rename doesn't move the trip to the top of the list."""
+    session_row = _require_session(db, session_id)
+    session_row.title = title
+    session_row.title_is_custom = True
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return session_row
+
+
+def set_auto_title(db: Session, session_id: str, title: str) -> SessionRow:
+    """A title built by code from the profile; title_is_custom stays False."""
+    session_row = _require_session(db, session_id)
+    session_row.title = title
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return session_row
+
+
+def delete_session(db: Session, session_id: str) -> None:
+    """Delete the session. ON DELETE CASCADE (foreign keys are on, db/engine.py) removes its
+    messages and itineraries."""
+    db.delete(_require_session(db, session_id))
+    db.commit()
+
+
 def add_message(
     db: Session,
     session_id: str,

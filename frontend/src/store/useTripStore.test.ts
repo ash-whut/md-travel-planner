@@ -3,6 +3,7 @@ import { ApiError, type ApiClient } from '@/api/client'
 import { sanJoseMessages, sanJoseProfile, sanJoseStatusLines, sanJoseV1, sanJoseV2 } from '@/fixtures'
 import type { SessionDetail, TripProfile } from '@/types'
 import { SESSION_KEY, reduceEvent, useTripStore, type TripState } from './useTripStore'
+import { noHistory } from '@/test/historyApi'
 
 const fresh: SessionDetail = {
   id: 's-new',
@@ -25,6 +26,7 @@ function fakeApi(overrides: Partial<ApiClient> = {}) {
     sendMessage: vi.fn(async () => {}),
     generate: vi.fn(async () => {}),
     patchBooking: vi.fn(),
+    ...noHistory,
     ...overrides,
   }
 }
@@ -43,6 +45,7 @@ describe('useTripStore (smoke)', () => {
       sendMessage: async () => {},
       generate: async () => {},
       patchBooking: async () => { throw new Error('patchBooking is not used here') },
+      ...noHistory,
     })
     expect(calls).toEqual(['create'])
     expect(localStorage.getItem(SESSION_KEY)).toBe('s-new')

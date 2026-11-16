@@ -5,6 +5,7 @@ import { ApiError, type ApiClient } from '@/api/client'
 import { sanJoseProfile } from '@/fixtures'
 import type { SessionDetail, SseEvent } from '@/types'
 import { useTripStore } from './useTripStore'
+import { noHistory } from '@/test/historyApi'
 
 const session: SessionDetail = {
   id: 's-1',
@@ -39,6 +40,7 @@ function fakeApi(send: SendImpl = streamOf(...reply('a1', 'Hel', 'lo'))) {
     sendMessage: vi.fn(send),
     generate: vi.fn(),
     patchBooking: vi.fn(),
+    ...noHistory,
   }
 }
 

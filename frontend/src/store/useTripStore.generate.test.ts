@@ -5,6 +5,7 @@ import type { ApiClient } from '@/api/client'
 import { sanJoseProfile, sanJoseV1 } from '@/fixtures'
 import type { SessionDetail, SseEvent } from '@/types'
 import { useTripStore } from './useTripStore'
+import { noHistory } from '@/test/historyApi'
 
 const session: SessionDetail = {
   id: 's-1',
@@ -44,6 +45,7 @@ function fakeApi(generate: GenerateImpl) {
     sendMessage: vi.fn(async () => {}),
     generate: vi.fn(generate),
     patchBooking: vi.fn(),
+    ...noHistory,
   }
 }
 

@@ -3,6 +3,7 @@ import { ApiError, type ApiClient } from '@/api/client'
 import { sanJoseMessages, sanJoseProfile, sanJoseV1 } from '@/fixtures'
 import type { Booking, SessionDetail } from '@/types'
 import { useTripStore } from './useTripStore'
+import { noHistory } from '@/test/historyApi'
 
 // Step 43: "Mark booked" is optimistic, saved with api.patchBooking, reverted on error.
 
@@ -24,6 +25,7 @@ function fakeApi(patchBooking: ApiClient['patchBooking']) {
     sendMessage: vi.fn(async () => {}),
     generate: vi.fn(async () => {}),
     patchBooking: vi.fn(patchBooking),
+    ...noHistory,
   }
 }
 

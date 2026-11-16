@@ -651,7 +651,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## I. History
 
-### 44 · History backend + auto-title — ☐ *BE*
+### 44 · History backend + auto-title — ☑ *BE*
 - **Builds:**
   - `GET /sessions` (newest first), `PATCH /sessions/{id}` (title → `title_is_custom`),
     `DELETE /sessions/{id}` (cascade);
@@ -662,9 +662,9 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Tests:** list order; rename sets custom and stops auto-titling; delete removes messages and
   itineraries; the title event fires once.
 - **Done when:** tests green.
-- **Notes:** —
+- **Notes:** **Built:** `SessionSummary` + `RenameSessionBody` DTOs; repo `list_sessions`, `rename_session` (doesn't bump `updated_at`), `set_auto_title`, `delete_session` (DB cascade); `turn.auto_title` + `title_update` right after the profile step. A `title` event is sent only when the title changes, so it follows a changed city/dates until the user renames. City names drop the ", CA" part. 404 on unknown ids.
 
-### 45 · History rail wired up — ☐ *FE*
+### 45 · History rail wired up — ☑ *FE*
 - **Builds:**
   - `useHistoryStore`;
   - HistoryRail: list (title, relative date), New trip, open (aborts any stream first), inline
@@ -676,7 +676,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   `api/http.ts`, tests
 - **Tests:** rename/delete flows; deleting the active trip switches; title update.
 - **Done when:** history persists across a backend restart.
-- **Notes:** —
+- **Notes:** **Built:** `ApiClient.listSessions/renameSession/deleteSession`; `useHistoryStore` (load, rename, delete → next trip or a new one, `syncTrip`); `useTripStore.openTrip/newTrip` (stop the stream first) and start opens the most recent trip when no id is stored; HistoryRail with pencil/trash on hover, `window.confirm` for delete, blur cancels a rename; `formatRelative`; App subscription syncs title events and moves the trip to the top when a turn ends. `?demo=1` shows `demoHistory()` with inert buttons. Test fakes spread `noHistory` (`src/test/historyApi.ts`). Manual check (history survives a backend restart) passed.
 
 ## J. Polish & demo
 

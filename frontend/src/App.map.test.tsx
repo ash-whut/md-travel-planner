@@ -5,6 +5,7 @@ import { sanJoseMessages, sanJoseProfile, sanJoseV2 } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { Itinerary, SessionDetail } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 // The Map tab rule (step 36): Map unlocks only once a stop has coordinates.
 function apiWith(itinerary: Itinerary): ApiClient {
@@ -24,6 +25,7 @@ function apiWith(itinerary: Itinerary): ApiClient {
     sendMessage: async () => {},
     generate: async () => {},
     patchBooking: async () => { throw new Error('patchBooking is not used here') },
+    ...noHistory,
   }
 }
 

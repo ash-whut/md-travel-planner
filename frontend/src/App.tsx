@@ -8,7 +8,9 @@ import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
 import { ChatPanel } from './components/ChatPanel'
 import { demo } from './demoParams'
+import { demoHistory } from './fixtures'
 import { hasBookings, hasMapStops } from './lib/map'
+import { useHistoryStore } from './store/useHistoryStore'
 import { useTripStore } from './store/useTripStore'
 
 type Tab = 'plan' | 'map' | 'book'
@@ -38,17 +40,38 @@ export default function App({ api = httpClient }: Props) {
   const selectedTag = useTripStore((s) => s.selectedTag)
   const flashKey = useTripStore((s) => s.tagFlashKey)
   const bookingError = useTripStore((s) => s.bookingError)
+  const activeId = useTripStore((s) => s.session?.id ?? null)
+  const historySessions = useHistoryStore((s) => s.sessions)
+  const historyError = useHistoryStore((s) => s.error)
   const started = useRef(false)
 
-  // Load the fixture trip (?demo=1) or open a backend session, once. The ref survives
-  // StrictMode's double effect run, so a new session is never created twice.
+  // Load the fixture trip (?demo=1) or open a backend session, then the history list, once.
+  // The ref survives StrictMode's double effect run, so a new session is never created twice.
   useEffect(() => {
     if (started.current) return
     started.current = true
     const store = useTripStore.getState()
-    if (demo.enabled) store.loadDemo()
-    else void store.startSession(api)
+    if (demo.enabled) {
+      store.loadDemo()
+      useHistoryStore.setState({ sessions: demoHistory() })
+    } else {
+      void store.startSession(api).then(() => useHistoryStore.getState().loadSessions(api))
+    }
   }, [api])
+
+  // Keep the history list in step with the open trip: a new or switched trip, a `title` event,
+  // and the end of a chat turn (which moves the trip to the top). Not in demo mode.
+  useEffect(
+    () =>
+      useTripStore.subscribe((state, prev) => {
+        if (demo.enabled || !state.session) return
+        const turnEnded = prev.streaming && !state.streaming
+        if (state.session !== prev.session || turnEnded) {
+          useHistoryStore.getState().syncTrip(state.session, { bump: turnEnded })
+        }
+      }),
+    [],
+  )
 
   const [historyOpen, setHistoryOpen] = useState(demo.history)
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.id === demo.tab) ? (demo.tab as Tab) : 'plan')
@@ -106,7 +129,29 @@ export default function App({ api = httpClient }: Props) {
 
   return (
     <div className="flex h-full">
-      <HistoryRail open={historyOpen} onToggle={() => setHistoryOpen((o) => !o)} />
+      <HistoryRail
+        open={historyOpen}
+        onToggle={() => setHistoryOpen((o) => !o)}
+        sessions={historySessions}
+        activeId={activeId}
+        error={historyError}
+        // The demo trip has no backend, so the rail's buttons do nothing there.
+        onNew={() => {
+          if (!demo.enabled) void useTripStore.getState().newTrip(api)
+        }}
+        onOpen={(id) => {
+          if (!demo.enabled) void useTripStore.getState().openTrip(api, id)
+        }}
+        onRename={(id, title) => {
+          if (!demo.enabled) void useHistoryStore.getState().renameSession(api, id, title)
+        }}
+        onDelete={(id) => {
+          if (!demo.enabled) void useHistoryStore.getState().deleteSession(api, id)
+        }}
+        onRetry={() => {
+          if (!demo.enabled) void useHistoryStore.getState().loadSessions(api)
+        }}
+      />
 
       <div ref={main} className="flex min-w-0 flex-1">
         <section className="flex min-w-0 bg-gray-50" style={{ width: `${split}%` }}>

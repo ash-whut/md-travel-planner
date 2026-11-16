@@ -8,6 +8,7 @@ import { sanJoseProfile, sanJoseV1, sanJoseV2 } from './fixtures'
 import { SESSION_KEY, useTripStore } from './store/useTripStore'
 import type { SessionDetail, SseEvent } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 const plannedSession: SessionDetail = {
   id: 's-1',
@@ -33,6 +34,7 @@ function makeApi(overrides: Partial<ApiClient> = {}) {
     sendMessage: vi.fn<ApiClient['sendMessage']>(async () => {}),
     generate: vi.fn<ApiClient['generate']>(async () => {}),
     patchBooking: vi.fn(),
+    ...noHistory,
     ...overrides,
   }
 }

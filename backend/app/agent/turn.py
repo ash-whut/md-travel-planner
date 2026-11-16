@@ -3,8 +3,8 @@ reply (action=chat), or make / update the plan and stream a short summary (actio
 edit). Save the reply.
 
 The turn is an async generator of SSE events (contracts §5). Order:
-- chat:          message_start → [profile] → token… → done
-- generate/edit: message_start → [profile] → status… → itinerary → token… → done
+- chat:          message_start → [profile] → [title] → token… → done
+- generate/edit: message_start → [profile] → [title] → status… → itinerary → token… → done
 - failure:       message_start → … → error (if the plan was already saved, a fixed summary + done)
 The Generate button runs the same turn with no user message (content=None). An edit with no
 plan yet runs as chat.
@@ -16,6 +16,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import timedelta
 
 from sqlmodel import Session
 
@@ -109,6 +110,10 @@ async def run_turn(
             action = analysis.action
             change_request = analysis.change_request or content
 
+        new_title = title_update(db, session_id, profile)
+        if new_title is not None:
+            yield sse.title(new_title)
+
         if action == "edit" and repo.get_latest_itinerary(db, session_id) is None:
             action = "chat"  # nothing to edit yet; the reply sees "No plan yet" in its context
 
@@ -173,6 +178,42 @@ async def run_turn(
         yield sse.error(PLAN_ERROR_MESSAGE if action in ("generate", "edit") else ERROR_MESSAGE)
         return
     yield sse.done(message_id)
+
+
+def auto_title(profile: TripProfile) -> str | None:
+    """The trip's title, built by code: "San Jose · Mar 5–7", "Mar 30–Apr 2" across months,
+    "Dallas & Fort Worth · Mar 6–9" for two cities, "Austin · Mar 5" for one day.
+    None until the profile has a city and a start date. The end is end_date, or else
+    start_date + duration_days - 1; with neither, the title shows the start day only."""
+    if not profile.cities or profile.start_date is None:
+        return None
+    start = profile.start_date
+    end = profile.end_date
+    if end is None and profile.duration_days is not None:
+        end = start + timedelta(days=profile.duration_days - 1)
+
+    if end is None or end <= start:
+        dates = f"{start:%b} {start.day}"
+    elif end.month == start.month and end.year == start.year:
+        dates = f"{start:%b} {start.day}–{end.day}"
+    else:
+        dates = f"{start:%b} {start.day}–{end:%b} {end.day}"
+    # "San Jose, CA" → "San Jose": the state only makes the title longer.
+    cities = " & ".join(city.split(",")[0].strip() for city in profile.cities)
+    return f"{cities} · {dates}"
+
+
+def title_update(db: Session, session_id: str, profile: TripProfile) -> str | None:
+    """Save a new auto-title when it differs from the current one and the user hasn't renamed
+    the trip. Returns the new title (for the `title` event), or None when nothing changed."""
+    session_row = repo.get_session(db, session_id)
+    if session_row is None or session_row.title_is_custom:
+        return None
+    new_title = auto_title(profile)
+    if new_title is None or new_title == session_row.title:
+        return None
+    repo.set_auto_title(db, session_id, new_title)
+    return new_title
 
 
 def session_profile(db: Session, session_id: str) -> TripProfile:

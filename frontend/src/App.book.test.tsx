@@ -5,6 +5,7 @@ import { sanJoseMessages, sanJoseProfile, sanJoseV1 } from './fixtures'
 import { useTripStore } from './store/useTripStore'
 import type { Booking, Itinerary, SessionDetail } from './types'
 import App from './App'
+import { noHistory } from '@/test/historyApi'
 
 // The Book tab rule (step 43, docs/spec.md F6): Book unlocks only once the plan has bookings.
 function apiWith(itinerary: Itinerary, patchBooking: ApiClient['patchBooking'] = async () => {
@@ -26,6 +27,7 @@ function apiWith(itinerary: Itinerary, patchBooking: ApiClient['patchBooking'] =
     sendMessage: vi.fn(async () => {}),
     generate: vi.fn(async () => {}),
     patchBooking: vi.fn(patchBooking),
+    ...noHistory,
   }
 }
 

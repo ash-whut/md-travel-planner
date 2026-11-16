@@ -3,8 +3,10 @@ import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event
 import type {
   Booking,
   BookingStatus,
+  RenameSessionBody,
   SendMessageBody,
   SessionDetail,
+  SessionSummary,
   SseEvent,
   SseEventName,
   UpdateBookingBody,
@@ -83,9 +85,27 @@ function patchBooking(sessionId: string, bookingId: string, status: BookingStatu
   })
 }
 
+function renameSession(id: string, title: string): Promise<SessionSummary> {
+  const body: RenameSessionBody = { title }
+  return request<SessionSummary>(`/sessions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// 204 has no body, so this can't use request() (it parses JSON).
+async function deleteSession(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) throw await toApiError(res)
+}
+
 export const httpClient: ApiClient = {
   createSession: () => request<SessionDetail>('/sessions', { method: 'POST' }),
   getSession: (id) => request<SessionDetail>(`/sessions/${encodeURIComponent(id)}`),
+  listSessions: () => request<SessionSummary[]>('/sessions'),
+  renameSession,
+  deleteSession,
   sendMessage,
   generate,
   patchBooking,
