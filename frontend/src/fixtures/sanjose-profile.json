@@ -1,0 +1,23 @@
+{
+  "cities": [
+    "San Jose, CA"
+  ],
+  "vibe": null,
+  "start_date": "2027-03-05",
+  "end_date": "2027-03-07",
+  "duration_days": 3,
+  "rough_timing": "first weekend of March",
+  "origin": "College Station, TX",
+  "travelers": 1,
+  "budget_level": null,
+  "interests": [
+    "tech",
+    "food",
+    "gardens"
+  ],
+  "dietary": "vegan",
+  "pace": null,
+  "transport": null,
+  "notes": null,
+  "missing_required": []
+}

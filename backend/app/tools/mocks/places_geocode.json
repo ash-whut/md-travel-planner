@@ -1,0 +1,55 @@
+{
+  "results": [
+    {
+      "name": "San Jose",
+      "city": "San Jose",
+      "state": "California",
+      "country": "United States",
+      "country_code": "us",
+      "lon": -121.8905833,
+      "lat": 37.3361663,
+      "formatted": "San Jose, CA, United States of America",
+      "place_id": "mock_city_san_jose",
+      "result_type": "city"
+    },
+    {
+      "name": "San Francisco",
+      "city": "San Francisco",
+      "state": "California",
+      "country": "United States",
+      "country_code": "us",
+      "lon": -122.4192363,
+      "lat": 37.7792808,
+      "formatted": "San Francisco, CA, United States of America",
+      "place_id": "mock_city_san_francisco",
+      "result_type": "city"
+    },
+    {
+      "name": "College Station",
+      "city": "College Station",
+      "state": "Texas",
+      "country": "United States",
+      "country_code": "us",
+      "lon": -96.3344068,
+      "lat": 30.6278225,
+      "formatted": "College Station, TX, United States of America",
+      "place_id": "mock_city_college_station",
+      "result_type": "city"
+    },
+    {
+      "name": "Houston",
+      "city": "Houston",
+      "state": "Texas",
+      "country": "United States",
+      "country_code": "us",
+      "lon": -95.3676974,
+      "lat": 29.7589382,
+      "formatted": "Houston, TX, United States of America",
+      "place_id": "mock_city_houston",
+      "result_type": "city"
+    }
+  ],
+  "query": {
+    "text": "San Jose, CA"
+  }
+}

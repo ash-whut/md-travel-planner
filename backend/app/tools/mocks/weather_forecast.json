@@ -1,0 +1,17 @@
+{
+  "latitude": 37.34,
+  "longitude": -121.89,
+  "timezone": "America/Los_Angeles",
+  "daily_units": {
+    "time": "iso8601",
+    "temperature_2m_max": "°F",
+    "temperature_2m_min": "°F",
+    "weather_code": "wmo code"
+  },
+  "daily": {
+    "time": ["2026-03-05", "2026-03-06", "2026-03-07"],
+    "temperature_2m_max": [66.2, 68.4, 61.0],
+    "temperature_2m_min": [48.1, 50.3, 47.5],
+    "weather_code": [0, 2, 61]
+  }
+}
