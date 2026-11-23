@@ -205,6 +205,34 @@ export interface SessionDetail {
   updated_at: string
 }
 
+// ---- §2.7 Accounts (decisions D32) ----
+
+// Long-lived preferences; each new trip's TripProfile starts from them.
+export interface UserProfile {
+  home_city: string | null
+  budget_level: BudgetLevel | null
+  dietary: string | null
+  pace: Pace | null
+  transport: Transport | null
+  interests: string[]
+}
+
+export interface User {
+  id: string
+  username: string
+  profile: UserProfile
+}
+
+export interface AuthBody {
+  username: string // 3–40 chars: lower-case letters, digits, _ . -
+  password: string // 6–200 chars
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
 // ---- §4 request bodies ----
 
 export interface SendMessageBody {

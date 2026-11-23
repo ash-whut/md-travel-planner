@@ -5,14 +5,17 @@ from typing import Any, Literal
 from sqlalchemy import literal_column
 from sqlmodel import Session, select
 
-from app.db.tables import ItineraryRow, MessageRow, SessionRow
+from app.db.tables import AuthTokenRow, ItineraryRow, MessageRow, SessionRow, UserRow
 from app.schemas.itinerary import Booking, BookingStatus, Itinerary
+from app.schemas.user import LEARNED_FIELDS
 
 Role = Literal["user", "assistant"]
 
 
-def create_session(db: Session) -> SessionRow:
-    session_row = SessionRow()
+def create_session(
+    db: Session, user_id: str | None = None, trip_profile: dict[str, Any] | None = None
+) -> SessionRow:
+    session_row = SessionRow(user_id=user_id, trip_profile=dict(trip_profile or {}))
     db.add(session_row)
     db.commit()
     db.refresh(session_row)
@@ -23,9 +26,10 @@ def get_session(db: Session, session_id: str) -> SessionRow | None:
     return db.get(SessionRow, session_id)
 
 
-def list_sessions(db: Session) -> list[SessionRow]:
-    """All sessions for the history list, most recently updated first."""
-    statement = select(SessionRow).order_by(
+def list_sessions(db: Session, user_id: str | None = None) -> list[SessionRow]:
+    """Sessions for the history list, most recently updated first: the user's own trips, or
+    the trips made without an account when user_id is None."""
+    statement = select(SessionRow).where(SessionRow.user_id == user_id).order_by(
         SessionRow.updated_at.desc(),  # type: ignore[attr-defined]
         literal_column("session.rowid").desc(),  # newest-created first on a timestamp tie
     )
@@ -96,7 +100,11 @@ def list_messages(db: Session, session_id: str) -> list[MessageRow]:
 
 
 def update_profile(db: Session, session_id: str, trip_profile: dict[str, Any]) -> SessionRow:
+    """Save the trip profile. For a logged-in user's trip, a preference the chat just set
+    (LEARNED_FIELDS) is also kept in the user profile for future trips."""
     session_row = _require_session(db, session_id)
+    if session_row.user_id is not None:
+        _learn_preferences(db, session_row.user_id, session_row.trip_profile, trip_profile)
     # Assign a new dict (not an in-place edit) so SQLAlchemy sees the JSON column changed.
     session_row.trip_profile = dict(trip_profile)
     db.add(session_row)
@@ -177,3 +185,64 @@ def _require_session(db: Session, session_id: str) -> SessionRow:
     if session_row is None:
         raise ValueError(f"Unknown session: {session_id}")
     return session_row
+
+
+# --- Accounts (decisions D32) ---
+
+
+def create_user(db: Session, username: str, password_hash: str) -> UserRow:
+    user = UserRow(username=username, password_hash=password_hash)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_by_username(db: Session, username: str) -> UserRow | None:
+    return db.exec(select(UserRow).where(UserRow.username == username)).first()
+
+
+def create_token(db: Session, user_id: str, token: str) -> str:
+    db.add(AuthTokenRow(token=token, user_id=user_id))
+    db.commit()
+    return token
+
+
+def get_user_by_token(db: Session, token: str) -> UserRow | None:
+    row = db.get(AuthTokenRow, token)
+    return None if row is None else db.get(UserRow, row.user_id)
+
+
+def delete_token(db: Session, token: str) -> None:
+    row = db.get(AuthTokenRow, token)
+    if row is not None:
+        db.delete(row)
+        db.commit()
+
+
+def set_user_profile(db: Session, user_id: str, profile: dict[str, Any]) -> UserRow:
+    user = db.get(UserRow, user_id)
+    if user is None:
+        raise ValueError(f"Unknown user: {user_id}")
+    user.profile = dict(profile)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def _learn_preferences(
+    db: Session, user_id: str, old: dict[str, Any], new: dict[str, Any]
+) -> None:
+    user = db.get(UserRow, user_id)
+    if user is None:
+        return
+    learned = {
+        key: new[key]
+        for key in LEARNED_FIELDS
+        if new.get(key) is not None and new.get(key) != old.get(key)
+    }
+    if learned:
+        # Committed together with the trip profile by update_profile.
+        user.profile = {**user.profile, **learned}
+        db.add(user)

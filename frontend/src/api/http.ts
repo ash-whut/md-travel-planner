@@ -11,6 +11,7 @@ import type {
   SseEventName,
   UpdateBookingBody,
 } from '@/types'
+import { authHeaders } from './auth'
 import { ApiError, type ApiClient } from './client'
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
@@ -24,8 +25,15 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, detail)
 }
 
+// Adds the login token (decisions D32); logged out, the request is sent exactly as given.
+function withAuth(init?: RequestInit): RequestInit | undefined {
+  const auth = authHeaders()
+  if (!auth.Authorization) return init
+  return { ...init, headers: { ...auth, ...(init?.headers as Record<string, string> | undefined) } }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, init)
+  const res = await fetch(`${BASE_URL}${path}`, withAuth(init))
   if (!res.ok) throw await toApiError(res)
   return (await res.json()) as T
 }
@@ -39,7 +47,7 @@ async function streamPost(
 ): Promise<void> {
   await fetchEventSource(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
     signal,
     // Without this the library re-sends the POST whenever the tab is hidden and shown again.
@@ -96,7 +104,7 @@ function renameSession(id: string, title: string): Promise<SessionSummary> {
 
 // 204 has no body, so this can't use request() (it parses JSON).
 async function deleteSession(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE_URL}/sessions/${encodeURIComponent(id)}`, withAuth({ method: 'DELETE' }))
   if (!res.ok) throw await toApiError(res)
 }
 

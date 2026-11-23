@@ -27,6 +27,8 @@ class SessionRow(SQLModel, table=True):
     trip_profile: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column(JSON, nullable=False)
     )
+    # The account that owns the trip; null for trips made without logging in (decisions D32).
+    user_id: str | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -72,3 +74,29 @@ class ApiCacheRow(SQLModel, table=True):
     value: Any = Field(sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(default_factory=utcnow)
     ttl_seconds: int
+
+
+class UserRow(SQLModel, table=True):
+    """An account. `profile` holds the UserProfile (contracts §2.7) that seeds each new trip."""
+
+    __tablename__ = "user"
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    username: str = Field(sa_column=Column(String, unique=True, nullable=False, index=True))
+    password_hash: str  # "pbkdf2_sha256$iterations$salt$hash", see core/auth.py
+    profile: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class AuthTokenRow(SQLModel, table=True):
+    """A login token, sent as `Authorization: Bearer <token>`. Deleted on logout."""
+
+    __tablename__ = "auth_token"
+
+    token: str = Field(primary_key=True)
+    user_id: str = Field(
+        sa_column=Column(
+            String, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    created_at: datetime = Field(default_factory=utcnow)

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { ApiClient } from './api/client'
 import { httpClient } from './api/http'
-import { HistoryRail } from './components/HistoryRail'
+import { HistoryRail, type Account } from './components/HistoryRail'
 import { PlanView } from './components/PlanView'
 import { MapView } from './components/MapView'
 import { BookView } from './components/BookView'
@@ -23,9 +23,10 @@ const TABS: { id: Tab; label: string }[] = [
 
 interface Props {
   api?: ApiClient // tests pass a fake
+  account?: Account // the logged-in user's menu (AuthGate); none in tests and demo mode
 }
 
-export default function App({ api = httpClient }: Props) {
+export default function App({ api = httpClient, account }: Props) {
   const messages = useTripStore((s) => s.messages)
   const profile = useTripStore((s) => s.profile)
   const itinerary = useTripStore((s) => s.itinerary)
@@ -151,6 +152,7 @@ export default function App({ api = httpClient }: Props) {
         onRetry={() => {
           if (!demo.enabled) void useHistoryStore.getState().loadSessions(api)
         }}
+        account={account}
       />
 
       <div ref={main} className="flex min-w-0 flex-1">
