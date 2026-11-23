@@ -1,9 +1,16 @@
 import { useState } from 'react'
-import { ChevronsLeft, ChevronsRight, MapPinned, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, LogOut, MapPinned, Pencil, Plus, Trash2 } from 'lucide-react'
 import { formatRelative } from '@/lib/format'
 import type { SessionSummary } from '@/types'
 
 const MAX_TITLE = 80 // contracts §4: a title is 1–80 chars
+
+// The logged-in user (decisions D32), shown at the bottom of the rail.
+export interface Account {
+  username: string
+  onProfile: () => void
+  onLogout: () => void
+}
 
 interface Props {
   open: boolean
@@ -16,6 +23,7 @@ interface Props {
   onRename: (id: string, title: string) => void
   onDelete: (id: string) => void
   onRetry: () => void
+  account?: Account
 }
 
 export function HistoryRail({
@@ -29,6 +37,7 @@ export function HistoryRail({
   onRename,
   onDelete,
   onRetry,
+  account,
 }: Props) {
   // The trip whose title is being edited inline, and the text typed so far.
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -150,6 +159,36 @@ export function HistoryRail({
           )
         })}
       </nav>
+      {account && (
+        <div className={`mt-2 flex border-t border-gray-200 px-2 pt-2 ${open ? 'items-center gap-1' : 'flex-col items-center gap-1'}`}>
+          <button
+            type="button"
+            onClick={account.onProfile}
+            title="Your profile"
+            aria-label="Your profile"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent uppercase">
+              {account.username[0]}
+            </span>
+            {open && (
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{account.username}</span>
+                <span className="block text-xs text-gray-400">Profile</span>
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={account.onLogout}
+            title="Log out"
+            aria-label="Log out"
+            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={onToggle}

@@ -46,3 +46,13 @@ def create_tables(engine: Engine) -> None:
     import app.db.tables  # noqa: F401  (registers the tables on SQLModel.metadata)
 
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    # create_all never alters an existing table, so a travel.db made before accounts
+    # (decisions D32) gets session.user_id added here.
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(session)")}
+        if "user_id" not in columns:
+            conn.exec_driver_sql("ALTER TABLE session ADD COLUMN user_id VARCHAR")

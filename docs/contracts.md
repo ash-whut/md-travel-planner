@@ -25,6 +25,7 @@ later steps can stay out until then.
 | title_is_custom | bool | true once the user renames it; stops auto-titling |
 | status | str | `intake` \| `planned` |
 | trip_profile | JSON | `TripProfile` (§2.1) |
+| user_id | str \| null, indexed | owning `user.id`; null for a trip made without logging in (D32). Added to an existing DB at startup |
 | created_at / updated_at | datetime | `updated_at` changes on every message, which sets the history order |
 
 ### `message`
@@ -58,6 +59,22 @@ itinerary. We do **not** store provider-specific transcripts.
 | ttl_seconds | int | weather 3 h, geocode 30 d, places 7 d, hotels 6 h |
 
 The cache exists to protect free-tier quotas (SerpApi especially), not for speed.
+
+### `user` (accounts, D32)
+| column | type | notes |
+|---|---|---|
+| id | str (uuid) PK | |
+| username | str, unique | lower-case, 3–40 chars `[a-z0-9_.-]` |
+| password_hash | str | `pbkdf2_sha256$iterations$salt$hash` (stdlib `hashlib`) |
+| profile | JSON | `UserProfile` (§2.7) |
+| created_at | datetime | |
+
+### `auth_token`
+| column | type | notes |
+|---|---|---|
+| token | str PK | random, sent as `Authorization: Bearer <token>`; deleted on logout |
+| user_id | str FK → user.id | ON DELETE CASCADE |
+| created_at | datetime | |
 
 ---
 
@@ -236,6 +253,27 @@ LLM resolves it from the itinerary listing in context.
 }
 ```
 
+### 2.7 Accounts (D32)
+```jsonc
+// UserProfile: long-lived preferences; every field optional (null / [] = not set)
+{ "home_city": "College Station, TX", "budget_level": "budget", "dietary": "vegan",
+  "pace": "relaxed", "transport": "rideshare", "interests": ["food", "museums"] }
+
+// User
+{ "id": "uuid", "username": "sean", "profile": { /* UserProfile */ } }
+
+// AuthBody (register / login)
+{ "username": "3–40 chars [a-z0-9_.-], case-insensitive", "password": "6–200 chars" }
+
+// AuthResponse
+{ "token": "…", "user": { /* User */ } }
+```
+- **Seeding:** a trip created by a logged-in user starts with `origin` = `home_city` and the
+  profile's `budget_level`, `dietary`, `pace`, `transport` and `interests` (unset ones are left out).
+- **Learning:** when a chat turn sets `dietary`, `budget_level`, `pace` or `transport` on a
+  logged-in user's trip to a new value, the user profile keeps that value for future trips.
+  Destination, dates and travelers stay per trip.
+
 ---
 
 ## 3. Tag rules (code only: `backend/app/agent/tags.py`)
@@ -268,8 +306,19 @@ the previous item's value.
 | GET | `/sessions` | — | `SessionSummary[]`, newest `updated_at` first | 44 |
 | PATCH | `/sessions/{id}` | `{ "title": "1–80 chars" }` | `SessionSummary` (sets `title_is_custom`) | 44 |
 | DELETE | `/sessions/{id}` | — | `204`, cascades | 44 |
+| POST | `/auth/register` | `AuthBody` | `201` `AuthResponse` · 409 username taken | D32 |
+| POST | `/auth/login` | `AuthBody` | `AuthResponse` · 401 wrong username or password | D32 |
+| POST | `/auth/logout` | — (Bearer) | `204`, deletes that token | D32 |
+| GET | `/me` | — (Bearer) | `User` · 401 | D32 |
+| PUT | `/me/profile` | `UserProfile` | `User` · 401 | D32 |
 
-Errors are `{ "detail": "message" }` with status 400/404/500, or 422 (invalid body).
+**Auth (D32):** a request may send `Authorization: Bearer <token>`. Without it, the session
+routes work as before on trips with no owner. With it, `POST /sessions` creates a trip owned by
+the user (seeded from the profile, §2.7), `GET /sessions` lists only the user's trips, and
+get/rename/delete of another account's trip is a 404. An unknown token is a 401. The chat,
+generate and booking routes don't check ownership yet (session ids are random uuids).
+
+Errors are `{ "detail": "message" }` with status 400/401/404/409/500, or 422 (invalid body).
 
 ---
 

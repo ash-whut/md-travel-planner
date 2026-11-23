@@ -139,7 +139,7 @@ rail.
 - Basic accessibility: keyboard navigable, visible focus, aria labels on icon buttons.
 
 ## 7. Out of scope (MVP)
-Accounts, multi-user, real bookings / payments, live price refresh, real flight fares,
+Production-grade auth (password reset, token expiry; basic accounts exist, D32), real bookings / payments, live price refresh, real flight fares,
 drag-and-drop editing, editable profile chips, mobile layout, export/sharing, kids/accessibility
 planning, trips > 7 days or > 2 cities, performance tuning. Some of these are stretch steps in
 [plan.md](plan.md).
