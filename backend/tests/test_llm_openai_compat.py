@@ -12,8 +12,9 @@ from pydantic import BaseModel, ValidationError
 
 from app.agent import understand
 from app.core.config import Settings
+from app.llm.base import ReplyCutOff
 from app.llm.factory import get_provider
-from app.llm.openai_compat_provider import OpenAICompatProvider
+from app.llm.openai_compat_provider import MAX_JSON_TOKENS, OpenAICompatProvider
 from app.schemas.profile import TripProfile
 from app.schemas.turn import TurnAnalysis
 
@@ -36,8 +37,10 @@ def _no_choices_chunk() -> SimpleNamespace:
     return SimpleNamespace(choices=[])
 
 
-def _reply(content: str | None) -> SimpleNamespace:
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+def _reply(content: str | None, finish_reason: str = "stop") -> SimpleNamespace:
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content), finish_reason=finish_reason)]
+    )
 
 
 async def _aiter(items: list[Any]) -> AsyncIterator[Any]:
@@ -166,6 +169,27 @@ def test_complete_json_two_bad_replies_raise_validation_error() -> None:
     with pytest.raises(ValidationError):
         asyncio.run(_provider(completions).complete_json("sys", MESSAGES, City))
     assert len(completions.calls) == 2  # retried exactly once, no more
+
+
+def test_complete_json_sends_an_explicit_output_cap() -> None:
+    # D33: without max_tokens, TAMU AI's default cap cut long plans off mid-JSON.
+    completions = StubCompletions(replies=['{"name": "Austin", "days": 3}'])
+    asyncio.run(_provider(completions).complete_json("sys", MESSAGES, City))
+    assert completions.calls[0]["max_tokens"] == MAX_JSON_TOKENS
+    assert MAX_JSON_TOKENS >= 16000
+
+
+def test_complete_json_cut_off_reply_fails_at_once_without_retry(caplog: pytest.LogCaptureFixture) -> None:
+    class CutOffCompletions(StubCompletions):
+        async def create(self, **kwargs: Any) -> Any:
+            self.calls.append(kwargs)
+            return _reply('{"name": "Aus', finish_reason="length")
+
+    completions = CutOffCompletions()
+    with caplog.at_level("WARNING"), pytest.raises(ReplyCutOff, match="cut off"):
+        asyncio.run(_provider(completions).complete_json("sys", MESSAGES, City))
+    assert "cut off" in caplog.text
+    assert len(completions.calls) == 1  # a retry would hit the same limit, so none is made
 
 
 # ---- factory -----------------------------------------------------------------------------

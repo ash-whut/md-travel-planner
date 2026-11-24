@@ -12,6 +12,11 @@ T = TypeVar("T", bound=BaseModel)
 Message = dict[str, str]
 
 
+class ReplyCutOff(Exception):
+    """The reply hit the output token limit, so it is incomplete. Not retried: asking again
+    with the same limit would be cut off the same way (D33)."""
+
+
 @dataclass
 class ToolSpec:
     """A tool the model may call. `parameters` is the JSON schema of its arguments."""
