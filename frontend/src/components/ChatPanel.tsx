@@ -117,6 +117,8 @@ export function ChatPanel({
   const bottom = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const pendingCursor = useRef<number | null>(null)
+  // Set on send: when that reply ends, the input takes focus back so the user can type on.
+  const refocusAfterReply = useRef(false)
   const firstDay = firstDayByTag(itinerary)
   const stops = itinerary?.stops ?? []
 
@@ -133,6 +135,15 @@ export function ChatPanel({
       pendingCursor.current = null
     }
   }, [draft])
+
+  // The disabled input loses focus while a reply streams; give it back when the reply ends,
+  // unless the user has moved focus somewhere else in the meantime (e.g. a tab or a button).
+  useEffect(() => {
+    if (streaming || !refocusAfterReply.current) return
+    refocusAfterReply.current = false
+    const active = document.activeElement
+    if (!active || active === document.body) input.current?.focus()
+  }, [streaming])
 
   // The "+" picker: "[C] " goes in at the cursor (or replaces the selected text).
   function pickStop(tag: string) {
@@ -151,6 +162,7 @@ export function ChatPanel({
     if (!text || streaming) return
     setDraft('')
     if (!demo.enabled) {
+      refocusAfterReply.current = true
       onSend?.(text)
       return
     }

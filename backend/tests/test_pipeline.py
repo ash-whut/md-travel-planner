@@ -16,7 +16,7 @@ import pytest
 
 from app.agent import pipeline
 from app.agent.pipeline import ComposeError, compose
-from app.llm.base import Message, T
+from app.llm.base import Message, ReplyCutOff, T
 from app.llm.fake_provider import FakeProvider, load_fake_data
 from app.schemas.itinerary import Itinerary, ItineraryDraft, itinerary_errors
 from app.schemas.profile import TripProfile
@@ -239,6 +239,19 @@ def test_bad_then_unparseable_raises_compose_error() -> None:
     with pytest.raises(ComposeError):
         run_compose(llm)
     assert len(llm.calls) == 2
+
+
+def test_cut_off_reply_fails_at_once_without_repair() -> None:
+    # D33: a reply cut off at the token limit would be cut off again, so compose doesn't repair.
+    class CutOffFake(RecordingFake):
+        async def complete_json(self, system: str, messages: list[Message], schema: type[T]) -> T:
+            self.calls.append((system, copy.deepcopy(messages)))
+            raise ReplyCutOff("JSON reply was cut off at the 16000-token output limit")
+
+    llm = CutOffFake()
+    with pytest.raises(ReplyCutOff):
+        run_compose(llm)
+    assert len(llm.calls) == 1
 
 
 def test_failed_compose_does_not_touch_previous_versions() -> None:

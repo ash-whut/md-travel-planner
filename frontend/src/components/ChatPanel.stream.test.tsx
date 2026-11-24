@@ -85,6 +85,37 @@ describe('ChatPanel while streaming', () => {
     expect(input.disabled).toBe(false)
   })
 
+  it('puts the cursor back in the input when the reply to a sent message ends', () => {
+    const { input, onSend, rerender } = renderChat()
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Plan Austin' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    rerender(<ChatPanel messages={[]} itinerary={null} streaming onSend={onSend} onTagClick={() => {}} />)
+    input.blur() // a browser drops focus from a disabled field; jsdom doesn't, so do it here
+    expect(document.activeElement).toBe(document.body)
+    rerender(<ChatPanel messages={[]} itinerary={null} streaming={false} onSend={onSend} onTagClick={() => {}} />)
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('does not take focus back if the user moved it elsewhere during the reply', () => {
+    const { input, onSend, rerender } = renderChat()
+    const other = document.createElement('button')
+    document.body.appendChild(other)
+    fireEvent.change(input, { target: { value: 'Plan Austin' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    rerender(<ChatPanel messages={[]} itinerary={null} streaming onSend={onSend} onTagClick={() => {}} />)
+    other.focus()
+    rerender(<ChatPanel messages={[]} itinerary={null} streaming={false} onSend={onSend} onTagClick={() => {}} />)
+    expect(document.activeElement).toBe(other)
+    other.remove()
+  })
+
+  it('does not grab focus when streaming ends without a message sent from here', () => {
+    const { input, onSend, rerender } = renderChat({ streaming: true })
+    rerender(<ChatPanel messages={[]} itinerary={null} streaming={false} onSend={onSend} onTagClick={() => {}} />)
+    expect(document.activeElement).not.toBe(input)
+  })
+
   it('shows a typing placeholder for an empty streaming assistant message', () => {
     renderChat({
       messages: [msg('u1', 'user', 'hi'), msg('a1', 'assistant', '')],

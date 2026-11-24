@@ -11,9 +11,12 @@ from typing import Any
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from app.llm.base import Message, T, ToolCall, ToolRound, ToolSpec
+from app.llm.base import Message, ReplyCutOff, T, ToolCall, ToolRound, ToolSpec
 
 logger = logging.getLogger(__name__)
+
+# Output cap for JSON replies. Without it TAMU AI's default cap cut 3-day plans off mid-JSON (D33).
+MAX_JSON_TOKENS = 16000
 
 
 class OpenAICompatProvider:
@@ -61,8 +64,16 @@ class OpenAICompatProvider:
             # Must be explicit: if left out, TAMU AI streams anyway (D16).
             stream=False,
             response_format={"type": "json_object"},
+            max_tokens=MAX_JSON_TOKENS,
         )
-        return response.choices[0].message.content or ""
+        choice = response.choices[0]
+        if getattr(choice, "finish_reason", None) == "length":
+            # The JSON is incomplete. Fail now instead of retrying: every retry would be cut off
+            # at the same limit, and the user would wait through all of them.
+            message = f"JSON reply was cut off at the {MAX_JSON_TOKENS}-token output limit"
+            logger.warning(message)
+            raise ReplyCutOff(message)
+        return choice.message.content or ""
 
     async def tool_turn(
         self, system: str, messages: list[Message], rounds: list[ToolRound], tools: list[ToolSpec]
