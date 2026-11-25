@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 BudgetLevel = Literal["budget", "mid", "splurge"]
 Pace = Literal["relaxed", "balanced", "packed"]
 Transport = Literal["car", "transit", "rideshare", "mixed"]
+TravelMode = Literal["flight", "drive"]
 RequiredField = Literal["destination", "dates", "origin", "travelers", "interests"]
 
 
@@ -26,6 +27,7 @@ class TripProfile(BaseModel):
     dietary: str | None = None
     pace: Pace | None = None
     transport: Transport | None = None
+    travel_mode: TravelMode | None = None  # flight | drive | null; set when the user picks
     notes: str | None = None
     missing_required: list[RequiredField] = Field(default_factory=list)
 

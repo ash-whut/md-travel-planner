@@ -33,13 +33,21 @@ class OpenAICompatProvider:
             messages=_with_system(system, messages),
             stream=True,
         )
+        # Buffer for stripping <think>…</think> blocks that may span chunk boundaries.
+        think_buf = ""
+        inside_think = False
         async for chunk in stream:
             # Some chunks carry no choices or an empty delta (D16); skip them.
             if not chunk.choices:
                 continue
             text = chunk.choices[0].delta.content
-            if text:
-                yield text
+            if not text:
+                continue
+            # Accumulate into buffer and strip any complete or partial <think> blocks.
+            think_buf += text
+            think_buf, inside_think, out = _strip_think(think_buf, inside_think)
+            if out:
+                yield out
 
     async def complete_json(self, system: str, messages: list[Message], schema: type[T]) -> T:
         # The schema goes in the prompt, not in `response_format: json_schema`: TAMU AI's
@@ -148,3 +156,48 @@ def _parse_json(reply: str, schema: type[T]) -> T:
         except json.JSONDecodeError:
             pass  # leave it whole; Pydantic reports the error
     return schema.model_validate_json(reply)
+
+
+def _strip_think(buf: str, inside: bool) -> tuple[str, bool, str]:
+    """Remove all complete `<think>…</think>` blocks from `buf`, and track partial ones.
+
+    Returns `(remaining_buf, still_inside, safe_text_to_yield)`. `remaining_buf` is whatever
+    hasn't been released yet (a partial tag or partial block). `safe_text_to_yield` is the
+    text outside any think block that is safe to send to the frontend now.
+
+    The caller accumulates `buf` across chunks so a tag that arrives split across two chunks
+    ("…<thi" then "nk>…") is handled correctly.
+    """
+    OPEN = "<think>"
+    CLOSE = "</think>"
+    out_parts: list[str] = []
+    pos = 0
+    while pos < len(buf):
+        if inside:
+            # Looking for the closing tag.
+            end = buf.find(CLOSE, pos)
+            if end == -1:
+                # Closing tag not yet arrived; hold the whole remaining buffer.
+                return buf[pos:], True, "".join(out_parts)
+            # Skip past </think>
+            pos = end + len(CLOSE)
+            inside = False
+        else:
+            # Looking for an opening tag.
+            start = buf.find(OPEN, pos)
+            if start == -1:
+                # No opening tag. But a trailing "<" could be the start of a partial "<think>",
+                # so keep at most len(OPEN)-1 chars buffered when the buffer ends with "<…".
+                last_lt = buf.rfind("<", pos)
+                if last_lt != -1 and last_lt > len(buf) - len(OPEN):
+                    # Possible partial tag at the end: release everything before the "<".
+                    out_parts.append(buf[pos:last_lt])
+                    return buf[last_lt:], False, "".join(out_parts)
+                # No possible partial tag: release everything.
+                out_parts.append(buf[pos:])
+                return "", False, "".join(out_parts)
+            # Everything before the opening tag is safe to release.
+            out_parts.append(buf[pos:start])
+            pos = start + len(OPEN)
+            inside = True
+    return "", inside, "".join(out_parts)

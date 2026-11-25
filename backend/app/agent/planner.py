@@ -28,7 +28,7 @@ SKIPPED_REPLY = "skipped: limit"
 # The last user message of the planner's chat (the caller adds it, see run_planner).
 PLANNER_REQUEST = "Look up what this plan needs now."
 # Ref prefix per tool: places are p1, p2…, hotels h1, h2…; any other tool r1, r2….
-REF_PREFIXES = {"search_places": "p", "search_hotels": "h"}
+REF_PREFIXES = {"search_places": "p", "search_hotels": "h", "search_flights": "f"}
 DEFAULT_REF_PREFIX = "r"
 # The system text puts the profile JSON after this marker and the change request after the
 # edit marker. The fake provider keeps copies (fake_provider.PLANNER_*_MARKER) to find them.
@@ -159,6 +159,10 @@ def call_label(call: ToolCall) -> str:
         return f"Finding {call.arguments.get('interest', 'places')} spots in {city}"
     if call.name == "search_hotels":
         return f"Finding hotels in {city}"
+    if call.name == "search_flights":
+        orig = short_city_name(str(call.arguments.get("origin", "origin")))
+        dest = short_city_name(str(call.arguments.get("destination", "destination")))
+        return f"Finding flights from {orig} to {dest}"
     return f"Looking up {call.name}"
 
 

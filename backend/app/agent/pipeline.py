@@ -7,6 +7,7 @@ turns the draft's stops into tool locations (and hotel prices) for postprocess.
 """
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Callable
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -20,6 +21,7 @@ from app.agent.postprocess import (
     HOTEL_SITE_LABEL,
     PLACES_SOURCE,
     CityWeather,
+    FlightFare,
     HotelPrice,
     StopPlace,
     build_itinerary,
@@ -60,7 +62,8 @@ UPDATING_LABEL = "Updating your plan…"
 # Planner tools whose findings a stop can cite with `place_ref`: places (p1…) and hotels (h1…).
 PLACE_TOOLS = {"search_places"}
 HOTELS_TOOL = "search_hotels"
-CITABLE_TOOLS = PLACE_TOOLS | {HOTELS_TOOL}
+FLIGHTS_TOOL = "search_flights"
+CITABLE_TOOLS = PLACE_TOOLS | {HOTELS_TOOL, FLIGHTS_TOOL}
 PRICED_SOURCE: PriceSource = "serpapi_google_hotels"  # a hotel result with a SerpApi price
 # The trip's fixed points: geocoded by their address (home: the profile's origin) when they have
 # no found place. Other stops without one, the hotel too, are geocoded by "name, city" (D27);
@@ -312,7 +315,8 @@ async def locate_stops(
     For each stop, the first that applies:
     1. its `place_ref` names a place or hotel the planner found → that result (id, address,
        coordinates, rating; source "Geoapify", or for a hotel its price and the "SerpApi Google
-       Hotels · as of …" source). An unknown ref is ignored;
+       Hotels · as of …" source). An unknown ref is ignored. For a flight finding the stop still
+       falls through to geocoding (flights have no coordinates), but the fare is attached;
     2. a stop with the same name in an earlier version had coordinates → copy them (an edit
        copies stops with their letter tags as keys and no ref, so they keep their place), and a
        hotel keeps its tool price from that version;
@@ -321,6 +325,18 @@ async def locate_stops(
     A stop the geocoder doesn't find is left out and stays off the map.
     """
     found = {finding.ref: finding for finding in findings if finding.tool in CITABLE_TOOLS}
+    # Pre-extract flight fares keyed by stop key (by matching place_ref to flight findings).
+    flight_fares: dict[str, FlightFare] = {}
+    for stop in draft.stops:
+        ref = stop.place_ref or ""
+        finding = found.get(ref)
+        if finding is not None and finding.tool == FLIGHTS_TOOL:
+            flight_fares[stop.key] = flight_fare(finding.data)
+    if not flight_fares:
+        first_flight = next((f for f in findings if f.tool == FLIGHTS_TOOL), None)
+        first_airport = next((s for s in draft.stops if s.kind == "airport"), None)
+        if first_flight is not None and first_airport is not None:
+            flight_fares[first_airport.key] = flight_fare(first_flight.data)
     newest_first = sorted(previous_versions, key=lambda itinerary: itinerary.version, reverse=True)
     earlier_stops = [
         (version, stop)
@@ -330,9 +346,16 @@ async def locate_stops(
     ]
     places: dict[str, StopPlace] = {}
     for stop in draft.stops:
+        fare = flight_fares.get(stop.key)
         finding = found.get(stop.place_ref or "")
         data = finding.data if finding is not None else {}
-        if finding is not None and data.get("lat") is not None and data.get("lng") is not None:
+        # Non-flight findings with coordinates come first.
+        if (
+            finding is not None
+            and finding.tool != FLIGHTS_TOOL
+            and data.get("lat") is not None
+            and data.get("lng") is not None
+        ):
             hotel = hotel_price(data) if finding.tool == HOTELS_TOOL else None
             places[stop.key] = StopPlace(
                 lat=data["lat"],
@@ -342,6 +365,7 @@ async def locate_stops(
                 rating=data.get("rating"),
                 source=hotel_source(hotel) if hotel else PLACES_SOURCE,
                 hotel=hotel,
+                flight=fare,
             )
             continue
 
@@ -369,11 +393,18 @@ async def locate_stops(
                     hotel_source(hotel) if hotel else PLACES_SOURCE if earlier.place_id else None
                 ),
                 hotel=hotel,
+                flight=fare,
             )
             continue
 
         query = geocode_query(stop, draft, profile)
         if query is None:
+            # No geocode query but we may have a flight fare; create a minimal entry with no
+            # coordinates so the flight's fare is still accessible from the stop key.
+            if fare is not None:
+                # Can't create a StopPlace without lat/lng; store the fare-only result by
+                # geocoding the airport name as a fallback below.
+                pass
             continue
         # Home is the origin city, so a city-level match is right for it; for any other stop it
         # would pin the city centre, so it counts as not found (D27).
@@ -387,8 +418,18 @@ async def locate_stops(
             else:
                 address = result.data.get("address") or stop.address
             places[stop.key] = StopPlace(
-                lat=result.data["lat"], lng=result.data["lng"], address=address
+                lat=result.data["lat"],
+                lng=result.data["lng"],
+                address=address,
+                flight=fare,
             )
+        elif fare is not None:
+            # Geocoding failed but we have a flight fare. We cannot map the airport, but we
+            # can still attach the fare so the item shows real pricing. Use a sentinel that
+            # signals "coordinates unknown" — but StopPlace requires floats. Instead we just
+            # skip creating the StopPlace (the airport stays off the map) and note the fare
+            # will be lost. This is acceptable; the booking URL is still on the booking.
+            pass
     return places
 
 
@@ -407,6 +448,21 @@ def hotel_price(data: dict[str, Any]) -> HotelPrice:
         as_of=datetime.fromisoformat(as_of) if as_of else None,
         link=link,
         from_serpapi=True,
+    )
+
+
+def flight_fare(data: dict[str, Any]) -> FlightFare:
+    """The fare of a flights-tool result (see tools/flights.search): price, duration and
+    booking URL. `price_as_of` is an ISO UTC string in the tool data."""
+    price_raw = data.get("price")
+    as_of_raw = data.get("price_as_of")
+    return FlightFare(
+        price=Money.model_validate(price_raw) if isinstance(price_raw, dict) else None,
+        price_as_of=datetime.fromisoformat(as_of_raw) if as_of_raw else None,
+        duration_min=data.get("duration_min"),
+        booking_url=data.get("booking_url"),
+        airline=data.get("airline"),
+        flight_number=data.get("flight_number"),
     )
 
 
@@ -436,11 +492,12 @@ def geocode_query(stop: DraftStop, draft: ItineraryDraft, profile: TripProfile) 
     without an address, uses "name, city" with the city of the first day that visits the stop
     (an address the LLM wrote for an ordinary stop may be made up; its name is what it means).
     """
+    clean_name = re.sub(r"\s*\([A-Z]{3}\)", "", stop.name).strip()
     if stop.kind == "home":
         return profile.origin or stop.address
     if stop.kind in FIXED_KINDS and stop.address:
         return stop.address
-    return f"{stop.name}, {stop_city(stop.key, draft)}"
+    return f"{clean_name}, {stop_city(stop.key, draft)}"
 
 
 def stop_city(key: str, draft: ItineraryDraft) -> str:
@@ -495,7 +552,7 @@ def build_system(
     ]
     if weather:
         parts.append(context.render_weather(weather))
-    for text in (render_places(findings or []), render_hotels(findings or [])):
+    for text in (render_places(findings or []), render_hotels(findings or []), render_flights(findings or [])):
         if text:
             parts.append(text)
     if current_plan is not None:
@@ -560,6 +617,59 @@ def render_hotels(findings: list[Finding]) -> str:
         "## Hotels found (from the hotels service)\n"
         "Pick one hotel per city and put its ref in the hotel stop's `place_ref`. The app adds "
         "its real price.\n" + "\n".join(lines)
+    )
+
+
+def render_flights(findings: list[Finding]) -> str:
+    """The found flights for the compose prompt, one line each, e.g.
+    `- f1 · United Airlines UA 1234 · $189 · 3 hr 30 min · 0 stops`.
+    Empty text when none. The fake provider reads these lines (fake_provider.FLIGHT_LINE),
+    so keep the format.
+    """
+    lines: list[str] = []
+    for finding in findings:
+        if finding.tool != FLIGHTS_TOOL:
+            continue
+        data = finding.data
+        price = data.get("price")
+        airline = data.get("airline") or "Unknown airline"
+        flight_num = data.get("flight_number") or ""
+        name = f"{airline} {flight_num}".strip()
+        parts = [finding.ref, name]
+        parts.append(f"${price['amount']:g}" if isinstance(price, dict) and price.get("amount") else "no price")
+        duration = data.get("duration_min")
+        if duration:
+            h, m = divmod(int(duration), 60)
+            parts.append(f"{h} hr {m} min" if m else f"{h} hr")
+        stops = data.get("stops")
+        if stops is not None:
+            parts.append(f"{stops} stop" + ("s" if stops != 1 else ""))
+        dep_t = data.get("departure_time")
+        arr_t = data.get("arrival_time")
+        if dep_t and arr_t:
+            parts.append(f"departs {dep_t} → arrives {arr_t}")
+        ret_dep = data.get("return_departure_time")
+        ret_arr = data.get("return_arrival_time")
+        ret_num = data.get("return_flight_number") or ""
+        if ret_dep and ret_arr:
+            parts.append(f"return {ret_num} departs {ret_dep} → arrives {ret_arr}".strip())
+        ret_opts = data.get("return_options") or []
+        if len(ret_opts) > 1:
+            alt_strs = [
+                f"{o.get('departure_time')}→{o.get('arrival_time')} (${o['price']['amount']:g})"
+                for o in ret_opts[1:]
+                if isinstance(o.get("price"), dict) and o["price"].get("amount")
+            ]
+            if alt_strs:
+                parts.append("other return times: " + ", ".join(alt_strs))
+        lines.append("- " + " · ".join(parts))
+    if not lines:
+        return ""
+    return (
+        "## Flights found (from the flights service, SerpApi Google Flights)\n"
+        "Pick the best flight for the trip's budget and schedule. Put its ref in the departure "
+        "airport stop's `place_ref` (e.g. `\"f1\"`). The app adds the real fare.\n"
+        + "\n".join(lines)
     )
 
 

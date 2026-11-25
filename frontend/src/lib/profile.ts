@@ -5,7 +5,7 @@ import type { RequiredField, TripProfile } from '@/types'
 import { formatDateRange, formatShortDate } from './format'
 
 export interface ProfileChip {
-  field: RequiredField | 'dietary'
+  field: RequiredField | 'dietary' | 'travel_mode'
   label: string
   missing: boolean // a required detail not given yet: shown muted
 }
@@ -54,6 +54,12 @@ function dietaryChip(profile: TripProfile): ProfileChip | null {
   return { field: 'dietary', label: `🌱 ${dietary}`, missing: false }
 }
 
+function travelModeChip(profile: TripProfile): ProfileChip | null {
+  if (!profile.travel_mode) return null
+  const label = profile.travel_mode === 'flight' ? '✈️ Flying' : '🚗 Driving'
+  return { field: 'travel_mode', label, missing: false }
+}
+
 /** Header chips in the v0 order: known details ("📍 San Jose, CA") plus muted placeholders for missing ones. */
 export function profileChips(profile: TripProfile): ProfileChip[] {
   const chips = [
@@ -62,6 +68,7 @@ export function profileChips(profile: TripProfile): ProfileChip[] {
     requiredChip(profile, 'dates'),
     requiredChip(profile, 'travelers'),
     dietaryChip(profile), // optional, shown only when known
+    travelModeChip(profile), // optional, shown only when known
     requiredChip(profile, 'interests'),
   ]
   return chips.filter((chip): chip is ProfileChip => chip !== null)

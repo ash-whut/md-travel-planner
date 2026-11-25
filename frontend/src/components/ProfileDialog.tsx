@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
-import type { BudgetLevel, Pace, Transport, UserProfile } from '@/types'
+import type { BudgetLevel, Pace, TravelMode, Transport, UserProfile } from '@/types'
 
 interface Props {
   username: string
@@ -12,6 +12,7 @@ interface Props {
 const BUDGETS: BudgetLevel[] = ['budget', 'mid', 'splurge']
 const PACES: Pace[] = ['relaxed', 'balanced', 'packed']
 const TRANSPORTS: Transport[] = ['car', 'transit', 'rideshare', 'mixed']
+const TRAVEL_MODES: TravelMode[] = ['flight', 'drive']
 
 const field =
   'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-accent focus:ring-2 focus:ring-indigo-100'
@@ -100,6 +101,7 @@ export function ProfileDialog({ username, profile, onSave, onClose }: Props) {
           <Choice label="Budget" value={draft.budget_level} options={BUDGETS} onChange={(v) => set('budget_level', v)} />
           <Choice label="Pace" value={draft.pace} options={PACES} onChange={(v) => set('pace', v)} />
           <Choice label="Getting around" value={draft.transport} options={TRANSPORTS} onChange={(v) => set('transport', v)} />
+          <Choice label="Fly or drive" value={draft.travel_mode} options={TRAVEL_MODES} onChange={(v) => set('travel_mode', v)} />
           <label className="block text-sm font-medium text-gray-700">
             Dietary needs
             <input

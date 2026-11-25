@@ -1,0 +1,242 @@
+{
+  "search_metadata": {
+    "id": "mock_google_flights_iah_sjc",
+    "status": "Success",
+    "google_flights_url": "https://www.google.com/travel/flights"
+  },
+  "search_parameters": {
+    "engine": "google_flights",
+    "departure_id": "IAH",
+    "arrival_id": "SJC",
+    "outbound_date": "2027-03-05",
+    "return_date": "2027-03-07",
+    "currency": "USD",
+    "hl": "en",
+    "gl": "us",
+    "type": "1"
+  },
+  "best_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "George Bush Intercontinental Airport",
+            "id": "IAH",
+            "time": "2027-03-05 06:15"
+          },
+          "arrival_airport": {
+            "name": "San Jose Mineta International Airport",
+            "id": "SJC",
+            "time": "2027-03-05 08:45"
+          },
+          "duration": 210,
+          "airplane": "Boeing 737",
+          "airline": "United Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+          "flight_number": "UA 1234",
+          "legroom": "31 in",
+          "extensions": ["Average legroom (31 in)"]
+        }
+      ],
+      "layovers": [],
+      "total_duration": 210,
+      "price": 189,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+      "booking_token": "mock_token_1"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "George Bush Intercontinental Airport",
+            "id": "IAH",
+            "time": "2027-03-05 10:30"
+          },
+          "arrival_airport": {
+            "name": "San Jose Mineta International Airport",
+            "id": "SJC",
+            "time": "2027-03-05 13:00"
+          },
+          "duration": 210,
+          "airplane": "Airbus A320",
+          "airline": "Southwest Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/WN.png",
+          "flight_number": "WN 567",
+          "legroom": "32 in",
+          "extensions": ["Average legroom (32 in)"]
+        }
+      ],
+      "layovers": [],
+      "total_duration": 210,
+      "price": 215,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/WN.png",
+      "booking_token": "mock_token_2"
+    }
+  ],
+  "other_flights": [
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "George Bush Intercontinental Airport",
+            "id": "IAH",
+            "time": "2027-03-05 07:00"
+          },
+          "arrival_airport": {
+            "name": "Denver International Airport",
+            "id": "DEN",
+            "time": "2027-03-05 08:45"
+          },
+          "duration": 165,
+          "airplane": "Boeing 737",
+          "airline": "United Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+          "flight_number": "UA 891",
+          "legroom": "30 in",
+          "extensions": ["Average legroom (30 in)"]
+        },
+        {
+          "departure_airport": {
+            "name": "Denver International Airport",
+            "id": "DEN",
+            "time": "2027-03-05 10:00"
+          },
+          "arrival_airport": {
+            "name": "San Jose Mineta International Airport",
+            "id": "SJC",
+            "time": "2027-03-05 11:45"
+          },
+          "duration": 165,
+          "airplane": "Boeing 737",
+          "airline": "United Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+          "flight_number": "UA 892",
+          "legroom": "31 in",
+          "extensions": ["Average legroom (31 in)"]
+        }
+      ],
+      "layovers": [
+        {
+          "duration": 75,
+          "name": "Denver International Airport",
+          "id": "DEN"
+        }
+      ],
+      "total_duration": 405,
+      "price": 245,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png",
+      "booking_token": "mock_token_3"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "George Bush Intercontinental Airport",
+            "id": "IAH",
+            "time": "2027-03-05 14:20"
+          },
+          "arrival_airport": {
+            "name": "Dallas/Fort Worth International Airport",
+            "id": "DFW",
+            "time": "2027-03-05 15:30"
+          },
+          "duration": 70,
+          "airplane": "Embraer 175",
+          "airline": "American Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/AA.png",
+          "flight_number": "AA 456",
+          "legroom": "31 in",
+          "extensions": ["Average legroom (31 in)"]
+        },
+        {
+          "departure_airport": {
+            "name": "Dallas/Fort Worth International Airport",
+            "id": "DFW",
+            "time": "2027-03-05 17:00"
+          },
+          "arrival_airport": {
+            "name": "San Jose Mineta International Airport",
+            "id": "SJC",
+            "time": "2027-03-05 19:15"
+          },
+          "duration": 195,
+          "airplane": "Boeing 737 MAX 8",
+          "airline": "American Airlines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/AA.png",
+          "flight_number": "AA 789",
+          "legroom": "30 in",
+          "extensions": ["Average legroom (30 in)"]
+        }
+      ],
+      "layovers": [
+        {
+          "duration": 90,
+          "name": "Dallas/Fort Worth International Airport",
+          "id": "DFW"
+        }
+      ],
+      "total_duration": 355,
+      "price": 310,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/AA.png",
+      "booking_token": "mock_token_4"
+    },
+    {
+      "flights": [
+        {
+          "departure_airport": {
+            "name": "George Bush Intercontinental Airport",
+            "id": "IAH",
+            "time": "2027-03-05 08:00"
+          },
+          "arrival_airport": {
+            "name": "Los Angeles International Airport",
+            "id": "LAX",
+            "time": "2027-03-05 10:00"
+          },
+          "duration": 180,
+          "airplane": "Boeing 787",
+          "airline": "Delta Air Lines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/DL.png",
+          "flight_number": "DL 321",
+          "legroom": "32 in",
+          "extensions": ["Average legroom (32 in)"]
+        },
+        {
+          "departure_airport": {
+            "name": "Los Angeles International Airport",
+            "id": "LAX",
+            "time": "2027-03-05 12:00"
+          },
+          "arrival_airport": {
+            "name": "San Jose Mineta International Airport",
+            "id": "SJC",
+            "time": "2027-03-05 13:20"
+          },
+          "duration": 80,
+          "airplane": "Embraer 175",
+          "airline": "Delta Air Lines",
+          "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/DL.png",
+          "flight_number": "DL 654",
+          "legroom": "31 in",
+          "extensions": ["Average legroom (31 in)"]
+        }
+      ],
+      "layovers": [
+        {
+          "duration": 120,
+          "name": "Los Angeles International Airport",
+          "id": "LAX"
+        }
+      ],
+      "total_duration": 380,
+      "price": 450,
+      "type": "Round trip",
+      "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/DL.png",
+      "booking_token": "mock_token_5"
+    }
+  ]
+}

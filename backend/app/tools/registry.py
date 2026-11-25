@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.tools import hotels, places
+from app.tools import flights, hotels, places
 from app.tools.common import ToolResult, tool_error
 
 
@@ -72,11 +72,51 @@ SEARCH_HOTELS = Tool(
     function=search_hotels,
 )
 
-TOOLS: dict[str, Tool] = {tool.name: tool for tool in [SEARCH_PLACES, SEARCH_HOTELS]}
+def search_flights(
+    origin: str, destination: str, departure_date: str, return_date: str
+) -> ToolResult:
+    """Flights between two cities with real fares."""
+    return flights.search(origin, destination, departure_date, return_date)
+
+
+SEARCH_FLIGHTS = Tool(
+    name="search_flights",
+    description="Find flights with real fares between two cities. Call once per route.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "origin": {
+                "type": "string",
+                "description": '3-letter IATA airport code for origin (e.g. "SJC", "IAH", "AUS"). Never pass a city name.',
+            },
+            "destination": {
+                "type": "string",
+                "description": '3-letter IATA airport code for destination (e.g. "AUS", "SFO", "JFK"). Never pass a city name.',
+            },
+            "departure_date": {
+                "type": "string",
+                "description": "Departure date, YYYY-MM-DD.",
+            },
+            "return_date": {
+                "type": "string",
+                "description": "Return date, YYYY-MM-DD.",
+            },
+        },
+        "required": ["origin", "destination", "departure_date", "return_date"],
+        "additionalProperties": False,
+    },
+    function=search_flights,
+)
+
+TOOLS: dict[str, Tool] = {
+    tool.name: tool for tool in [SEARCH_PLACES, SEARCH_HOTELS, SEARCH_FLIGHTS]
+}
 
 # Quota-limited tools that may run at most once per city in one plan (SerpApi's free plan is
 # about 250 searches a month). The prompt asks for this too, but code enforces it.
 ONCE_PER_CITY_TOOLS = {"search_hotels"}
+# Quota-limited tools that may run at most once per route in one plan.
+ONCE_PER_ROUTE_TOOLS = {"search_flights"}
 LIMIT_REPLY = "skipped: limit"
 
 
@@ -91,10 +131,13 @@ class PlanLimits:
 
     def allow(self, name: str, arguments: dict[str, Any]) -> bool:
         """True if this call may run, and counts it; False once its tool has already run for
-        this city in this plan. Tools without a limit are always allowed."""
-        if name not in ONCE_PER_CITY_TOOLS:
+        this city (or route) in this plan. Tools without a limit are always allowed."""
+        if name in ONCE_PER_CITY_TOOLS:
+            key = (name, city_key(str(arguments.get("city", ""))))
+        elif name in ONCE_PER_ROUTE_TOOLS:
+            key = (name, route_key(arguments))
+        else:
             return True
-        key = (name, city_key(str(arguments.get("city", ""))))
         with self._lock:
             if key in self._used:
                 return False
@@ -105,6 +148,14 @@ class PlanLimits:
 def city_key(city: str) -> str:
     """The city part of a city argument, for the per-plan limit: "San Jose, CA" → "san jose"."""
     return " ".join(city.split(",")[0].lower().split())
+
+
+def route_key(arguments: dict[str, Any]) -> str:
+    """The route part of a flights argument, for the per-plan limit:
+    "College Station, TX" → "San Jose, CA" → "college station>san jose"."""
+    origin = city_key(str(arguments.get("origin", "")))
+    destination = city_key(str(arguments.get("destination", "")))
+    return f"{origin}>{destination}"
 
 
 def run_tool(
