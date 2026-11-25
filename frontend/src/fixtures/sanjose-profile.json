@@ -18,6 +18,7 @@
   "dietary": "vegan",
   "pace": null,
   "transport": null,
+  "travel_mode": null,
   "notes": null,
   "missing_required": []
 }

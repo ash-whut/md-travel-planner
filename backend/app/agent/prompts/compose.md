@@ -39,6 +39,20 @@ profile below, then reply with one JSON object (no other text): the full day-by-
 - **Use the hotels found.** When the context has a "Hotels found" list, pick one hotel per city
   from it (budget first, but prefer a good rating), name the hotel stop after it and put its ref
   in the stop's `place_ref` (e.g. `"h1"`). The app adds the hotel's real price.
+- **Use the flights found.** When the context has a "Flights found" list, pick the best flight
+  for the traveler's budget and schedule (fewest stops, reasonable price). Put its ref in the
+  **departure airport** stop's `place_ref` (e.g. `"f1"`). The arrival airport stop does not
+  cite a flight ref. The app adds the real fare and flight duration. 
+- Use the chosen flight's `return_departure_time` and `return_arrival_time` (and `return_flight_number`)
+  for the return flight item on the final departure day. If the user asks to change flight times,
+  pick the matching flight/return option and update the times accordingly.
+-   Set the departure flight item's `time` to the tool's `departure_time` (24-hour `HH:MM`) and
+  the arrival item's `time` to its `arrival_time`.
+  `arrival_time` — never guess early morning times when `Flights found` lists times.
+- For airport stops (`kind: "airport"`), always set `address` with the airport's city and state
+  (e.g. `"John F. Kennedy International Airport, Queens, NY"` or `"Austin-Bergstrom International Airport, Austin, TX"`) so the map pins the airport accurately.
+- On the final departure day of a round-trip flight, include the return flight item departing from
+ the destination/hub airport back to the origin airport (e.g., AUS → JFK, with est_cost: null since the round-trip fare is on the outbound leg).
 - One `lodging` entry per city with `check_in`, `check_out`, `nights` and an estimated
   `price_per_night`. Add a `lodging` item on the check-in day with its `nights`.
 - `est_cost` is per person in USD and is a rough estimate; use `null` if you can't guess. A

@@ -46,6 +46,9 @@ PLACE_LINE = re.compile(r"^- (p\d+) · (.+?) · ", re.MULTILINE)
 # A found hotel in the compose system text (agent/pipeline.py render_hotels), e.g.
 # "- h1 · Pacific Inn San Jose · $79/night · …": the ref and the name.
 HOTEL_LINE = re.compile(r"^- (h\d+) · (.+?) · ", re.MULTILINE)
+# A found flight in the compose system text (agent/pipeline.py render_flights), e.g.
+# "- f1 · United Airlines UA 1234 · $189 · …": the ref.
+FLIGHT_LINE = re.compile(r"^- (f\d+) · (.+?) · ", re.MULTILINE)
 # A change request with one of these words adds or replaces a stop, so the fake planner looks one
 # up; any other change (move, remove…) needs no tools, as prompts/planner.md says.
 ADD_WORDS = ("replace", "swap", "change", "add", "instead")
@@ -128,6 +131,14 @@ class FakeProvider:
             check_in, check_out = dates
             for city in profile.cities:
                 wanted.append(("search_hotels", {"city": city, "check_in": check_in, "check_out": check_out}))
+        if "search_flights" in tool_names and dates and profile.origin and profile.cities:
+            dep_date, ret_date = dates
+            wanted.append(("search_flights", {
+                "origin": profile.origin,
+                "destination": profile.cities[0],
+                "departure_date": dep_date,
+                "return_date": ret_date,
+            }))
         return [
             ToolCall(id=f"call_{i}", name=name, arguments=arguments)
             for i, (name, arguments) in enumerate(wanted, start=1)
@@ -143,13 +154,19 @@ def cite_found_places(draft: dict[str, Any], system: str) -> dict[str, Any]:
     """Set `place_ref` on each stop whose name matches a found place listed in `system` (equal
     names, or one starts with the other: "San Pedro Square" ↔ "San Pedro Square Market"), as a
     real model would cite them. A lodging stop cites the found hotel with its name (the demo
-    drafts name "Pacific Inn San Jose", the mock's cheapest well-rated hotel)."""
+    drafts name "Pacific Inn San Jose", the mock's cheapest well-rated hotel). The first
+    airport stop (kind "airport") that isn't the return leg cites the first flight ref found."""
     found = [(ref, simple_name(name)) for ref, name in PLACE_LINE.findall(system)]
     hotels = [(ref, simple_name(name)) for ref, name in HOTEL_LINE.findall(system)]
+    flights = [ref for ref, _name in FLIGHT_LINE.findall(system)]
+    flight_iter = iter(flights)
     for stop in draft["stops"]:
         name = simple_name(stop["name"])
         if stop["kind"] == "lodging":
             stop["place_ref"] = matching_ref(name, hotels)
+        elif stop["kind"] == "airport":
+            # Give the first airport the first flight ref (the departure); leave the rest null.
+            stop["place_ref"] = next(flight_iter, None)
         else:
             stop["place_ref"] = matching_ref(name, found)
     return draft

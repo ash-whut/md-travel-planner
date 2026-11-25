@@ -19,8 +19,8 @@ SESSION_DETAIL_KEYS = {
 MESSAGE_KEYS = {"id", "role", "content", "itinerary_version", "created_at"}
 TRIP_PROFILE_KEYS = {
     "cities", "vibe", "start_date", "end_date", "duration_days", "rough_timing", "origin",
-    "travelers", "budget_level", "interests", "dietary", "pace", "transport", "notes",
-    "missing_required",
+    "travelers", "budget_level", "interests", "dietary", "pace", "transport", "travel_mode",
+    "notes", "missing_required",
 }
 # ISO-8601 UTC with a trailing Z (contracts conventions), optional fractional seconds.
 UTC_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")

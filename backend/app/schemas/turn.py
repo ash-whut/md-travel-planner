@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.profile import BudgetLevel, Pace, Transport
+from app.schemas.profile import BudgetLevel, Pace, Transport, TravelMode
 
 Action = Literal["chat", "generate", "edit"]
 
@@ -29,6 +29,7 @@ class ProfileUpdates(BaseModel):
     dietary: str | None = None
     pace: Pace | None = None
     transport: Transport | None = None
+    travel_mode: TravelMode | None = None
     notes: str | None = None
 
 

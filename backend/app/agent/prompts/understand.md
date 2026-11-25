@@ -26,6 +26,9 @@ message** and reply with one JSON object (no other text) with these keys:
 - `dietary`: e.g. `"vegan"`.
 - `pace`: `"relaxed"`, `"balanced"` or `"packed"`.
 - `transport`: `"car"`, `"transit"`, `"rideshare"` or `"mixed"`.
+- `travel_mode`: `"flight"` or `"drive"`. Set `"flight"` when the user wants to fly (including
+  combined trips like driving to a hub airport and flying, or flying and renting a car), and
+  `"drive"` only when they plan to drive the entire way.
 - `notes`: must-sees, things to avoid, preferred hotel area, and so on.
 
 # Actions

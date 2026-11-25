@@ -22,7 +22,7 @@ const LODGING_KEYS = [
 ].sort()
 const PROFILE_KEYS = [
   'cities', 'vibe', 'start_date', 'end_date', 'duration_days', 'rough_timing', 'origin', 'travelers',
-  'budget_level', 'interests', 'dietary', 'pace', 'transport', 'notes', 'missing_required',
+  'budget_level', 'interests', 'dietary', 'pace', 'transport', 'travel_mode', 'notes', 'missing_required',
 ].sort()
 const MESSAGE_KEYS = ['id', 'role', 'content', 'itinerary_version', 'created_at'].sort()
 

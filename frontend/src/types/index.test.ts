@@ -32,6 +32,7 @@ const profile = {
   dietary: 'vegan',
   pace: 'balanced',
   transport: null,
+  travel_mode: null,
   notes: null,
   missing_required: [],
 } satisfies TripProfile

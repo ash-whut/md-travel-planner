@@ -303,10 +303,14 @@ function Entry({ item, stop, lodging, day, version, selected, onTagClick }: Entr
   const Icon = KIND_ICON[item.kind]
   const updated = version > 1 && item.updated_in_version === version
   // A hotel item's est_cost is per night; its "as of" time comes from the lodging entry (tool price).
+  // A flight item's est_cost is per person (round trip); its "as of" comes from the item source.
   const nights = item.kind === 'lodging' ? item.nights : null
   const cost = nights !== null ? formatPerNight(item.est_cost) : formatMoney(item.est_cost)
-  const length = nights !== null ? formatNights(nights) : formatDuration(item.duration_min)
-  const asOf = nights !== null && item.est_cost && lodging?.price_as_of ? formatAsOf(lodging.price_as_of) : null
+  const length = nights !== null ? formatNights(nights) : item.kind !== 'flight' ? formatDuration(item.duration_min) : formatDuration(item.duration_min)
+  const asOf =
+    nights !== null && item.est_cost && lodging?.price_as_of
+      ? formatAsOf(lodging.price_as_of)
+      : null
   const leg = item.transit_from_previous
 
   useEffect(() => {
@@ -363,6 +367,9 @@ function Entry({ item, stop, lodging, day, version, selected, onTagClick }: Entr
               Est: {cost}{length && ` | ${length}`}
             </span>
             {asOf && <span className="text-gray-400">{asOf}</span>}
+            {item.kind === 'flight' && item.cost_source === 'tool' && (
+              <span className="text-gray-400">real fare</span>
+            )}
             {item.booking_required && (
               <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">
                 <Ticket size={11} /> Needs booking

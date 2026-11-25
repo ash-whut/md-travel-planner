@@ -30,6 +30,7 @@ WEATHER_TTL_SECONDS = 3 * 60 * 60
 PLACES_TTL_SECONDS = 7 * 24 * 60 * 60
 HOTELS_TTL_SECONDS = 6 * 60 * 60
 GEOCODE_TTL_SECONDS = 30 * 24 * 60 * 60  # city coordinates rarely change
+FLIGHTS_TTL_SECONDS = 6 * 60 * 60
 
 
 class ToolResult(BaseModel):

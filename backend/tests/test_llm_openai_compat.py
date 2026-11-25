@@ -93,6 +93,34 @@ def test_stream_skips_empty_deltas_and_chunks_without_choices() -> None:
     assert chunks == ["Hi", " there"]
 
 
+def test_stream_strips_complete_think_block() -> None:
+    # A complete <think>…</think> block in one chunk is removed entirely.
+    completions = StubCompletions(stream_chunks=[_chunk("<think>reasoning here</think>Answer")])
+    text = "".join(asyncio.run(_collect(_provider(completions))))
+    assert "<think>" not in text
+    assert "reasoning here" not in text
+    assert "Answer" in text
+
+
+def test_stream_strips_think_block_spanning_multiple_chunks() -> None:
+    # The think tag arrives split across three chunks.
+    completions = StubCompletions(stream_chunks=[
+        _chunk("<thi"),
+        _chunk("nk>internal"),
+        _chunk(" thought</think>visible text"),
+    ])
+    text = "".join(asyncio.run(_collect(_provider(completions))))
+    assert "<think>" not in text
+    assert "internal" not in text
+    assert "visible text" in text
+
+
+def test_stream_passes_text_without_think_tags_unchanged() -> None:
+    completions = StubCompletions(stream_chunks=[_chunk("Hello "), _chunk("world")])
+    text = "".join(asyncio.run(_collect(_provider(completions))))
+    assert text == "Hello world"
+
+
 def test_stream_sends_model_stream_true_and_system_first() -> None:
     completions = StubCompletions(stream_chunks=[_chunk("ok")])
     asyncio.run(_collect(_provider(completions), system="You are a planner."))

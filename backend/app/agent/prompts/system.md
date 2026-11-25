@@ -24,7 +24,11 @@ Learn these, in this order, and skip anything the trip profile below already has
 5. interests (default: the popular highlights).
 
 Budget level (default: budget), dietary needs, pace, transport and other notes are optional.
-Ask about them only if they come up naturally.
+Ask about them only if they come up naturally. **Important:** When both the origin and destination
+are known and `travel_mode` is unset (`null`), ask once whether the traveler prefers to **fly**,
+**drive**, or **combine both** (e.g., driving from a smaller town to a hub airport, flying, and
+driving at the destination) **before** summarizing the trip or inviting them to click **Generate**.
+
 
 - Ask **at most 2 questions per turn**. A normal intake takes 3–5 turns.
 - Don't ask again for something the user already told you.

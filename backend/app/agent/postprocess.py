@@ -52,6 +52,7 @@ BUDGET_ASSUMPTION = "Budget level assumed (none given)"
 WEATHER_ASSUMPTION = "Weather for {city} couldn't be loaded; check a forecast before you go"
 PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places search found
 HOTELS_SOURCE = "SerpApi Google Hotels"  # + " · as of …" for items at a priced hotel
+FLIGHTS_SOURCE = "SerpApi Google Flights"  # + " · as of …" for real fare items
 GOOGLE_HOTELS_LABEL = "Google Hotels"
 BOOKING_COM_LABEL = "Booking.com"
 HOTEL_SITE_LABEL = "Hotel site"  # SerpApi's `link`: the hotel's own website
@@ -107,6 +108,26 @@ class HotelPrice:
 
 
 @dataclass
+class FlightFare:
+    """A real flight fare from the flights tool (search_flights), attached to the departure
+    airport stop that cites a flight finding.
+
+    `price` is the per-person round-trip fare (null when the tool found no price).
+    `duration_min` is the outbound leg's total duration in minutes (for the transit leg after
+    the flight item, which step 35 leaves null — step 49 fills it here). `booking_url` is
+    the direct booking link from SerpApi. `price_as_of` is the UTC time SerpApi was asked.
+    `airline` and `flight_number` are the first leg's airline and flight number.
+    """
+
+    price: Money | None
+    price_as_of: datetime | None = None
+    duration_min: int | None = None
+    booking_url: str | None = None
+    airline: str | None = None
+    flight_number: str | None = None
+
+
+@dataclass
 class StopPlace:
     """Where one draft stop is, from a tool (the pipeline finds it; see pipeline.locate_stops).
 
@@ -114,6 +135,7 @@ class StopPlace:
     places search found); None keeps the default "AI suggestion" (e.g. a geocoded home).
     `hotel` is set when the stop is a hotel the hotels tool found; its price replaces the
     draft's lodging estimate.
+    `flight` is set when the stop is a departure airport whose flight the flights tool found.
     """
 
     lat: float
@@ -123,6 +145,7 @@ class StopPlace:
     rating: float | None = None
     source: str | None = None
     hotel: HotelPrice | None = None
+    flight: FlightFare | None = None
 
 
 def short_city_name(name: str) -> str:
@@ -139,6 +162,17 @@ def hotel_source(hotel: HotelPrice) -> str:
     as_of = hotel.as_of.astimezone(timezone.utc)
     time = as_of.strftime("%I:%M %p").lstrip("0")
     return f"{HOTELS_SOURCE} · as of {as_of:%b} {as_of.day}, {time} UTC"
+
+
+def flight_source(fare: FlightFare) -> str:
+    """The item source for a flight item with a real fare:
+    "SerpApi Google Flights · as of Nov 1, 6:04 PM UTC", or plain "SerpApi Google Flights"
+    when the tool had no price_as_of."""
+    if fare.price_as_of is None:
+        return FLIGHTS_SOURCE
+    as_of = fare.price_as_of.astimezone(timezone.utc)
+    time = as_of.strftime("%I:%M %p").lstrip("0")
+    return f"{FLIGHTS_SOURCE} · as of {as_of:%b} {as_of.day}, {time} UTC"
 
 
 def build_itinerary(
@@ -197,7 +231,15 @@ def _assemble(
         )
         for day in draft.days
     ]
-    set_travel_estimates(days, stops, profile.transport)
+    # Build a tag → flight duration map so set_travel_estimates can fill the leg after a flight.
+    flight_durations: dict[str, int] = {}
+    for stop in draft.stops:
+        place = places.get(stop.key)
+        if place and place.flight and place.flight.duration_min is not None:
+            tag = tags.get(stop.key)
+            if tag:
+                flight_durations[tag] = place.flight.duration_min
+    set_travel_estimates(days, stops, profile.transport, flight_durations)
     return Itinerary(
         id=latest.id if latest else str(uuid.uuid4()),
         version=latest.version + 1 if latest else 1,
@@ -418,13 +460,19 @@ def _item(
     tags: dict[str, str],
     places: dict[str, StopPlace],
     lodging_nights: dict[str, int],
+    allow_flight_fare: bool = True,
 ) -> ItineraryItem:
-    """One item. A lodging item at a hotel the hotels tool found shows the tool's per-night
-    price (null = "check link") and the stay's nights. A flight never shows a price until real
-    fares exist (step 49): `est_cost` is null ("check link"), whatever the draft guessed."""
     place = places.get(item.stop_key) if item.stop_key else None
-    est_cost = None if item.kind == "flight" else item.est_cost
-    cost_source: CostSource | None = "ai_estimate" if est_cost is not None else None
+    fare = place.flight if (place and item.kind == "flight" and allow_flight_fare) else None
+    if fare is not None:
+        # Ground the flight cost and source from the tool result (D10, step 49).
+        est_cost = fare.price
+        cost_source: CostSource | None = "tool" if est_cost is not None else None
+        source = flight_source(fare)
+    else:
+        est_cost = None if item.kind == "flight" else item.est_cost
+        cost_source = "ai_estimate" if (est_cost is not None and item.kind != "flight") else None
+        source = None
     nights = item.nights
     if item.kind == "lodging" and place is not None and place.hotel is not None:
         est_cost = place.hotel.per_night
@@ -443,7 +491,7 @@ def _item(
         cost_source=cost_source,
         booking_required=item.booking_required,
         why=item.why,
-        source=(place.source if place and place.source else DEFAULT_ITEM_SOURCE),
+        source=(source or (place.source if place and place.source else DEFAULT_ITEM_SOURCE)),
     )
 
 
@@ -550,14 +598,32 @@ def _flight_booking(itinerary: Itinerary) -> Booking | None:
         return None
     tags = [route.departure.tag] + ([route.arrival.tag] if route.arrival else [])
     dates = _date_range(itinerary.start_date, itinerary.end_date)
+    # Find the flight item's fare from the item's est_cost and source (grounded in _item).
+    flight_item = next(
+        (
+            item
+            for day in itinerary.days
+            for item in day.items
+            if item.kind == "flight" and item.stop_tag == route.departure.tag
+        ),
+        None,
+    )
+    fare = flight_item.est_cost if flight_item else None
+    price_as_of: datetime | None = None
+    if flight_item and flight_item.source and FLIGHTS_SOURCE in flight_item.source:
+        # Parse the "as of …" from the source string; not needed if we store it on the item,
+        # but the booking's price_as_of is for display only so null is fine too.
+        pass
+    booking_link = _route_link(route, itinerary)
     return Booking(
         id=FLIGHT_BOOKING_ID,
         kind="flight",
         tags=tags,
         title=FLIGHT_BOOKING_TITLE,
         details=f"{route.departure.name} → {route.destination} round trip · {dates}",
-        estimate=None,  # flights are link-only until real fares (step 49)
-        links=[_route_link(route, itinerary)],
+        estimate=fare,
+        price_as_of=price_as_of,
+        links=[booking_link],
     )
 
 
@@ -644,25 +710,44 @@ def estimate_leg(
     )
 
 
-def set_travel_estimates(days: list[Day], stops: list[Stop], transport: Transport | None) -> None:
+def set_travel_estimates(
+    days: list[Day],
+    stops: list[Stop],
+    transport: Transport | None,
+    flight_durations: dict[str, int] | None = None,
+) -> None:
     """Fill each item's `transit_from_previous` from the previous item of the same day.
 
     It stays None for a day's first item, when either item has no stop or no coordinates, and
-    when both items are at the same stop.
+    when both items are at the same stop. The leg right after a flight item gets `mode: "flight"`
+    with `duration_min` from `flight_durations` (keyed by the departure airport's stop tag)
+    when available; otherwise it stays null (step 35 / D28).
     """
     stops_by_tag = {stop.tag: stop for stop in stops}
+    flight_durations = flight_durations or {}
     for day in days:
         for previous, item in zip(day.items, day.items[1:]):
             if previous.stop_tag is None or item.stop_tag is None:
                 continue
             if previous.stop_tag == item.stop_tag:
                 continue
-            item.transit_from_previous = estimate_leg(
+            leg = estimate_leg(
                 stops_by_tag[previous.stop_tag],
                 stops_by_tag[item.stop_tag],
                 transport,
                 after_flight=previous.kind == "flight",
             )
+            if leg is not None and previous.kind == "flight" and leg.duration_min is None:
+                # Fill the flight duration from the tool when available.
+                tool_min = flight_durations.get(previous.stop_tag)
+                if tool_min is not None:
+                    leg = TransitLeg(
+                        mode=leg.mode,
+                        duration_min=tool_min,
+                        distance_mi=leg.distance_mi,
+                        estimated=leg.estimated,
+                    )
+            item.transit_from_previous = leg
 
 
 def _mark_updated_items(itinerary: Itinerary, previous: Itinerary) -> None:

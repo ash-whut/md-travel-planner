@@ -19,6 +19,7 @@ export interface Link {
 export type BudgetLevel = 'budget' | 'mid' | 'splurge'
 export type Pace = 'relaxed' | 'balanced' | 'packed'
 export type Transport = 'car' | 'transit' | 'rideshare' | 'mixed'
+export type TravelMode = 'flight' | 'drive'
 export type RequiredField = 'destination' | 'dates' | 'origin' | 'travelers' | 'interests'
 
 export interface TripProfile {
@@ -35,6 +36,7 @@ export interface TripProfile {
   dietary: string | null
   pace: Pace | null
   transport: Transport | null
+  travel_mode: TravelMode | null // flight | drive | null
   notes: string | null
   missing_required: RequiredField[]
 }
@@ -214,6 +216,7 @@ export interface UserProfile {
   dietary: string | null
   pace: Pace | null
   transport: Transport | null
+  travel_mode: TravelMode | null
   interests: string[]
 }
 
