@@ -34,6 +34,7 @@ function item(over: Partial<ItineraryItem> & Pick<ItineraryItem, 'id' | 'kind'>)
 
 const lodging = (over: Partial<Lodging> = {}): Lodging => ({
   stop_tag: 'C',
+  type: 'hotel',
   check_in: '2027-03-05',
   check_out: '2027-03-07',
   nights: 2,

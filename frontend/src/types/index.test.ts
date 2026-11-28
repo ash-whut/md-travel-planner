@@ -96,6 +96,7 @@ const itinerary = {
   lodging: [
     {
       stop_tag: 'D',
+      type: 'hotel',
       check_in: '2027-03-05',
       check_out: '2027-03-07',
       nights: 2,

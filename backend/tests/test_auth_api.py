@@ -93,6 +93,22 @@ def test_profile_update_and_new_trip_is_seeded(client: TestClient) -> None:
     assert "origin" not in tp["missing_required"]
 
 
+def test_profile_travel_mode_round_trips_and_seeds_the_trip(client: TestClient) -> None:
+    token = _register(client)
+    assert client.get("/api/me", headers=_auth(token)).json()["profile"]["travel_mode"] is None
+
+    res = client.put("/api/me/profile", json={"travel_mode": "drive"}, headers=_auth(token))
+    assert res.status_code == 200
+    assert res.json()["profile"]["travel_mode"] == "drive"
+    assert client.get("/api/me", headers=_auth(token)).json()["profile"]["travel_mode"] == "drive"
+
+    trip = client.post("/api/sessions", headers=_auth(token)).json()
+    assert trip["trip_profile"]["travel_mode"] == "drive"
+
+    bad = client.put("/api/me/profile", json={"travel_mode": "boat"}, headers=_auth(token))
+    assert bad.status_code == 422
+
+
 def test_profile_rejects_unknown_values(client: TestClient) -> None:
     token = _register(client)
     res = client.put("/api/me/profile", json={"pace": "sprint"}, headers=_auth(token))

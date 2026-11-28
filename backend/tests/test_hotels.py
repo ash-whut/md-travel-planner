@@ -22,8 +22,8 @@ from app.tools.common import HOTELS_TTL_SECONDS, cache_get, tool_error
 
 Handler = Callable[[httpx.Request], httpx.Response]
 HOTEL_KEYS = {
-    "id", "name", "address", "lat", "lng", "rating", "price_per_night", "total_price",
-    "price_source", "price_as_of", "link",
+    "id", "type", "name", "details", "address", "lat", "lng", "rating", "price_per_night",
+    "total_price", "price_source", "price_as_of", "link",
 }
 KEY = "test-serpapi-key"
 CHECK_IN, CHECK_OUT = "2027-03-05", "2027-03-07"
@@ -47,16 +47,26 @@ def prop(name: str = "Hotel A", rating: Any = 4.0, nightly: Any = 100, total: An
     return entry
 
 
+def no_rentals(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"properties": []})
+
+
 def live(
-    monkeypatch: pytest.MonkeyPatch, handler: Handler, key: str = KEY
+    monkeypatch: pytest.MonkeyPatch, handler: Handler, key: str = KEY,
+    rentals: Handler = no_rentals,
 ) -> tuple[httpx.Client, list[httpx.Request]]:
-    """Hotels in live mode with the given SerpApi key (empty = none) over a fake transport."""
+    """Hotels in live mode with the given SerpApi key (empty = none) over a fake transport.
+
+    Step 51: the vacation rentals call (`vacation_rentals=true`) goes to `rentals` (none found
+    by default) and is left out of the returned hotel requests."""
     settings = Settings(_env_file=None, tool_provider_mode="live", serpapi_key=key)
     monkeypatch.setattr(hotels, "get_settings", lambda: settings)
     monkeypatch.setattr(hotels, "is_mock", lambda: False)
     requests: list[httpx.Request] = []
 
     def logged(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("vacation_rentals") == "true":
+            return rentals(request)
         requests.append(request)
         return handler(request)
 
@@ -144,18 +154,24 @@ def test_now_iso_is_utc_with_z() -> None:
 
 # ---- mock mode ----
 
+def hotels_only(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The hotels of a search result (step 51 appends vacation rentals after them)."""
+    return [h for h in results if h["type"] == "hotel"]
+
+
 def test_mock_search_returns_recorded_hotels() -> None:
     result = hotels.search("San Jose, CA", CHECK_IN, CHECK_OUT)
     assert result.ok, result.error
-    assert 1 <= len(result.data) <= 5
-    for hotel in result.data:
+    found = hotels_only(result.data)
+    assert 1 <= len(found) <= 5
+    for hotel in found:
         assert set(hotel) == HOTEL_KEYS
         assert hotel["price_source"] == "serpapi_google_hotels"
         assert ISO_Z.match(hotel["price_as_of"])
         assert hotel["rating"] is not None and hotel["rating"] >= 3.5
         assert hotel["price_per_night"]["currency"] == "USD"
         assert hotel["lat"] is not None and hotel["lng"] is not None
-    nightly = [h["price_per_night"]["amount"] for h in result.data]
+    nightly = [h["price_per_night"]["amount"] for h in found]
     assert nightly == sorted(nightly)  # cheapest first
 
 
@@ -171,7 +187,7 @@ def test_mock_search_works_for_any_city() -> None:
 
 def test_splurge_orders_by_rating() -> None:
     result = hotels.search("San Jose, CA", CHECK_IN, CHECK_OUT, budget_level="splurge")
-    ratings = [h["rating"] for h in result.data]
+    ratings = [h["rating"] for h in hotels_only(result.data)]
     assert ratings == sorted(ratings, reverse=True)
 
 

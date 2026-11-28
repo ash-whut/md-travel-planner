@@ -48,16 +48,16 @@ SEARCH_PLACES = Tool(
 
 
 def search_hotels(city: str, check_in: str, check_out: str) -> ToolResult:
-    """Hotels in a city for the whole stay, cheapest well-rated first, with prices when SerpApi
-    is available."""
+    """Hotels, then a few vacation rentals, in a city for the whole stay, cheapest well-rated
+    first, with prices when SerpApi is available."""
     return hotels.search(city, check_in, check_out)
 
 
 SEARCH_HOTELS = Tool(
     name="search_hotels",
     description=(
-        "Find hotels with prices in a city for the whole stay. Call it once per city; "
-        "a second call for the same city is skipped."
+        "Find hotels and vacation rentals with prices in a city for the whole stay. Call it "
+        "once per city; a second call for the same city is skipped."
     ),
     parameters={
         "type": "object",

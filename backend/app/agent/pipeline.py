@@ -41,6 +41,7 @@ from app.schemas.itinerary import (
     DraftStop,
     Itinerary,
     ItineraryDraft,
+    LodgingType,
     Money,
     PriceSource,
 )
@@ -48,6 +49,7 @@ from app.schemas.profile import TripProfile
 from app.tools import places as places_tool
 from app.tools import weather as weather_tool
 from app.tools.common import ToolResult, tool_ok
+from app.tools.hotels import TYPE_RENTAL
 
 COMPOSE_REQUEST = "Make the full trip plan now."
 # For an edit; the fake provider spots edits by "change only what was asked".
@@ -399,12 +401,6 @@ async def locate_stops(
 
         query = geocode_query(stop, draft, profile)
         if query is None:
-            # No geocode query but we may have a flight fare; create a minimal entry with no
-            # coordinates so the flight's fare is still accessible from the stop key.
-            if fare is not None:
-                # Can't create a StopPlace without lat/lng; store the fare-only result by
-                # geocoding the airport name as a fallback below.
-                pass
             continue
         # Home is the origin city, so a city-level match is right for it; for any other stop it
         # would pin the city centre, so it counts as not found (D27).
@@ -423,31 +419,32 @@ async def locate_stops(
                 address=address,
                 flight=fare,
             )
-        elif fare is not None:
-            # Geocoding failed but we have a flight fare. We cannot map the airport, but we
-            # can still attach the fare so the item shows real pricing. Use a sentinel that
-            # signals "coordinates unknown" — but StopPlace requires floats. Instead we just
-            # skip creating the StopPlace (the airport stays off the map) and note the fare
-            # will be lost. This is acceptable; the booking URL is still on the booking.
-            pass
+        # A stop that isn't found stays off the map; a flight fare on it is lost (known gap,
+        # D35).
     return places
 
 
 def hotel_price(data: dict[str, Any]) -> HotelPrice:
     """The price of a hotels-tool result (see tools/hotels.search): per night and `as_of` from
-    SerpApi, or none for a SerpApi hotel without a rate or a no-price fallback result."""
+    SerpApi, or none for a SerpApi hotel without a rate or a no-price fallback result. A result
+    without a `type` (cached before step 51) is a hotel."""
     per_night = data.get("price_per_night")
     as_of = data.get("price_as_of")
     link = data.get("link")
     from_serpapi = data.get("price_source") == PRICED_SOURCE
+    lodging_type: LodgingType = "vacation_rental" if data.get("type") == TYPE_RENTAL else "hotel"
     if not from_serpapi or per_night is None:
-        return HotelPrice(per_night=None, source="none", link=link, from_serpapi=from_serpapi)
+        return HotelPrice(
+            per_night=None, source="none", link=link, from_serpapi=from_serpapi,
+            lodging_type=lodging_type,
+        )
     return HotelPrice(
         per_night=Money.model_validate(per_night),
         source=PRICED_SOURCE,
         as_of=datetime.fromisoformat(as_of) if as_of else None,
         link=link,
         from_serpapi=True,
+        lodging_type=lodging_type,
     )
 
 
@@ -467,8 +464,9 @@ def flight_fare(data: dict[str, Any]) -> FlightFare:
 
 
 def earlier_hotel_price(version: Itinerary, tag: str) -> HotelPrice | None:
-    """The tool price (and hotel link) of the lodging at this tag in an earlier version, or None
-    if it had none (an AI estimate or no price is not carried over; the draft decides those)."""
+    """The tool price (hotel link and lodging type) of the lodging at this tag in an earlier
+    version, or None if it had none (an AI estimate or no price is not carried over; the draft
+    decides those)."""
     lodging = next((entry for entry in version.lodging if entry.stop_tag == tag), None)
     if lodging is None or lodging.price_source != PRICED_SOURCE:
         return None
@@ -481,6 +479,7 @@ def earlier_hotel_price(version: Itinerary, tag: str) -> HotelPrice | None:
         as_of=lodging.price_as_of,
         link=hotels_link,
         from_serpapi=True,
+        lodging_type=lodging.type,
     )
 
 
@@ -593,10 +592,11 @@ def render_places(findings: list[Finding]) -> str:
 
 
 def render_hotels(findings: list[Finding]) -> str:
-    """The found hotels for the compose prompt, one line each, e.g.
+    """The found hotels and vacation rentals for the compose prompt, one line each, e.g.
     `- h1 · Pacific Inn San Jose · $79/night · rating 3.6`, or "no price" for a fallback
-    result. Empty text when none. The fake provider reads these lines (fake_provider.HOTEL_LINE),
-    so keep the format.
+    result. A rental adds `vacation rental: Entire house, Sleeps 4, …` after the price. Empty
+    text when none. The fake provider reads these lines (fake_provider.HOTEL_LINE and
+    RENTAL_LINE), so keep the format.
     """
     lines: list[str] = []
     for finding in findings:
@@ -606,6 +606,9 @@ def render_hotels(findings: list[Finding]) -> str:
         price = data.get("price_per_night")
         parts = [finding.ref, str(data.get("name"))]
         parts.append(f"${price['amount']:g}/night" if price else "no price")
+        if data.get("type") == TYPE_RENTAL:
+            parts.append(f"vacation rental: {data['details']}" if data.get("details")
+                         else "vacation rental")
         if data.get("address"):
             parts.append(str(data["address"]))
         if data.get("rating") is not None:
@@ -614,9 +617,9 @@ def render_hotels(findings: list[Finding]) -> str:
     if not lines:
         return ""
     return (
-        "## Hotels found (from the hotels service)\n"
-        "Pick one hotel per city and put its ref in the hotel stop's `place_ref`. The app adds "
-        "its real price.\n" + "\n".join(lines)
+        "## Hotels found (from the hotels service: hotels, then vacation rentals)\n"
+        "Pick one hotel or vacation rental per city and put its ref in the lodging stop's "
+        "`place_ref`. The app adds its real price.\n" + "\n".join(lines)
     )
 
 

@@ -27,9 +27,15 @@ function detailsLabel(booking: Booking): string {
   return booking.price_as_of ? `${booking.details} · ${formatAsOf(booking.price_as_of)}` : booking.details
 }
 
-function confirmTitle(booking: Booking): string {
+// True for the lodging booking of a vacation rental (its lodging entry has type "vacation_rental").
+function isRental(booking: Booking, itinerary: Itinerary): boolean {
+  if (booking.kind !== 'lodging') return false
+  return itinerary.lodging.some((l) => l.stop_tag === booking.tags[0] && l.type === 'vacation_rental')
+}
+
+function confirmTitle(booking: Booking, itinerary: Itinerary): string {
   if (booking.kind === 'flight') return 'Book the flight?'
-  if (booking.kind === 'lodging') return 'Book the hotel?'
+  if (booking.kind === 'lodging') return isRental(booking, itinerary) ? 'Book the rental?' : 'Book the hotel?'
   return `Book ${booking.title}?`
 }
 
@@ -108,6 +114,9 @@ export function BookView({ itinerary, onTagClick, onSetStatus, error = null }: P
                 </span>
               ))}
               <h3 className="ml-1.5 font-semibold">{b.title}</h3>
+              {isRental(b, itinerary) && (
+                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-700">Vacation rental</span>
+              )}
             </div>
             <p className="mt-2 text-sm font-medium text-gray-700">Est: {estimateLabel(b, itinerary)}</p>
             <p className="text-xs text-gray-500">{detailsLabel(b)}</p>
@@ -150,8 +159,8 @@ export function BookView({ itinerary, onTagClick, onSetStatus, error = null }: P
 
       {confirming && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-900/30 p-6">
-          <div role="dialog" aria-label={confirmTitle(confirming)} className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
-            <h3 className="font-semibold">{confirmTitle(confirming)}</h3>
+          <div role="dialog" aria-label={confirmTitle(confirming, itinerary)} className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="font-semibold">{confirmTitle(confirming, itinerary)}</h3>
             <p className="mt-2 text-sm text-gray-600">{detailsLabel(confirming)}</p>
             <p className="mt-1 text-sm font-medium">Est: {estimateLabel(confirming, itinerary)}</p>
             <p className="mt-3 text-xs text-gray-500">

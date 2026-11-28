@@ -289,7 +289,7 @@ function WeatherChip({ weather }: { weather: DayWeather }) {
 interface EntryProps {
   item: ItineraryItem
   stop: Stop | undefined
-  lodging: Lodging | undefined // the hotel details when this item is a lodging stop
+  lodging: Lodging | undefined // the hotel (or rental) details when this item is a lodging stop
   day: number
   version: number
   selected: boolean
@@ -367,6 +367,9 @@ function Entry({ item, stop, lodging, day, version, selected, onTagClick }: Entr
               Est: {cost}{length && ` | ${length}`}
             </span>
             {asOf && <span className="text-gray-400">{asOf}</span>}
+            {item.kind === 'lodging' && lodging?.type === 'vacation_rental' && (
+              <span className="rounded-full bg-teal-50 px-2 py-0.5 text-teal-700">Vacation rental</span>
+            )}
             {item.kind === 'flight' && item.cost_source === 'tool' && (
               <span className="text-gray-400">real fare</span>
             )}
