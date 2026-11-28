@@ -22,8 +22,8 @@ from app.tools.common import HOTELS_TTL_SECONDS, cache_get, tool_error
 
 Handler = Callable[[httpx.Request], httpx.Response]
 HOTEL_KEYS = {
-    "id", "name", "address", "lat", "lng", "rating", "price_per_night", "total_price",
-    "price_source", "price_as_of", "link",
+    "id", "type", "name", "details", "address", "lat", "lng", "rating", "price_per_night",
+    "total_price", "price_source", "price_as_of", "link",
 }
 KEY = "test-serpapi-key"
 CHECK_IN, CHECK_OUT = "2027-03-05", "2027-03-07"
@@ -47,16 +47,26 @@ def prop(name: str = "Hotel A", rating: Any = 4.0, nightly: Any = 100, total: An
     return entry
 
 
+def no_rentals(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json={"properties": []})
+
+
 def live(
-    monkeypatch: pytest.MonkeyPatch, handler: Handler, key: str = KEY
+    monkeypatch: pytest.MonkeyPatch, handler: Handler, key: str = KEY,
+    rentals: Handler = no_rentals,
 ) -> tuple[httpx.Client, list[httpx.Request]]:
-    """Hotels in live mode with the given SerpApi key (empty = none) over a fake transport."""
+    """Hotels in live mode with the given SerpApi key (empty = none) over a fake transport.
+
+    Step 51: the vacation rentals call (`vacation_rentals=true`) goes to `rentals` (none found
+    by default) and is left out of the returned hotel requests."""
     settings = Settings(_env_file=None, tool_provider_mode="live", serpapi_key=key)
     monkeypatch.setattr(hotels, "get_settings", lambda: settings)
     monkeypatch.setattr(hotels, "is_mock", lambda: False)
     requests: list[httpx.Request] = []
 
     def logged(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("vacation_rentals") == "true":
+            return rentals(request)
         requests.append(request)
         return handler(request)
 
@@ -144,18 +154,24 @@ def test_now_iso_is_utc_with_z() -> None:
 
 # ---- mock mode ----
 
+def hotels_only(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The hotels of a search result (step 51 appends vacation rentals after them)."""
+    return [h for h in results if h["type"] == "hotel"]
+
+
 def test_mock_search_returns_recorded_hotels() -> None:
     result = hotels.search("San Jose, CA", CHECK_IN, CHECK_OUT)
     assert result.ok, result.error
-    assert 1 <= len(result.data) <= 5
-    for hotel in result.data:
+    found = hotels_only(result.data)
+    assert 1 <= len(found) <= 5
+    for hotel in found:
         assert set(hotel) == HOTEL_KEYS
         assert hotel["price_source"] == "serpapi_google_hotels"
         assert ISO_Z.match(hotel["price_as_of"])
         assert hotel["rating"] is not None and hotel["rating"] >= 3.5
         assert hotel["price_per_night"]["currency"] == "USD"
         assert hotel["lat"] is not None and hotel["lng"] is not None
-    nightly = [h["price_per_night"]["amount"] for h in result.data]
+    nightly = [h["price_per_night"]["amount"] for h in found]
     assert nightly == sorted(nightly)  # cheapest first
 
 
@@ -171,7 +187,7 @@ def test_mock_search_works_for_any_city() -> None:
 
 def test_splurge_orders_by_rating() -> None:
     result = hotels.search("San Jose, CA", CHECK_IN, CHECK_OUT, budget_level="splurge")
-    ratings = [h["rating"] for h in result.data]
+    ratings = [h["rating"] for h in hotels_only(result.data)]
     assert ratings == sorted(ratings, reverse=True)
 
 
@@ -429,13 +445,14 @@ def test_run_tool_search_hotels_bad_arguments_is_ok_false() -> None:
     assert registry.run_tool("search_hotels", bad_dates).ok is False
 
 
-def test_plan_limits_one_hotel_search_per_city() -> None:
+def test_plan_limits_two_hotel_searches_per_city() -> None:
     limits = registry.PlanLimits()
     args = {"city": "San Jose, CA", "check_in": CHECK_IN, "check_out": CHECK_OUT}
     assert registry.run_tool("search_hotels", args, limits).ok
-    again = registry.run_tool("search_hotels", {**args, "city": " san jose "}, limits)
-    assert again.ok is False
-    assert again.error == "skipped: limit"
+    assert registry.run_tool("search_hotels", {**args, "city": " san jose "}, limits).ok
+    third = registry.run_tool("search_hotels", args, limits)
+    assert third.ok is False
+    assert third.error == "skipped: limit"
     other_dates = {**args, "check_out": "2027-03-08"}
     assert registry.run_tool("search_hotels", other_dates, limits).error == "skipped: limit"
 
@@ -482,7 +499,96 @@ def test_skipped_call_does_not_run_the_tool(monkeypatch: pytest.MonkeyPatch) -> 
     args = {"city": "San Jose, CA", "check_in": CHECK_IN, "check_out": CHECK_OUT}
     registry.run_tool("search_hotels", args, limits)
     registry.run_tool("search_hotels", args, limits)
-    assert calls == ["San Jose, CA"]
+    registry.run_tool("search_hotels", args, limits)
+    assert calls == ["San Jose, CA", "San Jose, CA"]
+
+
+# ---- step 54: two hotel searches per city, flights still once per route ----
+
+def _counting_tool(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> list[dict[str, Any]]:
+    """Swap a registry tool for a stub that records its arguments and returns ok."""
+    calls: list[dict[str, Any]] = []
+
+    def stub(**arguments: Any) -> Any:
+        calls.append(arguments)
+        return registry.ToolResult(ok=True, data=[])
+
+    monkeypatch.setitem(
+        registry.TOOLS, name,
+        registry.Tool(name=name, description="d", parameters={}, function=stub),
+    )
+    return calls
+
+
+def test_mixed_city_spellings_share_the_limit_of_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _counting_tool(monkeypatch, "search_hotels")
+    limits = registry.PlanLimits()
+    base = {"check_in": CHECK_IN, "check_out": CHECK_OUT}
+    assert registry.run_tool("search_hotels", {"city": "san jose", **base}, limits).ok
+    assert registry.run_tool("search_hotels", {"city": "San Jose, CA", **base}, limits).ok
+    third = registry.run_tool("search_hotels", {"city": "SAN JOSE", **base}, limits)
+    assert third.ok is False
+    assert third.error == registry.LIMIT_REPLY == "skipped: limit"
+    assert [c["city"] for c in calls] == ["san jose", "San Jose, CA"]
+
+
+def test_each_city_gets_its_own_two_hotel_searches(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _counting_tool(monkeypatch, "search_hotels")
+    limits = registry.PlanLimits()
+    base = {"check_in": CHECK_IN, "check_out": CHECK_OUT}
+    sj = {"city": "San Jose, CA", **base}
+    sf = {"city": "San Francisco, CA", **base}
+    # interleaved: one city's count must not use up the other's
+    assert registry.run_tool("search_hotels", sj, limits).ok
+    assert registry.run_tool("search_hotels", sf, limits).ok
+    assert registry.run_tool("search_hotels", sj, limits).ok
+    assert registry.run_tool("search_hotels", sf, limits).ok
+    assert registry.run_tool("search_hotels", sj, limits).error == "skipped: limit"
+    assert registry.run_tool("search_hotels", sf, limits).error == "skipped: limit"
+    assert len(calls) == 4
+
+
+def test_flights_still_skip_the_second_call_for_a_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _counting_tool(monkeypatch, "search_flights")
+    limits = registry.PlanLimits()
+    args = {"origin": "IAH", "destination": "SJC",
+            "departure_date": CHECK_IN, "return_date": CHECK_OUT}
+    assert registry.run_tool("search_flights", args, limits).ok
+    second = registry.run_tool("search_flights", args, limits)
+    assert second.ok is False
+    assert second.error == "skipped: limit"
+    assert len(calls) == 1  # the tool function was not called the second time
+
+
+def test_flight_limit_is_independent_of_hotel_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    _counting_tool(monkeypatch, "search_flights")
+    _counting_tool(monkeypatch, "search_hotels")
+    limits = registry.PlanLimits()
+    flight = {"origin": "IAH", "destination": "SJC",
+              "departure_date": CHECK_IN, "return_date": CHECK_OUT}
+    hotel = {"city": "San Jose, CA", "check_in": CHECK_IN, "check_out": CHECK_OUT}
+    assert registry.run_tool("search_flights", flight, limits).ok
+    assert registry.run_tool("search_hotels", hotel, limits).ok
+    assert registry.run_tool("search_hotels", hotel, limits).ok
+    assert registry.run_tool("search_flights", flight, limits).error == "skipped: limit"
+
+
+def test_fresh_plan_limits_start_the_count_over(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _counting_tool(monkeypatch, "search_hotels")
+    args = {"city": "San Jose, CA", "check_in": CHECK_IN, "check_out": CHECK_OUT}
+    first_plan = registry.PlanLimits()
+    registry.run_tool("search_hotels", args, first_plan)
+    registry.run_tool("search_hotels", args, first_plan)
+    assert registry.run_tool("search_hotels", args, first_plan).error == "skipped: limit"
+    edit = registry.PlanLimits()  # a new plan or an edit makes its own limits
+    assert registry.run_tool("search_hotels", args, edit).ok
+    assert registry.run_tool("search_hotels", args, edit).ok
+    assert registry.run_tool("search_hotels", args, edit).error == "skipped: limit"
+    assert len(calls) == 4
 
 
 def test_city_key() -> None:

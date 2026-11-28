@@ -138,3 +138,36 @@ Use mock mode while you're not working on a tool, to save the free quotas (SerpA
 | LLM `401` / `429` | Wrong key or rate limit. Check `.env` for stray quotes, or switch to `LLM_PROVIDER=fake` |
 | Hotel prices missing | `SERPAPI_KEY` unset or the monthly quota is used up. The app falls back to hotels without prices |
 | Stale data | Stop the backend, delete `backend/travel.db`, restart |
+
+## Deploy to Vercel
+One Vercel project (Hobby plan) runs both apps on one domain: the frontend at `/` and the
+FastAPI backend at `/api` (repo-root `vercel.json`, "Services"). History lives in a free Neon
+Postgres database, because Vercel functions keep no files. Local dev and tests stay on SQLite
+(decisions D37).
+
+1. **Fork** the team repo to your own GitHub account. Keep the fork in sync by hand (GitHub
+   "Sync fork", or pull the team branch and push it to the fork).
+2. In Vercel: **Add New → Project → import the fork.** Application preset: **Services**. Vercel
+   finds `backend` (FastAPI, `/api`) and `frontend` (Vite, `/`). Leave Root Directory at `./`.
+3. **Storage → Neon** (Vercel Marketplace, free plan) → connect it to the project. It adds
+   `DATABASE_URL` for you. The tables are created on the first request.
+4. **Settings → Environment Variables** (Production and Preview):
+
+   | Variable | Value |
+   |---|---|
+   | `VITE_API_BASE_URL` | `/api` (read at build time; redeploy after changing it) |
+   | `DATABASE_URL` | set by the Neon integration (`postgres://…?sslmode=require` is fine) |
+   | `LLM_PROVIDER` | `openai_compat` |
+   | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_CHAT_MODEL`, `LLM_API_KEY` | as in your `backend/.env` |
+   | `TOOL_PROVIDER_MODE` | `live` |
+   | `GEOAPIFY_KEY`, `SERPAPI_KEY` | your keys |
+
+   No CORS setting is needed: the browser talks to the same domain.
+5. **Settings → Git → Production Branch:** the working branch (e.g. `v2-hari`), not `main`.
+6. Deploy (push to that branch, or Deployments → Redeploy).
+
+**Check:**
+- `https://<your-app>.vercel.app/api/health` returns `{"ok": true, "llm_provider": "openai_compat", "tool_mode": "live"}`. A 404 there
+  means the backend gets a different path than `/api/...`: check the function logs.
+- Register, make one live plan (it must finish within the 300 s function limit), redeploy,
+  and check that the trip is still in the history.

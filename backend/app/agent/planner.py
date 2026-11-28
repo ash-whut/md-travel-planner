@@ -70,10 +70,11 @@ async def run_planner(
     in each, only the first MAX_CALLS_PER_ROUND calls run (in parallel) and the rest get
     SKIPPED_REPLY. The loop stops early when the model asks for no tools. A tool that fails or
     raises gets an error reply and planning goes on. One `registry.PlanLimits` covers the whole
-    run, so a second hotel search for a city gets "skipped: limit". If the `tool_turn` call
+    run, so a third hotel search for a city gets "skipped: limit". If the `tool_turn` call
     itself fails, the loop stops and compose works with what was found so far.
 
-    Status lines: CHOOSING_LABEL runs from the first round to the end of the loop, and every
+    Status lines: CHOOSING_LABEL runs from the first round to the end of the loop (it ends in
+    error, and the exception goes on, if anything else in the loop raises), and every
     call that runs gets its own start → end/error line with a unique label.
     """
     system = build_system(profile, today, weather, current_plan, change_request)
@@ -82,39 +83,45 @@ async def run_planner(
     findings: list[Finding] = []
     counts: dict[str, int] = {}  # ref prefix → how many refs it has given out
     used_labels = {CHOOSING_LABEL}
-    limits = registry.PlanLimits()  # one hotel search per city in this plan (D29)
+    limits = registry.PlanLimits()  # two hotel searches per city in this plan (D29)
 
     yield sse.status(CHOOSING_LABEL, "start")
     choosing_state = "end"
-    for _ in range(MAX_ROUNDS):
-        try:
-            calls = await llm.tool_turn(system, messages, rounds, tools)
-        except Exception:  # the plan can still be made without (more) tool data
-            choosing_state = "error"
-            break
-        if not calls:
-            break
+    try:
+        for _ in range(MAX_ROUNDS):
+            try:
+                calls = await llm.tool_turn(system, messages, rounds, tools)
+            except Exception:  # the plan can still be made without (more) tool data
+                choosing_state = "error"
+                break
+            if not calls:
+                break
 
-        to_run = calls[:MAX_CALLS_PER_ROUND]
-        parallel_calls: list[ParallelCall] = [
-            (unique_label(call_label(call), used_labels), registry.run_tool,
-             (call.name, call.arguments, limits))
-            for call in to_run
-        ]
-        results: list[ToolResult] = []
-        async for item in run_parallel(parallel_calls):
-            if isinstance(item, list):
-                results = item
-            else:
-                yield item
+            to_run = calls[:MAX_CALLS_PER_ROUND]
+            parallel_calls: list[ParallelCall] = [
+                (unique_label(call_label(call), used_labels), registry.run_tool,
+                 (call.name, call.arguments, limits))
+                for call in to_run
+            ]
+            results: list[ToolResult] = []
+            async for item in run_parallel(parallel_calls):
+                if isinstance(item, list):
+                    results = item
+                else:
+                    yield item
 
-        replies: list[str] = []
-        for call, result in zip(to_run, results):
-            numbered = number_items(call.name, result, counts)
-            findings.extend(numbered)
-            replies.append(tool_reply(result, numbered))
-        replies += [SKIPPED_REPLY] * (len(calls) - len(to_run))
-        rounds.append(ToolRound(calls=calls, results=replies))
+            replies: list[str] = []
+            for call, result in zip(to_run, results):
+                numbered = number_items(call.name, result, counts)
+                findings.extend(numbered)
+                replies.append(tool_reply(result, numbered))
+            replies += [SKIPPED_REPLY] * (len(calls) - len(to_run))
+            rounds.append(ToolRound(calls=calls, results=replies))
+    except Exception:
+        # Anything else that breaks the loop still closes the Choosing line before the error
+        # goes up. (A Stop is a GeneratorExit, not an Exception: nothing can be sent then.)
+        yield sse.status(CHOOSING_LABEL, "error")
+        raise
 
     yield sse.status(CHOOSING_LABEL, choosing_state)
     yield findings

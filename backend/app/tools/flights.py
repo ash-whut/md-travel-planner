@@ -120,36 +120,36 @@ def search(
 
     sorted_flights = _sort(flights)[:MAX_RESULTS]
     if sorted_flights and sorted_flights[0].get("departure_token"):
-       ret_params = {
-           **params,
-           "departure_token": sorted_flights[0]["departure_token"],
-       }
-       try:
-           ret_payload = get_json(client, SERPAPI_URL, ret_params)
-           ret_options = normalize_flights(ret_payload, now_iso())
-           ret_sorted = _sort(ret_options)
-           if ret_sorted:
-               best_ret = ret_sorted[0]
-               sorted_flights[0]["return_flight_number"] = best_ret.get("flight_number")
-               sorted_flights[0]["return_departure_time"] = best_ret.get("departure_time")
-               sorted_flights[0]["return_arrival_time"] = best_ret.get("arrival_time")
-               sorted_flights[0]["return_duration_min"] = best_ret.get("duration_min")
-               # Update total round-trip price if the return leg has a higher/updated price
-               if best_ret.get("price"):
-                   sorted_flights[0]["price"] = best_ret["price"]
-               # Keep top 3 return time choices so the user can swap flight times in chat
-               sorted_flights[0]["return_options"] = [
-                   {
-                       "flight_number": r.get("flight_number"),
-                       "departure_time": r.get("departure_time"),
-                       "arrival_time": r.get("arrival_time"),
-                       "stops": r.get("stops"),
-                       "price": r.get("price"),
-                   }
-                   for r in ret_sorted[:3]
-               ]
-       except Exception:
-           pass  # keep outbound flight data if return lookup fails
+        ret_params = {
+            **params,
+            "departure_token": sorted_flights[0]["departure_token"],
+        }
+        try:
+            ret_payload = get_json(client, SERPAPI_URL, ret_params)
+            ret_options = normalize_flights(ret_payload, now_iso())
+            ret_sorted = _sort(ret_options)
+            if ret_sorted:
+                best_ret = ret_sorted[0]
+                sorted_flights[0]["return_flight_number"] = best_ret.get("flight_number")
+                sorted_flights[0]["return_departure_time"] = best_ret.get("departure_time")
+                sorted_flights[0]["return_arrival_time"] = best_ret.get("arrival_time")
+                sorted_flights[0]["return_duration_min"] = best_ret.get("duration_min")
+                # Update total round-trip price if the return leg has a higher/updated price
+                if best_ret.get("price"):
+                    sorted_flights[0]["price"] = best_ret["price"]
+                # Keep top 3 return time choices so the user can swap flight times in chat
+                sorted_flights[0]["return_options"] = [
+                    {
+                        "flight_number": r.get("flight_number"),
+                        "departure_time": r.get("departure_time"),
+                        "arrival_time": r.get("arrival_time"),
+                        "stops": r.get("stops"),
+                        "price": r.get("price"),
+                    }
+                    for r in ret_sorted[:3]
+                ]
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+            pass  # keep the outbound flight data if the return lookup fails
     cache_set("flights", cache_args, sorted_flights, FLIGHTS_TTL_SECONDS)
     return tool_ok(sorted_flights)
 

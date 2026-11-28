@@ -9,6 +9,7 @@ from urllib.parse import quote, urlencode
 GOOGLE_FLIGHTS_URL = "https://www.google.com/travel/flights"
 GOOGLE_HOTELS_URL = "https://www.google.com/travel/hotels"
 BOOKING_COM_URL = "https://www.booking.com/searchresults.html"
+AIRBNB_URL = "https://www.airbnb.com/s"
 GOOGLE_SEARCH_URL = "https://www.google.com/search"
 GOOGLE_MAPS_SEARCH_URL = "https://www.google.com/maps/search/"
 
@@ -45,6 +46,17 @@ def booking_com_url(
         "group_adults": adults,
     }
     return f"{BOOKING_COM_URL}?{_query(params)}"
+
+
+def airbnb_search_url(city: str, check_in: date, check_out: date, adults: int) -> str:
+    """An Airbnb homes search for the city on the stay's dates (for a vacation rental). It is a
+    search, not the listing: SerpApi gives no Airbnb link for a rental."""
+    params: dict[str, str | int] = {
+        "checkin": check_in.isoformat(),
+        "checkout": check_out.isoformat(),
+        "adults": adults,
+    }
+    return f"{AIRBNB_URL}/{quote(city, safe='')}/homes?{_query(params)}"
 
 
 def tickets_url(stop_name: str, city: str) -> str:

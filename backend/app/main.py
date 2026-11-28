@@ -14,6 +14,8 @@ FRONTEND_ORIGIN = "http://localhost:5173"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # get_engine() also creates the tables on first use (Vercel may skip the lifespan);
+    # create_all is a no-op for tables that exist, so running it twice is harmless.
     create_tables(get_engine())
     yield
 

@@ -6,4 +6,5 @@ sqlmodel
 sse-starlette
 httpx
 openai
+psycopg[binary]
 pytest

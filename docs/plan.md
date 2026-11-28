@@ -30,7 +30,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 | H. Book | 42–43 | Book tab with links, approval and booked status |
 | I. History | 44–45 | history rail: list, open, rename, delete |
 | J. Polish | 46–47 | demo-ready |
-| Stretch | 48–50 | booking help, real flight fares, MCP server for the tools |
+| Stretch | 48–51 | booking help, real flight fares, MCP server for the tools, vacation rentals |
 
 ---
 
@@ -680,7 +680,7 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 
 ## J. Polish & demo
 
-### 46 · Error + loading pass — ☐ *FE+BE*
+### 46 · Error + loading pass — ☑ *FE+BE*
 - **Builds:**
   - every API call has a loading and an error state;
   - a "Backend not reachable" banner;
@@ -690,17 +690,20 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** Retry (step 14) resends the text, so the backend saves the user message twice; fix it with a retry flag or a server-side dedupe (needs a contract line or a decision row). Also decide two edge cases. If a turn errors mid-stream, the browser keeps the partial reply but the server doesn't save it, so a reload drops it. If Stop lands right after `message_start`, the server saves a reply that is only " *(stopped)*", and it appears after a reload. A second Generate/chat stream on the same session isn't blocked server-side; `save_itinerary` recomputes the version, so `updated_in_version` can be off by one in a race. The Generate button is enabled even with no destination/dates in the profile, so a real LLM will invent a trip; decide whether to require a destination first or rely on the assumptions list. If a chat edit fails, the plan stays and chat shows the error, but the Plan pane shows nothing; decide whether the pane needs a sign of it. `generating` turns on at any status `start`; that is safe only while chat turns send no status (D23). Add a flag if that changes. From the 32a–34 review: if `run_planner` raises outside `tool_turn`, the "Choosing what to look up…" status never gets its end/error; wrap the loop in try/finally. Also, `locate_stops` runs again on a repair compose, so in live mode a hotel that isn't found is geocoded twice (failed geocodes aren't cached). From the 38–41 review: geocode each city once per plan, or add a rate gate, so a parallel round can't burst Geoapify past 5 requests/second (D25). With a SerpApi key, hotel searches add no Geoapify calls; only the no-key fallback does. Optionally take a cited hotel's (`h` ref) name from the tool. That needs a contracts §2.3 line and the edit's name match handled. A "skipped: limit" hotel call returns `ok: false`, so its planner status line ends in error; decide whether a skipped call should end as error or end. From the 42–43 review: a booking PATCH that lands while a generate/edit is streaming is lost (`build_bookings` carries status from the version read before the PATCH), so either block "Mark booked" while `generating` or merge the latest statuses on save. `bookingError` stays until the next booking action; clear it on a new plan version or tab change. If Mark booked then Undo are clicked and both PATCHes fail, the store shows "booked" while the server has "todo"; disable a card's buttons while its save is pending.
+- **Notes:** **Built (D36):** "Backend not reachable" banner + Try again (login check keeps the token when down); loading texts; dismissible plan-pane error that keeps the old plan; server-side Retry dedupe (same last user message isn't saved twice); partial/stopped-before-text replies aren't saved; Generate waits for a city or vibe; booking buttons wait while generating/saving, `bookingError` clears; aria labels + focus outline; planner status always ends in error on a crash. **Still open:** a second Generate/chat stream on the same session isn't blocked server-side, so `updated_in_version` can be off by one in a race. `generating` turns on at any status `start`, which is safe only while chat turns send no status (D23). `locate_stops` runs again on a repair compose, so a hotel that isn't found is geocoded twice. Optionally take a cited hotel's (`h` ref) name from the tool (needs a contracts §2.3 line). A "skipped: limit" hotel call ends its status line in error; decide error vs end. The booking lock starts at the first `status` event, so a Mark booked during a chat edit's understanding phase can still be lost.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
+The live demo comes at the end of the slides: open a few saved trips, then run one new search
+live. There is no offline demo.
 - **Builds:**
-  - manual scenario scripts in `backend/tests/scenarios/` (solo weekend, 3 friends 3 days, 2
-    cities, vibe-only "beach weekend", and the edit sequence "replace [F]", "move [E] to
-    day 2", "cheaper hotel");
-  - a README demo walkthrough;
-  - a clean-clone setup check.
-- **Done when:** a teammate runs the demo from a clean clone by following the README.
-- **Notes:** The demo fixtures (`sanjose-v1/v2.json`) don't match backend bookings yet. Activity booking titles should be the stop name with details like "Sat, Mar 6 · 1:00 PM". Flight details should read "IAH → San Jose Airport". The hotel's first link should be Google Hotels. Update the matching strings in `BookView.flow.test.tsx` too.
+  - a short "Live demo" section in the README: how to start the app (or the deployed URL), which
+    saved trips to open and what to point out in each, and the one prompt to run live;
+  - saved trips in the demo account that show the features: day cards with letters, an edit by
+    letter ("replace [F]") with its version history, Map pins, Book with prices "as of", real
+    flight fares, and a rental ("We'd like an Airbnb"; its link opens a search, not a listing);
+  - one rehearsed live prompt that finishes well inside the time limit.
+- **Done when:** a teammate runs the demo by following the README section.
+- **Notes:** Error/offline cases are built (step 46) but are not part of the demo.
 
 ## Stretch (after the MVP works end to end)
 
@@ -710,10 +713,16 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   required. No payments.
 - **Notes:** —
 
-### 49 · Real flight fares — ☐
+### 49 · Real flight fares — ☑
 - **Builds:** `tools/flights.py` via SerpApi Google Flights (same key, cached), registered as a
   `search_flights` planner tool. Flight items and bookings get a fare estimate + "as of".
-- **Notes:** Fill the flight leg's `transit_from_previous.duration_min` from the tool result (step 35 leaves it null, D28). The draft's AI `cost_estimate` may still include a flight guess while flight items are `est_cost: null` (step 40). Drop the guess or mark the range "excl. flights" once real fares arrive.
+- **Notes:** **Built** (commit 655c6aa, confirmed 2026-11-27): `tools/flights.py` (cached, IATA
+  lookup), `search_flights` once per route (`PlanLimits`), the fare on flight items and the flight
+  booking, flight leg `duration_min` from the tool, a flight/drive `travel_mode`, think-tag
+  stripping. Tests: `test_flights.py` (tool + registry), `PlanView.flight.test.tsx`. Docs were not
+  updated: contracts §2.2 still says the flight booking has `estimate: null`, §1's TTL row has no
+  flights, D12 still says flights are link-only, and there's no decision row. Fixed in the step 52
+  batch. Original notes: Fill the flight leg's `transit_from_previous.duration_min` from the tool result (step 35 leaves it null, D28). The draft's AI `cost_estimate` may still include a flight guess while flight items are `est_cost: null` (step 40). Drop the guess or mark the range "excl. flights" once real fares arrive.
 
 ### 50 · MCP server for the tools — ☐
 - **Builds:** a small MCP server (the `mcp` Python package; approve the new dependency first)
@@ -721,6 +730,160 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   can use our tools. The app itself keeps calling the tools directly.
 - **Notes:** The registry already has name/description/schema/function per tool (step 33), so
   this is a thin wrapper.
+
+### 51 · Vacation rentals next to hotels — ☑ *BE+FE*
+- **Builds:**
+  - `hotels.search` also makes a second SerpApi call with `vacation_rentals=true`. The
+    parameter switches Google Hotels to rentals instead of hotels, so it can't be one call.
+    - Rentals get their own cache key (`"rentals"`, same 6 h TTL, D29).
+    - Use the same rating filter, and keep at most 3 rentals.
+    - Merge them after the hotels. Each result gets `type: "hotel" | "vacation_rental"` plus
+      `details` (SerpApi `essential_info` joined, e.g. "Entire apartment"; null for hotels).
+    - If the rentals call fails or hits the quota, return the hotels alone. Rentals never
+      break the tool, and the hotel error/fallback paths stay as they are.
+    - This stays inside the one `search_hotels` call, so `PlanLimits` doesn't change. It does
+      cost a 2nd SerpApi search per city.
+  - Contracts §2.2: each `lodging` entry gets `type: "hotel" | "vacation_rental"`. It comes from
+    the cited `h` ref; without a ref it is `"hotel"`. Prices still follow D30 (per night ×
+    nights).
+  - Contracts §6: a rental's lodging links are Google Hotels (search by name) and an
+    **Airbnb search** for the city and dates:
+    `https://www.airbnb.com/s/{city}/homes?checkin={YYYY-MM-DD}&checkout={YYYY-MM-DD}&adults={n}`.
+    Rentals have no SerpApi `link`, and Booking.com search by rental name is useless, so both
+    are dropped for rentals. Hotels keep their current links.
+  - Bookings: a rental booking is titled "Rental Booking" (id stays `bk-hotel-{tag}`). The item
+    source reads "SerpApi Google Hotels (vacation rental) · as of …".
+  - Prompts: compose may pick a hotel or a rental. It prefers a rental when the user asked for
+    an Airbnb, apartment, house or rental, or when there are 3+ travelers. Otherwise it picks
+    the cheapest well-rated option. The registry description says the tool returns both.
+  - Frontend: `types/` gets the `type` field, and the hotel card and Book card show a
+    "Vacation rental" label for rentals.
+  - Add decision D34 (rentals in the hotels tool, the extra search per city, the Airbnb link
+    being a search and not a listing).
+- **Files:** `backend/app/tools/hotels.py`, `tools/registry.py`, `tools/links.py`,
+  `tools/mocks/rentals_search.json`, `agent/postprocess.py`, `agent/prompts/compose.md`,
+  `schemas/itinerary.py`, `llm/fake_provider.py` (or its fake data),
+  `frontend/src/types/`, `components/PlanView.tsx`, `components/BookView.tsx`,
+  `docs/contracts.md`, `docs/decisions.md`, tests
+- **Tests:**
+  - Rental normalization (`type`, `details`, prices, no link).
+  - The merged order: hotels first, then ≤ 3 rentals.
+  - The rentals cache prevents a second call.
+  - A rentals error or quota hit → hotels only, still `ok: true`.
+  - Mock mode returns both kinds.
+  - A cited rental → `lodging.type` is `"vacation_rental"`, with the Airbnb link and without
+    Booking.com.
+  - The rental booking title.
+  - The FE label renders for a rental and not for a hotel.
+- **Done when:** tests green, and the offline fake plan can show a rental.
+- **Notes:** Record `rentals_search.json` from **one** live search (key in `backend/.env`; 1
+  of the ~250 monthly SerpApi searches, which flights now share), trimmed to ~6 properties.
+  While recording, look at `prices[].source`: SerpApi's docs don't say which providers Google
+  lists (their sample shows "Bluepillow.com"), and Airbnb may not be among them. Write what
+  you see here; the Airbnb search link covers that gap either way. Out of scope: re-searching
+  lodging on a chat edit ("swap the hotel for an Airbnb"). Edits don't search hotels today
+  (step 34a), so that needs its own step. **Built:** rentals call + "rentals" cache, `type`/`details`
+  on results, `lodging.type`, Airbnb link, "Rental Booking", FE label, D34; the fake plan picks a
+  rental when a message says airbnb/apartment/vacation rental ("car rental" doesn't count). Live check (San Jose, Dec 18–20 2026):
+  **no Airbnb listings**; sources were Bluepillow, Expedia, Vrbo, Hospitable, Booking.com,
+  Hotels.com. Most rentals do carry a SerpApi `link` (the manager's site); it is dropped as planned.
+  Extra beyond the step: the Book dialog says "Book the rental?" for rentals. Hotel results cached
+  before this step lack `type`/`details` for up to 6 h and are read as hotels; rentals have their
+  own cache key, so they are still searched. Also fixed in this batch (step 49 bug): the backend
+  `UserProfile` now stores `travel_mode` and seeds it into new trips (contracts §2.1, §2.7); it
+  isn't learned from chat. Open (fake data only): after a fake rental plan, an edit loads the v2
+  draft that names "Pacific Inn San Jose" while keeping the rental's data. Follow-up step needed: chat edits like "swap the hotel for an Airbnb" can't
+  re-search lodging (step 34a never searches hotels).
+
+### 52 · Lodging edits ("swap the hotel for an Airbnb") — ☑ *BE*
+- **Builds:**
+  - The real planner prompt already says "for a change request, search hotels only if the
+    change is about the hotel". Check that the edit path then works end to end:
+    - `search_hotels` runs for that city, from cache when it's warm, so the quota is untouched;
+    - compose sees the `h` refs;
+    - a newly cited hotel or rental replaces the old lodging entry: price, `type`, links, and
+      the booking title.
+    - The lodging stop keeps its letter (§3: a replaced stop at the same position keeps its tag
+      if that's the rule; otherwise follow §3 as written).
+  - The fake planner matches it. An edit about the stay ("hotel", "stay", "airbnb", "apartment",
+    "vacation rental", "cheaper hotel") asks for one `search_hotels` for that city. Other edits
+    still don't.
+  - Fake compose on an edit:
+    - If the edit asks for a rental, cite the first rental.
+    - If it says "cheaper hotel", cite the cheapest hotel cheaper than the current one; none →
+      keep it.
+    - Otherwise keep the previous version's lodging name. This fixes the step 51 issue where
+      editing a fake rental plan renamed the stay back to "Pacific Inn San Jose".
+  - Step 49 doc cleanup:
+    - contracts §2.2: the flight booking `estimate` is the tool fare (null without one);
+    - contracts §1: add the flights TTL;
+    - D12: mark it replaced;
+    - add a decision row for real flight fares, written from what `tools/flights.py` and
+      `postprocess.py` actually do.
+- **Files:** `backend/app/llm/fake_provider.py`, `agent/pipeline.py` and `agent/postprocess.py`
+  only if the edit path needs a fix, `docs/contracts.md`, `docs/decisions.md`, tests
+- **Tests:**
+  - Fake LLM: v1 hotel plan, then "swap the hotel for an Airbnb" gives v2 with a rental. Per §3
+    it gets a new letter (the old hotel's letter is retired), with `type: "vacation_rental"`, an
+    Airbnb link, "Rental Booking" and the rental price. Exactly one hotel search runs (no SerpApi
+    call when cached).
+  - "cheaper hotel" gives a cheaper hotel.
+  - "replace [F] with something vegan" runs no hotel search and keeps the lodging unchanged,
+    even after a rental v1.
+- **Done when:** tests green, and offline "make the plan" → "swap the hotel for an Airbnb" shows
+  a rental in v2.
+- **Notes:** **Built:** the real edit path already replaced lodging end to end (no pipeline
+  change). The fake planner now searches hotels on stay edits, and fake compose picks a rental, a
+  strictly cheaper hotel, or keeps the current stay. Fake understand treats "cheaper" plus a stay
+  word as an edit. A new stay gets a new letter (§3), so its booking is a new `bk-hotel-{tag}`
+  with status `todo`. Also fixed (step 49): edits keep the flight fare when route and dates are
+  unchanged (`carry_flight_fares`, D35). Step 49 docs fixed: contracts §1/§2.2/§2.3, D12
+  replaced, D35. Step 49 dead code cleaned up. Known gap (D35): the fare is lost when an airport
+  can't be geocoded.
+
+### 53 · Deploy to Vercel — ☑ *BE+FE, then HUMAN*
+**One** Vercel project using the **Services** preset (Vercel detects both apps): `frontend/`
+(Vite) at `/` and `backend/` (FastAPI) at `/api`, on the same domain. Plus a free Neon Postgres
+database. Vercel functions keep no files between requests, so SQLite can't hold history there.
+Local dev and tests stay on SQLite. Same origin means the frontend uses
+`VITE_API_BASE_URL=/api` and needs no CORS change; preview deployments work too.
+- **Builds:**
+  - Postgres support: add `psycopg[binary]` to `backend/requirements.txt` (approved 2026-11-28).
+    `engine.py` turns a `postgres://` or `postgresql://` `DATABASE_URL` into
+    `postgresql+psycopg://`, and passes `check_same_thread` and runs the two `PRAGMA`s only for
+    SQLite. The `_add_missing_columns` check uses SQLAlchemy `inspect` so it works on both.
+    Use `pool_pre_ping=True` for Postgres.
+  - Tables: make sure they're created on Vercel too (the lifespan may not run per cold start;
+    if in doubt, create them once on the first `get_engine()`).
+  - A repo-root `vercel.json` for the Services setup (read https://vercel.com/docs/services
+    first): the two services, `/api/*` routed to the backend before the frontend catch-all,
+    and `maxDuration: 300` (Hobby's maximum) for the FastAPI function. Our routes already
+    start with `/api`; check whether Vercel passes the path through unchanged (rewrites do)
+    or strips the prefix, and make `/api/health` work either way.
+  - The frontend already reads `VITE_API_BASE_URL`; check that a relative `/api` works
+    everywhere (auth + http clients, SSE) and nothing else assumes localhost.
+  - A README "Deploy to Vercel" section with the human steps below, and a decision row. We
+    deploy from a personal fork of the team repo, linked to Vercel through Git. The project's
+    **Production Branch** is the working branch (not `main`), and the fork is kept in sync by
+    hand.
+- **Tests:** the URL rewrite (`postgres://` → `postgresql+psycopg://`); SQLite still gets the
+  PRAGMA; existing tests stay green on SQLite.
+- **HUMAN:** import the fork with the Services preset, add Neon from the Vercel Marketplace,
+  set the env vars, deploy, and run one live plan on the deployed site.
+- **Done when:** the deployed site logs in, makes a live plan within the time limit, and the
+  trip is still in the history after a redeploy.
+- **Notes:** **Built (D37):** `normalize_database_url` + Postgres engine (`pool_pre_ping`, SQLite-only PRAGMA/`check_same_thread`), tables created on first `get_engine()`, `inspect`-based column check, `repo.py` rowid tie-breaker now SQLite-only (it would have broken history on Postgres), repo-root `vercel.json` (Services, `/api` rewrite; no `functions` block since Hobby defaults to 300 s), README deploy section. Tests: `test_deploy.py`, `http.relative.test.ts`. **Deployed 2026-11-28** from the fork's `v2-hari` (made the fork's default branch so the import page could use it); Neon connected, history survives logout/login. Still unchecked: `"framework": "vite"` in `vercel.json` (could be dropped; Vercel detects it), that the Neon `DATABASE_URL` is the pooled host, the cold-start time, whether TAMU AI accepts calls from Vercel's servers, and whether Stop (closing the stream) reaches the function.
+
+### 54 · Two hotel searches per city — ☑ *BE*
+- **Builds:** `PlanLimits` allows `search_hotels` **twice** per city in one plan (a count, not a
+  set); the third call gets `"skipped: limit"`. Flights stay once per route. Update the
+  `search_hotels` description in `tools/registry.py`, the planner prompt (`planner.md`: "at most
+  twice per city", only when the first search found nothing usable), contracts if they state
+  the limit, and D29/D-row wording that says "once per city".
+- **Tests:** a second hotel search for the same city runs; a third is skipped; "San Jose, CA"
+  and "san jose" count as the same city; flights still skip the second call.
+- **Done when:** tests green.
+- **Notes:** User's call (2026-11-28): the extra SerpApi search is worth it. **Built:** `PER_CITY_LIMITS = {"search_hotels": 2}` / `PER_ROUTE_LIMITS = {"search_flights": 1}` counted per key in `PlanLimits`; prompt + registry description + D29/D34 updated; three old-rule tests updated to the new rule, 5 new tests in `test_hotels.py`.
 
 **Later (not planned yet):** planner speed-ups (skip the "anything else?" tool round when round 1 fully succeeded; try Sonnet for choosing searches after comparing ~10 sample trips with Opus; or let the understand call list the searches), weather-aware searches (an explicit "rainy day → indoor places" rule in the planner prompt; the planner already sees the weather), performance (caching everything, real routing), sub-agents per
 domain (only if a domain's raw results get too big or messy for the planner), diff-aware

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.profile import BudgetLevel, Pace, Transport
+from app.schemas.profile import BudgetLevel, Pace, Transport, TravelMode
 
 
 class UserProfile(BaseModel):
@@ -15,6 +15,7 @@ class UserProfile(BaseModel):
     dietary: str | None = Field(default=None, max_length=120)
     pace: Pace | None = None
     transport: Transport | None = None
+    travel_mode: TravelMode | None = None
     interests: list[str] = Field(default_factory=list, max_length=12)
 
     @field_validator("home_city", "dietary", mode="before")
@@ -73,6 +74,7 @@ def seed_trip_profile(profile: UserProfile) -> dict[str, Any]:
         "dietary": profile.dietary,
         "pace": profile.pace,
         "transport": profile.transport,
+        "travel_mode": profile.travel_mode,
         "interests": list(profile.interests),
     }
     return {k: v for k, v in seed.items() if v not in (None, [])}

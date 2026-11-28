@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { LogIn, UserPlus } from 'lucide-react'
+import { isNetworkError } from '@/api/client'
 import type { AuthBody, AuthResponse } from '@/types'
 
 interface Props {
@@ -24,7 +25,8 @@ export function LoginScreen({ onLogin, onRegister, onDone }: Props) {
       const body = { username: username.trim().toLowerCase(), password }
       onDone(await (registering ? onRegister(body) : onLogin(body)))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      if (isNetworkError(err)) setError('Backend not reachable. Check that the server is running.')
+      else setError(err instanceof Error ? err.message : 'Something went wrong')
       setBusy(false)
     }
   }

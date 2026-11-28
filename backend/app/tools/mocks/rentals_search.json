@@ -1,0 +1,495 @@
+{
+  "search_metadata": {
+    "id": "6b0a334834b8a5c6d553394f",
+    "status": "Success",
+    "created_at": "2026-11-28T01:50:00.779Z",
+    "google_hotels_url": "https://www.google.com/travel/search?q=San+Jose%2C+CA&hl=en&gl=us"
+  },
+  "search_parameters": {
+    "engine": "google_hotels",
+    "q": "San Jose, CA",
+    "gl": "us",
+    "hl": "en",
+    "currency": "USD",
+    "check_in_date": "2026-12-18",
+    "check_out_date": "2026-12-20",
+    "adults": 1,
+    "children": 0,
+    "sort_by": "3",
+    "vacation_rentals": true
+  },
+  "properties": [
+    {
+      "type": "vacation rental",
+      "name": "Oversize Loft w/ Kitchenette, Dinning, Sleep 4",
+      "link": "https://booking.urbansidestays.com/property/oversize-loft-w-kitchenette-dinning-sleep-4#availability",
+      "property_token": "ChkQm-TA--irttpNGg0vZy8xMXp5d3pjenRkEAI",
+      "gps_coordinates": {
+        "latitude": 37.317108154296875,
+        "longitude": -121.89288330078125
+      },
+      "check_in_time": "4:00 PM",
+      "check_out_time": "12:00 PM",
+      "rate_per_night": {
+        "display_price": "$66",
+        "extracted_display_price": 66,
+        "lowest": "$74",
+        "extracted_lowest": 74,
+        "before_taxes_fees": "$66",
+        "extracted_before_taxes_fees": 66,
+        "after_taxes_fees": "$74",
+        "extracted_after_taxes_fees": 74
+      },
+      "total_rate": {
+        "display_price": "$132",
+        "extracted_display_price": 132,
+        "lowest": "$147",
+        "extracted_lowest": 147,
+        "before_taxes_fees": "$132",
+        "extracted_before_taxes_fees": 132,
+        "after_taxes_fees": "$147",
+        "extracted_after_taxes_fees": 147
+      },
+      "prices": [
+        {
+          "source": "Hospitable.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/6656511205021911053.png",
+          "official": true,
+          "num_guests": 1,
+          "rate_per_night": {
+            "display_price": "$66",
+            "extracted_display_price": 66,
+            "lowest": "$74",
+            "extracted_lowest": 74,
+            "before_taxes_fees": "$66",
+            "extracted_before_taxes_fees": 66,
+            "after_taxes_fees": "$74",
+            "extracted_after_taxes_fees": 74
+          }
+        }
+      ],
+      "overall_rating": 4.5,
+      "reviews": 187,
+      "location_rating": 4.1,
+      "amenities": [
+        "Air conditioning",
+        "Heating",
+        "Ironing board",
+        "Kitchen",
+        "Microwave",
+        "Patio",
+        "Pet-friendly",
+        "Cable TV",
+        "Free parking",
+        "Free Wi-Fi"
+      ],
+      "essential_info": [
+        "Entire house",
+        "Sleeps 4",
+        "1 bedroom",
+        "1 bathroom",
+        "3 beds"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChkQm-TA--irttpNGg0vZy8xMXp5d3pjenRkEAI",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChkQm-TA--irttpNGg0vZy8xMXp5d3pjenRkEAI"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Private Room w/ Slat Wall & Desk near SJSU",
+      "link": "https://sweetpeahospitality.com/property/quiet-private-room-w-slat-wall-desk-near-sjsu#availability",
+      "property_token": "ChoQr-DH5dyN3LnDARoNL2cvMTFfMDRsbnBscxAC",
+      "gps_coordinates": {
+        "latitude": 37.33192443847656,
+        "longitude": -121.87483978271484
+      },
+      "check_in_time": "3:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "display_price": "$74",
+        "extracted_display_price": 74,
+        "lowest": "$83",
+        "extracted_lowest": 83,
+        "before_taxes_fees": "$74",
+        "extracted_before_taxes_fees": 74,
+        "after_taxes_fees": "$83",
+        "extracted_after_taxes_fees": 83
+      },
+      "total_rate": {
+        "display_price": "$148",
+        "extracted_display_price": 148,
+        "lowest": "$166",
+        "extracted_lowest": 166,
+        "before_taxes_fees": "$148",
+        "extracted_before_taxes_fees": 148,
+        "after_taxes_fees": "$166",
+        "extracted_after_taxes_fees": 166
+      },
+      "prices": [
+        {
+          "source": "Hospitable.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/6656511205021911053.png",
+          "official": true,
+          "num_guests": 1,
+          "rate_per_night": {
+            "display_price": "$74",
+            "extracted_display_price": 74,
+            "lowest": "$83",
+            "extracted_lowest": 83,
+            "before_taxes_fees": "$74",
+            "extracted_before_taxes_fees": 74,
+            "after_taxes_fees": "$83",
+            "extracted_after_taxes_fees": 83
+          }
+        }
+      ],
+      "overall_rating": 3.9,
+      "reviews": 4,
+      "amenities": [
+        "Air conditioning",
+        "Heating",
+        "Microwave",
+        "Pet-friendly",
+        "Cable TV",
+        "Free Wi-Fi"
+      ],
+      "health_and_safety": {
+        "groups": [
+          {
+            "title": "Enhanced cleaning",
+            "list": [
+              {
+                "title": "Disinfectant used to clean the property",
+                "available": true
+              }
+            ]
+          }
+        ]
+      },
+      "essential_info": [
+        "Entire house",
+        "Sleeps 2",
+        "1 bedroom",
+        "1 bathroom",
+        "1 bed"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChoQr-DH5dyN3LnDARoNL2cvMTFfMDRsbnBscxAC",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChoQr-DH5dyN3LnDARoNL2cvMTFfMDRsbnBscxAC"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Downtown 2BR Historic Spanish Bungalow + Parking",
+      "link": "https://sweetpeahospitality.com/property/downtown-gem-2br-historic-spanish-bungalow#availability",
+      "property_token": "ChkQw9Xiseuoyu4DGg0vZy8xMXp6bHAxa2JxEAI",
+      "gps_coordinates": {
+        "latitude": 37.33192825317383,
+        "longitude": -121.87480926513672
+      },
+      "rate_per_night": {
+        "display_price": "$86",
+        "extracted_display_price": 86,
+        "lowest": "$86",
+        "extracted_lowest": 86,
+        "before_taxes_fees": "$86",
+        "extracted_before_taxes_fees": 86,
+        "after_taxes_fees": "$86",
+        "extracted_after_taxes_fees": 86
+      },
+      "total_rate": {
+        "display_price": "$172",
+        "extracted_display_price": 172,
+        "lowest": "$172",
+        "extracted_lowest": 172,
+        "before_taxes_fees": "$172",
+        "extracted_before_taxes_fees": 172,
+        "after_taxes_fees": "$172",
+        "extracted_after_taxes_fees": 172
+      },
+      "prices": [
+        {
+          "source": "Bluepillow.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/190ff319-d0fd-4c45-bfc8-bad6f5f395f2.png",
+          "num_guests": 2,
+          "rate_per_night": {
+            "display_price": "$86",
+            "extracted_display_price": 86,
+            "lowest": "$86",
+            "extracted_lowest": 86
+          }
+        }
+      ],
+      "location_rating": 4.1,
+      "amenities": [
+        "Air conditioning",
+        "Crib",
+        "Ironing board",
+        "Kitchen",
+        "Cable TV",
+        "Washer",
+        "Free parking"
+      ],
+      "excluded_amenities": [
+        "No airport shuttle",
+        "No Wi-Fi"
+      ],
+      "health_and_safety": {
+        "groups": [
+          {
+            "title": "Minimized contact",
+            "list": [
+              {
+                "title": "No-contact check-in and check-out",
+                "available": true
+              }
+            ]
+          }
+        ]
+      },
+      "essential_info": [
+        "Entire house",
+        "Sleeps 6",
+        "2 bedrooms",
+        "2 bathrooms",
+        "2 beds"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChkQw9Xiseuoyu4DGg0vZy8xMXp6bHAxa2JxEAI",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChkQw9Xiseuoyu4DGg0vZy8xMXp6bHAxa2JxEAI"
+    },
+    {
+      "type": "vacation rental",
+      "name": "NARVAEZ COZY room with a private bathroom and private entrance",
+      "link": "https://www.booking.com/hotel/us/cozy-room-with-a-private-bathroom-and-entrance-kitchen-access-san-jose1.en-gb.html?aid=2068758&utm_source=seogooglelocal&utm_medium=description&utm_term=hotel-13326499&utm_campaign=en-gb&label=seogooglelocal-link-imagesaow-hotel-13326499_grp-3_gendate-20261124",
+      "property_token": "ChoQpsbq1rHYicqCARoNL2cvMTF4ZnBzbXZnOBAC",
+      "gps_coordinates": {
+        "latitude": 37.26573181152344,
+        "longitude": -121.85599517822266
+      },
+      "check_in_time": "4:00 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "display_price": "$70",
+        "extracted_display_price": 70,
+        "lowest": "$90",
+        "extracted_lowest": 90,
+        "before_taxes_fees": "$70",
+        "extracted_before_taxes_fees": 70,
+        "after_taxes_fees": "$90",
+        "extracted_after_taxes_fees": 90
+      },
+      "total_rate": {
+        "display_price": "$140",
+        "extracted_display_price": 140,
+        "lowest": "$180",
+        "extracted_lowest": 180,
+        "before_taxes_fees": "$140",
+        "extracted_before_taxes_fees": 140,
+        "after_taxes_fees": "$180",
+        "extracted_after_taxes_fees": 180
+      },
+      "prices": [
+        {
+          "source": "Booking.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/61aadbe1-e141-4d2e-a831-b6a18727e130.png",
+          "num_guests": 1,
+          "rate_per_night": {
+            "display_price": "$70",
+            "extracted_display_price": 70,
+            "lowest": "$90",
+            "extracted_lowest": 90,
+            "before_taxes_fees": "$70",
+            "extracted_before_taxes_fees": 70,
+            "after_taxes_fees": "$90",
+            "extracted_after_taxes_fees": 90
+          },
+          "free_cancellation": true,
+          "free_cancellation_until_date": "Jun 14",
+          "free_cancellation_until_time": "5:00 PM"
+        }
+      ],
+      "overall_rating": 4.05,
+      "reviews": 11,
+      "location_rating": 3.6,
+      "amenities": [
+        "Air conditioning",
+        "Heating",
+        "Ironing board",
+        "Microwave",
+        "Outdoor grill",
+        "Pet-friendly",
+        "Smoke-free",
+        "Cable TV",
+        "Wheelchair accessible"
+      ],
+      "excluded_amenities": [
+        "No crib",
+        "No elevator",
+        "No fitness center",
+        "No kitchen",
+        "No oven stove",
+        "No patio",
+        "No washer"
+      ],
+      "essential_info": [
+        "Entire cottage",
+        "Sleeps 1",
+        "1 bedroom",
+        "1 bathroom",
+        "1 bed",
+        "65 sq ft"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChoQpsbq1rHYicqCARoNL2cvMTF4ZnBzbXZnOBAC",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChoQpsbq1rHYicqCARoNL2cvMTF4ZnBzbXZnOBAC"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Great Stay in San Jose",
+      "property_token": "ChoQp6Xt5P_0ofbIARoNL2cvMTF6MjE4ZzAzNBAC",
+      "gps_coordinates": {
+        "latitude": 37.3828239440918,
+        "longitude": -121.87700653076172
+      },
+      "check_in_time": "4:00 PM",
+      "check_out_time": "10:00 AM",
+      "rate_per_night": {
+        "display_price": "$148",
+        "extracted_display_price": 148,
+        "lowest": "$148",
+        "extracted_lowest": 148,
+        "before_taxes_fees": "$148",
+        "extracted_before_taxes_fees": 148,
+        "after_taxes_fees": "$148",
+        "extracted_after_taxes_fees": 148
+      },
+      "total_rate": {
+        "display_price": "$295",
+        "extracted_display_price": 295,
+        "lowest": "$295",
+        "extracted_lowest": 295,
+        "before_taxes_fees": "$295",
+        "extracted_before_taxes_fees": 295,
+        "after_taxes_fees": "$295",
+        "extracted_after_taxes_fees": 295
+      },
+      "prices": [
+        {
+          "source": "Bluepillow.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/190ff319-d0fd-4c45-bfc8-bad6f5f395f2.png",
+          "num_guests": 1,
+          "rate_per_night": {
+            "display_price": "$148",
+            "extracted_display_price": 148,
+            "lowest": "$148",
+            "extracted_lowest": 148
+          }
+        }
+      ],
+      "overall_rating": 4.471354,
+      "reviews": 96,
+      "location_rating": 4.0,
+      "amenities": [
+        "Air conditioning",
+        "Hot tub",
+        "Indoor pool",
+        "Kitchen",
+        "Microwave",
+        "Smoke-free",
+        "Cable TV",
+        "Washer",
+        "Wheelchair accessible",
+        "Free parking",
+        "Free Wi-Fi"
+      ],
+      "excluded_amenities": [
+        "No airport shuttle",
+        "No outdoor pool"
+      ],
+      "essential_info": [
+        "Entire house",
+        "Sleeps 6",
+        "3 bedrooms",
+        "7 bathrooms",
+        "4 beds",
+        "24 sq ft"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChoQp6Xt5P_0ofbIARoNL2cvMTF6MjE4ZzAzNBAC",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChoQp6Xt5P_0ofbIARoNL2cvMTF6MjE4ZzAzNBAC"
+    },
+    {
+      "type": "vacation rental",
+      "name": "Charming 1-bedroom house in superb San Jose with AC, WiFi",
+      "property_token": "ChkQtO3p0b6ByfpaGg0vZy8xMXpoNHExenp2EAI",
+      "gps_coordinates": {
+        "latitude": 37.31394958496094,
+        "longitude": -121.97514343261719
+      },
+      "check_in_time": "3:30 PM",
+      "check_out_time": "11:00 AM",
+      "rate_per_night": {
+        "display_price": "$129",
+        "extracted_display_price": 129,
+        "lowest": "$143",
+        "extracted_lowest": 143,
+        "before_taxes_fees": "$129",
+        "extracted_before_taxes_fees": 129,
+        "after_taxes_fees": "$143",
+        "extracted_after_taxes_fees": 143
+      },
+      "total_rate": {
+        "display_price": "$257",
+        "extracted_display_price": 257,
+        "lowest": "$286",
+        "extracted_lowest": 286,
+        "before_taxes_fees": "$257",
+        "extracted_before_taxes_fees": 257,
+        "after_taxes_fees": "$286",
+        "extracted_after_taxes_fees": 286
+      },
+      "prices": [
+        {
+          "source": "Expedia.com",
+          "logo": "https://www.gstatic.com/travel-hotels/branding/384478467102568077.png",
+          "num_guests": 2,
+          "rate_per_night": {
+            "display_price": "$129",
+            "extracted_display_price": 129,
+            "lowest": "$143",
+            "extracted_lowest": 143,
+            "before_taxes_fees": "$129",
+            "extracted_before_taxes_fees": 129,
+            "after_taxes_fees": "$143",
+            "extracted_after_taxes_fees": 143
+          },
+          "free_cancellation": true,
+          "free_cancellation_until_date": "Jun 14",
+          "free_cancellation_until_time": "5:00 PM"
+        }
+      ],
+      "overall_rating": 2.6,
+      "reviews": 10,
+      "location_rating": 4.1,
+      "amenities": [
+        "Air conditioning",
+        "Heating",
+        "Ironing board",
+        "Kitchen",
+        "Pet-friendly",
+        "Smoke-free",
+        "Washer",
+        "Free Wi-Fi"
+      ],
+      "excluded_amenities": [
+        "No indoor pool",
+        "No outdoor pool",
+        "No parking"
+      ],
+      "essential_info": [
+        "Entire house",
+        "Sleeps 2",
+        "1 bedroom",
+        "1 bathroom",
+        "1 bed"
+      ],
+      "serpapi_google_hotels_reviews_link": "https://serpapi.com/search.json?engine=google_hotels_reviews&hl=en&property_token=ChkQtO3p0b6ByfpaGg0vZy8xMXpoNHExenp2EAI",
+      "serpapi_google_hotels_photos_link": "https://serpapi.com/search.json?engine=google_hotels_photos&property_token=ChkQtO3p0b6ByfpaGg0vZy8xMXpoNHExenp2EAI"
+    }
+  ]
+}

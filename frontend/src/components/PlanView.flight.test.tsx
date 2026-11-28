@@ -1,7 +1,7 @@
 // Step 49: flight fare display in PlanView and BookView (real fares from SerpApi Google Flights).
 // A flight item with cost_source: "tool" shows the grounded fare; without one it shows "check link".
 // The BookView flight booking shows the fare when available.
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { sanJoseProfile, sanJoseV1 } from '@/fixtures'
 import type { Booking, Itinerary, ItineraryItem, Stop } from '@/types'
@@ -134,7 +134,7 @@ describe('PlanView flight item — real fare from tool', () => {
     )
     const li = screen.getByText('Board your flight to San Jose').closest('li') as HTMLElement
     const btn = within(li).getByRole('button', { name: /Why this\?/ })
-    btn.click()
+    fireEvent.click(btn) // wrapped in act, so the toggle re-renders before the assertion
     expect(within(li).getByText(`Source: ${src}`)).toBeTruthy()
   })
 })

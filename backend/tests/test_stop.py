@@ -107,7 +107,8 @@ def test_closing_early_with_the_fake_provider(db: Session, db_engine: Engine) ->
     assert CANNED_REPLY.startswith(streamed)
 
 
-def test_closing_before_any_token_saves_just_the_marker(db: Session, db_engine: Engine) -> None:
+def test_closing_before_any_token_saves_no_reply(db: Session, db_engine: Engine) -> None:
+    # Step 46 / D36: a reply with no text and no new plan isn't saved (no lone "*(stopped)*").
     session_id = _new_session(db)
     llm = ChunkProvider(["never", " sent"])
 
@@ -120,8 +121,7 @@ def test_closing_before_any_token_saves_just_the_marker(db: Session, db_engine: 
     asyncio.run(stop_after_start())
 
     stored = _stored(db_engine, session_id)
-    assert [m.role for m in stored] == ["user", "assistant"]
-    assert stored[-1].content == MARKER
+    assert [(m.role, m.content) for m in stored] == [("user", "hi")]
 
 
 def test_stopped_turn_sends_no_done_or_error(db: Session) -> None:

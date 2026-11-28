@@ -88,6 +88,7 @@ interface Props {
   streaming?: boolean // a reply is streaming: the input is disabled
   streamingMessageId?: string | null // the assistant message being streamed (shows "…" until text arrives)
   error?: StoreError | null // shown inline after the last message
+  loading?: boolean // a trip is being loaded
   onSend?: (text: string) => void
   onRetry?: () => void
   onStop?: () => void // shown as a Stop button while streaming
@@ -101,6 +102,7 @@ export function ChatPanel({
   streaming = false,
   streamingMessageId = null,
   error = null,
+  loading = false,
   onSend,
   onRetry,
   onStop,
@@ -230,6 +232,11 @@ export function ChatPanel({
             </Fragment>
           )
         })}
+        {loading && (
+          <p className="flex items-center gap-1.5 pl-1 text-xs text-gray-400">
+            <Loader2 size={12} aria-hidden="true" className="animate-spin text-accent" /> Loading your trip…
+          </p>
+        )}
         {error && (
           <div
             role="alert"
@@ -242,7 +249,7 @@ export function ChatPanel({
                 onClick={onRetry}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-red-300 bg-white px-2 py-1 text-xs font-medium hover:bg-red-100"
               >
-                <RotateCcw size={12} /> Retry
+                <RotateCcw size={12} aria-hidden="true" /> Retry
               </button>
             )}
           </div>
@@ -318,6 +325,7 @@ export function ChatPanel({
               type="button"
               onClick={send}
               title="Send"
+              aria-label="Send"
               disabled={streaming || !draft.trim()}
               className="rounded-lg bg-accent p-1.5 text-white disabled:opacity-40"
             >

@@ -1,13 +1,15 @@
 // The history rail's list of trips (docs/spec.md F7). The open trip itself lives in
 // useTripStore; this store only keeps the list in step with it.
 import { create } from 'zustand'
-import type { ApiClient } from '@/api/client'
+import { isNetworkError, type ApiClient } from '@/api/client'
 import type { SessionSummary } from '@/types'
 import { useTripStore, type SessionInfo } from './useTripStore'
 
 interface HistoryData {
   sessions: SessionSummary[] // most recently updated first
   error: string | null // the last failed load / rename / delete, shown in the rail
+  loading: boolean // the list is being loaded
+  busyId: string | null // the trip being renamed or deleted (its row waits)
 }
 
 interface HistoryActions {
@@ -20,25 +22,35 @@ interface HistoryActions {
 
 export type HistoryState = HistoryData & HistoryActions
 
-const initialData: HistoryData = { sessions: [], error: null }
+const initialData: HistoryData = { sessions: [], error: null, loading: false, busyId: null }
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong'
+}
+
+// The "Backend not reachable" banner lives in the trip store; history calls update it too.
+// No argument = the call succeeded.
+function noteBackend(failure?: unknown): void {
+  useTripStore.setState({ backendDown: isNetworkError(failure) })
 }
 
 export const useHistoryStore = create<HistoryState>()((set, get) => ({
   ...initialData,
 
   loadSessions: async (api) => {
+    set({ loading: true })
     try {
-      set({ sessions: await api.listSessions(), error: null })
+      set({ sessions: await api.listSessions(), error: null, loading: false })
+      noteBackend()
     } catch (err) {
-      set({ error: `Couldn't load your trips: ${errorText(err)}` })
+      set({ error: `Couldn't load your trips: ${errorText(err)}`, loading: false })
+      noteBackend(err)
     }
   },
 
   // Saves first, then shows the new title (a rename is quick, and a failure keeps the old one).
   renameSession: async (api, id, title) => {
+    set({ busyId: id })
     try {
       const summary = await api.renameSession(id, title)
       set((state) => ({
@@ -51,22 +63,27 @@ export const useHistoryStore = create<HistoryState>()((set, get) => ({
       }
     } catch (err) {
       set({ error: `Couldn't rename the trip: ${errorText(err)}` })
+      noteBackend(err)
+    } finally {
+      set({ busyId: null })
     }
   },
 
   // Deleting the open trip switches to the next one down the list (or the one above, if it was
   // last), and to a new trip when none are left (spec F7).
   deleteSession: async (api, id) => {
+    set({ busyId: id })
     try {
       await api.deleteSession(id)
     } catch (err) {
-      set({ error: `Couldn't delete the trip: ${errorText(err)}` })
+      set({ error: `Couldn't delete the trip: ${errorText(err)}`, busyId: null })
+      noteBackend(err)
       return
     }
     const { sessions } = get()
     const index = sessions.findIndex((s) => s.id === id)
     const remaining = sessions.filter((s) => s.id !== id)
-    set({ sessions: remaining, error: null })
+    set({ sessions: remaining, error: null, busyId: null })
 
     const trip = useTripStore.getState()
     if (trip.session?.id !== id) return

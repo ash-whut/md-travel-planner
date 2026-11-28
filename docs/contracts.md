@@ -15,7 +15,7 @@ later steps can stay out until then.
 
 ---
 
-## 1. Database tables (SQLModel on SQLite, file `backend/travel.db`)
+## 1. Database tables (SQLModel on SQLite, file `backend/travel.db`; Neon Postgres on Vercel, D37)
 
 ### `session`
 | column | type | notes |
@@ -56,7 +56,7 @@ itinerary. We do **not** store provider-specific transcripts.
 | key | str PK | `"{tool}:{sha256 of the args JSON}"` |
 | value | JSON | normalized tool result |
 | created_at | datetime | |
-| ttl_seconds | int | weather 3 h, geocode 30 d, places 7 d, hotels 6 h |
+| ttl_seconds | int | weather 3 h, geocode 30 d, places 7 d, hotels 6 h, rentals 6 h (step 51), flights 6 h and flight airport-code lookups (`flights_iata`) 6 h (step 49) |
 
 The cache exists to protect free-tier quotas (SerpApi especially), not for speed.
 
@@ -96,6 +96,7 @@ All fields are optional. The server computes `missing_required`.
   "dietary": "vegan",
   "pace": "balanced",                  // relaxed | balanced | packed
   "transport": null,                   // car | transit | rideshare | mixed
+  "travel_mode": null,                 // flight | drive; null until the user picks
   "notes": null,                       // must-sees, things to avoid, hotel area…
   "missing_required": []               // subset of: destination, dates, origin, travelers, interests
 }
@@ -131,12 +132,13 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
   "lodging": [                           // one per city; details for a lodging stop
     {
       "stop_tag": "D",
+      "type": "hotel",                   // hotel | vacation_rental: from the cited `h` ref; "hotel" without one (step 51)
       "check_in": "2027-03-05", "check_out": "2027-03-07", "nights": 2,
       "price_per_night": { "amount": 120, "currency": "USD" },   // null if unknown
       "total_price":     { "amount": 240, "currency": "USD" },
       "price_source": "serpapi_google_hotels",                   // ai_estimate | serpapi_google_hotels | none
       "price_as_of": "2026-11-01T18:04:05Z",                     // null unless from a tool
-      "links": [ { "label": "Google Hotels", "url": "https://…" } ]   // Google Hotels, Booking.com, + "Hotel site" when SerpApi has one (§6)
+      "links": [ { "label": "Google Hotels", "url": "https://…" } ]   // hotel: Google Hotels, Booking.com, + "Hotel site" when SerpApi has one; vacation rental: Google Hotels, Airbnb (§6)
     }
   ],
 
@@ -185,8 +187,11 @@ stop is stored once in `stops`, and items point to it with `stop_tag`.
 
 **Bookings (step 42, `postprocess.build_bookings`):**
 - Flight: one round trip from the first flight's airport to the next airport stop (tags
-  `[departure, arrival]`), Google Flights link, `estimate: null`.
-- Lodging: one per `lodging` entry: title "Hotel Booking", details "{hotel} · 2 nights · Mar 5 –
+  `[departure, arrival]`), Google Flights link. `estimate` = the flight item's tool fare (per
+  person, round trip, from `search_flights`, step 49, D35); `null` ("check link") when the plan
+  has no fare. Its `price_as_of` is always `null` (the "as of" time is in the item's `source`).
+- Lodging: one per `lodging` entry: title "Hotel Booking" ("Rental Booking" for a
+  `vacation_rental`; the id stays `bk-hotel-{tag}`), details "{hotel} · 2 nights · Mar 5 –
   Mar 7", `estimate` = `total_price`, its `price_as_of` and links.
 - Activity: one per stop of a `booking_required` activity item: title = the stop name, details
   "Sat, Mar 6 · 1:30 PM", `estimate` = the item's `est_cost` (per person), a "Find tickets" link.
@@ -222,7 +227,20 @@ the draft's estimate; a no-price result gives `null` prices and `price_source: "
 hotel's `lodging` item gets the per-night price as `est_cost` (`cost_source: "tool"`) and the
 source "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC". The source text is in UTC on purpose
 (the backend doesn't know the user's timezone); the UI's price chip formats `price_as_of` in
-the user's local time.
+the user's local time. A departure airport stop may cite a found flight (`"f1"`, step 49, D35):
+the stop still gets its coordinates from the geocoder, and its `flight` item gets the fare as
+`est_cost` (`cost_source: "tool"`, `null` when the result has no price) and the source
+"SerpApi Google Flights · as of …". An edit with no fresh flight result keeps the previous
+version's fare (item cost, source, booking estimate, flight leg duration) while the dates and
+the departure/arrival airport stops are unchanged; otherwise the flight goes back to "check
+link".
+
+**Vacation rentals (step 51, D34):** `search_hotels` returns the hotels, then at most 3 vacation
+rentals (each result has `type: "hotel" | "vacation_rental"` and `details`, the rental's
+SerpApi `essential_info` joined, e.g. "Entire house, Sleeps 4, …"; null for hotels). A stop
+citing a rental's ref gets a lodging entry with `type: "vacation_rental"` (prices as above,
+D30), the item source "SerpApi Google Hotels (vacation rental) · as of …" and the rental links
+(§6). The draft never sets `type`; without a ref the lodging is a `"hotel"`.
 
 ### 2.4 `TurnAnalysis` (internal, one JSON call per user turn)
 ```jsonc
@@ -257,7 +275,8 @@ LLM resolves it from the itinerary listing in context.
 ```jsonc
 // UserProfile: long-lived preferences; every field optional (null / [] = not set)
 { "home_city": "College Station, TX", "budget_level": "budget", "dietary": "vegan",
-  "pace": "relaxed", "transport": "rideshare", "interests": ["food", "museums"] }
+  "pace": "relaxed", "transport": "rideshare", "travel_mode": "flight",  // flight | drive
+  "interests": ["food", "museums"] }
 
 // User
 { "id": "uuid", "username": "sean", "profile": { /* UserProfile */ } }
@@ -269,10 +288,12 @@ LLM resolves it from the itinerary listing in context.
 { "token": "…", "user": { /* User */ } }
 ```
 - **Seeding:** a trip created by a logged-in user starts with `origin` = `home_city` and the
-  profile's `budget_level`, `dietary`, `pace`, `transport` and `interests` (unset ones are left out).
+  profile's `budget_level`, `dietary`, `pace`, `transport`, `travel_mode` and `interests` (unset
+  ones are left out).
 - **Learning:** when a chat turn sets `dietary`, `budget_level`, `pace` or `transport` on a
   logged-in user's trip to a new value, the user profile keeps that value for future trips.
-  Destination, dates and travelers stay per trip.
+  Destination, dates, travelers and `travel_mode` stay per trip (a chat choice of fly or drive
+  isn't learned; the profile's `travel_mode` is set in the profile dialog).
 
 ---
 
@@ -336,7 +357,15 @@ Errors are `{ "detail": "message" }` with status 400/401/404/409/500, or 422 (in
 | `done` | `{ "message_id": "uuid" }` | complete; the assistant message is saved |
 
 Order: `message_start` comes first and `done` or `error` comes last. If the client aborts
-(Stop), the server stops and saves the partial text with " *(stopped)*" appended.
+(Stop), the server stops and saves the partial text with " *(stopped)*" appended; when no text
+was streamed and no plan version was saved, it saves no reply at all (step 46, D36).
+- A reply that ends with `error` is not saved. The client keeps its partial text on screen and
+  drops it when the next message, Retry or Generate starts (step 46, D36).
+- **Retry (step 46, D36):** `POST …/messages` doesn't save the user message again when the
+  session's last user message has the same content and no finished reply follows it (nothing, or
+  only replies ending in " *(stopped)*" with no `itinerary_version`): a resend after a failed,
+  stopped or dropped turn. A stopped reply that saved a plan version counts as finished. The
+  turn runs as usual.
 - Chat turn: `message_start → [profile] → [title] → token… → done`.
 - Making the plan (`/generate`, or a chat turn whose action is `generate`):
   `message_start → [profile] → [title] → status… → itinerary → token… → done`. The tokens are a short
@@ -364,5 +393,9 @@ URL-encode every parameter.
 - Google Hotels: always the search `https://www.google.com/travel/hotels?q={hotel name} {city}`
 - Hotel site: SerpApi's `link` (the hotel's own website), added as a third lodging link only when present
 - Booking.com: `https://www.booking.com/searchresults.html?ss={hotel name, city}&checkin={YYYY-MM-DD}&checkout={YYYY-MM-DD}&group_adults={n}`
+- Vacation rental lodging (step 51): Google Hotels (search by name, as above) and an Airbnb
+  search for the city and dates (a search, not the listing):
+  `https://www.airbnb.com/s/{city}/homes?checkin={YYYY-MM-DD}&checkout={YYYY-MM-DD}&adults={n}`.
+  No Booking.com and no "Hotel site" link for rentals.
 - Activity tickets: `https://www.google.com/search?q={stop name} {city} tickets`
 - Map link for a stop: `https://www.google.com/maps/search/?api=1&query={name}, {address or city}` (a plain link; no Google API key needed)

@@ -10,8 +10,11 @@ what you find, so you only choose what to look up.
   (respecting dietary needs). Add a search only if it fills a real gap.
 - **Hotels:** when the trip's exact dates are known, call `search_hotels` **once per city** for
   the whole stay (`check_in` = the first day in that city, `check_out` = the day you leave it),
-  in the same reply as the place searches. A second hotel search for a city is skipped. For a
-  change request, search hotels only if the change is about the hotel.
+  in the same reply as the place searches. Search a city **at most twice**, and the second time
+  only if the first search found nothing usable (then try a different spelling or a nearby area,
+  since the same city and dates return the same results); a third hotel search for a city is
+  skipped.
+  For a change request, search hotels only if the change is about the hotel.
 - **Flights:** when the traveler's `travel_mode` is `"flight"` (or is null and an `origin` is
   set), and the trip's exact dates are known, call `search_flights` **once** with the origin
   and the first destination city (`departure_date` = trip start, `return_date` = trip end).
