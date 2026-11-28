@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { RotateCcw, WifiOff, X } from 'lucide-react'
 import type { ApiClient } from './api/client'
 import { httpClient } from './api/http'
 import { HistoryRail, type Account } from './components/HistoryRail'
@@ -41,9 +41,15 @@ export default function App({ api = httpClient, account }: Props) {
   const selectedTag = useTripStore((s) => s.selectedTag)
   const flashKey = useTripStore((s) => s.tagFlashKey)
   const bookingError = useTripStore((s) => s.bookingError)
+  const pendingBookings = useTripStore((s) => s.pendingBookings)
+  const loading = useTripStore((s) => s.loading)
+  const backendDown = useTripStore((s) => s.backendDown)
+  const planError = useTripStore((s) => s.planError)
   const activeId = useTripStore((s) => s.session?.id ?? null)
   const historySessions = useHistoryStore((s) => s.sessions)
   const historyError = useHistoryStore((s) => s.error)
+  const historyLoading = useHistoryStore((s) => s.loading)
+  const historyBusyId = useHistoryStore((s) => s.busyId)
   const started = useRef(false)
 
   // Load the fixture trip (?demo=1) or open a backend session, then the history list, once.
@@ -100,6 +106,18 @@ export default function App({ api = httpClient, account }: Props) {
   }
   const activeTab: Tab = lockReason(tab) ? 'plan' : tab
 
+  // A booking save error belongs to the Book tab visit it happened in.
+  useEffect(() => {
+    useTripStore.getState().clearBookingError()
+  }, [activeTab])
+
+  // The banner's Retry: load the trip if none is open yet, and the history list either way.
+  // Any call that gets a response turns the banner off.
+  async function reconnect() {
+    if (!useTripStore.getState().session) await useTripStore.getState().startSession(api)
+    await useHistoryStore.getState().loadSessions(api)
+  }
+
   // Clicking a tag anywhere: from chat/book jump to the plan entry; on the map, focus the pin.
   const onTagClick = useCallback(
     (tag: string) => {
@@ -130,12 +148,30 @@ export default function App({ api = httpClient, account }: Props) {
 
   return (
     <div className="flex h-full">
+      {backendDown && (
+        <div
+          role="status"
+          className="fixed top-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 shadow-md"
+        >
+          <WifiOff size={16} aria-hidden="true" />
+          <span>Backend not reachable. Check that the server is running.</span>
+          <button
+            type="button"
+            onClick={() => void reconnect()}
+            className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-white px-2 py-1 text-xs font-medium hover:bg-red-100"
+          >
+            <RotateCcw size={12} aria-hidden="true" /> Try again
+          </button>
+        </div>
+      )}
       <HistoryRail
         open={historyOpen}
         onToggle={() => setHistoryOpen((o) => !o)}
         sessions={historySessions}
         activeId={activeId}
         error={historyError}
+        loading={historyLoading}
+        busyId={historyBusyId}
         // The demo trip has no backend, so the rail's buttons do nothing there.
         onNew={() => {
           if (!demo.enabled) void useTripStore.getState().newTrip(api)
@@ -183,7 +219,7 @@ export default function App({ api = httpClient, account }: Props) {
             })}
           </nav>
 
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-w-0 flex-1 flex-col">
             <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-5">
               <h2 className="font-semibold">{title}</h2>
               {activeTab !== 'plan' && (
@@ -191,6 +227,7 @@ export default function App({ api = httpClient, account }: Props) {
                   type="button"
                   onClick={() => setTab('plan')}
                   title="Back to plan"
+                  aria-label="Back to plan"
                   className="rounded-lg border border-gray-300 p-1 text-gray-600 hover:bg-gray-100"
                 >
                   <X size={16} />
@@ -220,9 +257,30 @@ export default function App({ api = httpClient, account }: Props) {
                   onTagClick={onTagClick}
                   onSetStatus={(id, status) => void useTripStore.getState().setBookingStatus(api, id, status)}
                   error={bookingError}
+                  pending={pendingBookings}
+                  locked={generating}
                 />
               )}
             </div>
+            {/* A failed generation or chat edit: the plan above is the old one (spec §6). */}
+            {planError && (
+              <div
+                role="status"
+                data-testid="plan-error"
+                className="absolute bottom-4 left-1/2 z-20 flex w-max max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm text-red-700 shadow-lg"
+              >
+                <span>{planError}</span>
+                <button
+                  type="button"
+                  onClick={() => useTripStore.getState().dismissPlanError()}
+                  aria-label="Dismiss"
+                  title="Dismiss"
+                  className="rounded p-0.5 text-red-400 hover:bg-red-50 hover:text-red-700"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -245,6 +303,7 @@ export default function App({ api = httpClient, account }: Props) {
               streaming={streaming}
               streamingMessageId={streamingMessageId}
               error={error}
+              loading={loading}
               onSend={(text) => void useTripStore.getState().sendMessage(api, text)}
               onRetry={() => void useTripStore.getState().retry(api)}
               onStop={() => useTripStore.getState().stop()}

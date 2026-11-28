@@ -84,9 +84,11 @@ export interface Stop {
 }
 
 export type PriceSource = 'ai_estimate' | 'serpapi_google_hotels' | 'none'
+export type LodgingType = 'hotel' | 'vacation_rental'
 
 export interface Lodging {
   stop_tag: string
+  type: LodgingType // from the cited hotels-tool result; "hotel" without one
   check_in: string
   check_out: string
   nights: number

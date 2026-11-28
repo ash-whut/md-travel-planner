@@ -5,8 +5,10 @@ and the weather summary come from the gathered weather (never from the draft). S
 coordinates, addresses and place ids come from the places tool, found by the pipeline
 (`StopPlace`); never from the draft or the weather's city coordinates. A hotel stop that cites a
 hotels-tool result gets its lodging price and `price_as_of` from the tool (`HotelPrice`), which
-wins over the draft's estimate. Links come from `tools/links.py` (contracts §6): a `map_url` per
-stop and the hotel links per lodging; flight items have no price ("check link"). The Book
+wins over the draft's estimate; a cited vacation rental makes the lodging `type`
+"vacation_rental". Links come from `tools/links.py` (contracts §6): a `map_url` per stop and the
+hotel (or rental) links per lodging. Flight items get the flights tool's fare, or "check link"
+without one; an edit with no fresh flight search keeps the earlier fare (D35). The Book
 tab's `bookings` (a round-trip flight, one per hotel, one per booking-required activity) are
 built by code too, and keep their status from the previous version. Travel between stops
 (`transit_from_previous`) is a code estimate from the stops' coordinates. The finished
@@ -38,6 +40,7 @@ from app.schemas.itinerary import (
     ItineraryItem,
     Link,
     Lodging,
+    LodgingType,
     Money,
     PriceSource,
     Stop,
@@ -52,15 +55,18 @@ BUDGET_ASSUMPTION = "Budget level assumed (none given)"
 WEATHER_ASSUMPTION = "Weather for {city} couldn't be loaded; check a forecast before you go"
 PLACES_SOURCE = "Geoapify"  # item source when its stop is a place the places search found
 HOTELS_SOURCE = "SerpApi Google Hotels"  # + " · as of …" for items at a priced hotel
+RENTALS_SOURCE = "SerpApi Google Hotels (vacation rental)"  # the same for a vacation rental
 FLIGHTS_SOURCE = "SerpApi Google Flights"  # + " · as of …" for real fare items
 GOOGLE_HOTELS_LABEL = "Google Hotels"
 BOOKING_COM_LABEL = "Booking.com"
 HOTEL_SITE_LABEL = "Hotel site"  # SerpApi's `link`: the hotel's own website
+AIRBNB_LABEL = "Airbnb"  # an Airbnb search for the city and dates (vacation rentals)
 GOOGLE_FLIGHTS_LABEL = "Google Flights"
 TICKETS_LABEL = "Find tickets"
 FLIGHT_BOOKING_ID = "bk-flight"
 FLIGHT_BOOKING_TITLE = "Flight Booking"
 HOTEL_BOOKING_TITLE = "Hotel Booking"
+RENTAL_BOOKING_TITLE = "Rental Booking"
 
 EARTH_RADIUS_MI = 3958.8
 WALK_MAX_MI = 1.0  # legs up to this distance are walked
@@ -98,6 +104,7 @@ class HotelPrice:
     asked); "none" has no price, so the plan shows "check link". `from_serpapi` marks a hotel
     SerpApi found even without a price (else it is a places-search fallback). `link` is the
     hotel's link from SerpApi, if any: its own website (the lodging's "Hotel site" link).
+    `lodging_type` is "vacation_rental" for a rental from the hotels tool (step 51).
     """
 
     per_night: Money | None
@@ -105,6 +112,7 @@ class HotelPrice:
     as_of: datetime | None = None
     link: str | None = None
     from_serpapi: bool = False
+    lodging_type: LodgingType = "hotel"
 
 
 @dataclass
@@ -156,12 +164,14 @@ def short_city_name(name: str) -> str:
 def hotel_source(hotel: HotelPrice) -> str:
     """The item source for a hotel stop: "SerpApi Google Hotels · as of Nov 1, 6:04 PM UTC"
     for a priced hotel, plain "SerpApi Google Hotels" for a SerpApi hotel with no price; a
-    fallback hotel came from the places search ("Geoapify")."""
+    fallback hotel came from the places search ("Geoapify"). A vacation rental reads
+    "SerpApi Google Hotels (vacation rental)" instead."""
+    serpapi = RENTALS_SOURCE if hotel.lodging_type == "vacation_rental" else HOTELS_SOURCE
     if hotel.source != "serpapi_google_hotels" or hotel.as_of is None:
-        return HOTELS_SOURCE if hotel.from_serpapi else PLACES_SOURCE
+        return serpapi if hotel.from_serpapi else PLACES_SOURCE
     as_of = hotel.as_of.astimezone(timezone.utc)
     time = as_of.strftime("%I:%M %p").lstrip("0")
-    return f"{HOTELS_SOURCE} · as of {as_of:%b} {as_of.day}, {time} UTC"
+    return f"{serpapi} · as of {as_of:%b} {as_of.day}, {time} UTC"
 
 
 def flight_source(fare: FlightFare) -> str:
@@ -197,6 +207,9 @@ def build_itinerary(
     except ValidationError as error:
         return [line for detail in error.errors() for line in _error_lines(detail)]
 
+    # An edit without a fresh flight search keeps the earlier fare (like D30 for hotels, D35).
+    if latest is not None and not any(place.flight for place in (places or {}).values()):
+        carry_flight_fares(itinerary, latest)
     build_bookings(itinerary, latest)
     if latest is not None:
         _mark_updated_items(itinerary, latest)
@@ -415,7 +428,8 @@ def _lodging(
     `price_as_of` win over the draft's estimate (null when the tool had no price). The total is
     per night × nights, since the tool's total is for the dates it was asked about. Links: a
     Google Hotels search, a Booking.com search and, when SerpApi gave one, the hotel's own
-    website ("Hotel site")."""
+    website ("Hotel site"). A vacation rental (`type` from the cited result) gets a Google
+    Hotels search and an Airbnb search for the city and dates instead."""
     place = places.get(lodging.stop_key)
     hotel = place.hotel if place else None
     if hotel is not None:
@@ -430,19 +444,31 @@ def _lodging(
     )
     name = next(stop.name for stop in draft.stops if stop.key == lodging.stop_key)
     city = cities[lodging.stop_key]
-    hotel_links = [
-        Link(label=GOOGLE_HOTELS_LABEL, url=links.google_hotels_url(name, city)),
-        Link(
-            label=BOOKING_COM_LABEL,
-            url=links.booking_com_url(
-                name, city, lodging.check_in, lodging.check_out, draft.travelers
-            ),
-        ),
-    ]
-    if hotel is not None and hotel.link:
-        hotel_links.append(Link(label=HOTEL_SITE_LABEL, url=hotel.link))
+    lodging_type: LodgingType = hotel.lodging_type if hotel is not None else "hotel"
+    hotel_links = [Link(label=GOOGLE_HOTELS_LABEL, url=links.google_hotels_url(name, city))]
+    if lodging_type == "vacation_rental":
+        hotel_links.append(
+            Link(
+                label=AIRBNB_LABEL,
+                url=links.airbnb_search_url(
+                    city, lodging.check_in, lodging.check_out, draft.travelers
+                ),
+            )
+        )
+    else:
+        hotel_links.append(
+            Link(
+                label=BOOKING_COM_LABEL,
+                url=links.booking_com_url(
+                    name, city, lodging.check_in, lodging.check_out, draft.travelers
+                ),
+            )
+        )
+        if hotel is not None and hotel.link:
+            hotel_links.append(Link(label=HOTEL_SITE_LABEL, url=hotel.link))
     return Lodging(
         stop_tag=tags[lodging.stop_key],
+        type=lodging_type,
         check_in=lodging.check_in,
         check_out=lodging.check_out,
         nights=lodging.nights,
@@ -544,11 +570,62 @@ def _route_link(route: FlightRoute, itinerary: Itinerary) -> Link:
     return Link(label=GOOGLE_FLIGHTS_LABEL, url=url)
 
 
+def carry_flight_fares(itinerary: Itinerary, previous: Itinerary) -> None:
+    """Copy the tool fares of `previous` onto `itinerary`'s flight items, in place, when the
+    trip's dates and flight route (departure and arrival airport tags) are unchanged; else do
+    nothing, so the flights go back to "check link".
+
+    A flight item takes `est_cost`, `cost_source` and `source` from the earlier flight item at
+    the same stop whose source is the flights tool. The flight leg after it takes the earlier
+    leg's `duration_min` (an estimated flight leg has none, D28, so a duration there came from
+    the tool). The flight booking is built from the items afterwards, so it gets the fare too.
+    """
+    route, earlier_route = flight_route(itinerary), flight_route(previous)
+    if route is None or earlier_route is None:
+        return
+    same_route = (
+        route.departure.tag == earlier_route.departure.tag
+        and (route.arrival.tag if route.arrival else None)
+        == (earlier_route.arrival.tag if earlier_route.arrival else None)
+    )
+    same_dates = (itinerary.start_date, itinerary.end_date) == (
+        previous.start_date, previous.end_date
+    )
+    if not same_route or not same_dates:
+        return
+
+    earlier_fares: dict[str, ItineraryItem] = {}
+    earlier_durations: dict[str, int] = {}
+    for day in previous.days:
+        for item, after in zip(day.items, [*day.items[1:], None]):
+            if item.kind != "flight" or item.stop_tag is None:
+                continue
+            if item.source.startswith(FLIGHTS_SOURCE):
+                earlier_fares.setdefault(item.stop_tag, item)
+            leg = after.transit_from_previous if after else None
+            if leg is not None and leg.mode == "flight" and leg.duration_min is not None:
+                earlier_durations.setdefault(item.stop_tag, leg.duration_min)
+
+    for day in itinerary.days:
+        for item, after in zip(day.items, [*day.items[1:], None]):
+            if item.kind != "flight" or item.stop_tag is None:
+                continue
+            earlier = earlier_fares.get(item.stop_tag)
+            if earlier is not None:
+                item.est_cost = earlier.est_cost
+                item.cost_source = earlier.cost_source
+                item.source = earlier.source
+            duration = earlier_durations.get(item.stop_tag)
+            leg = after.transit_from_previous if after else None
+            if leg is not None and leg.mode == "flight" and duration:
+                after.transit_from_previous = leg.model_copy(update={"duration_min": duration})
+
+
 def build_bookings(itinerary: Itinerary, previous: Itinerary | None) -> None:
     """Fill `itinerary.bookings` (the Book tab) and the items' `booking_id`, in place.
 
     - one round-trip flight booking ("bk-flight") when the plan has a flight;
-    - one lodging booking per hotel ("bk-hotel-D"): its total, `price_as_of` and links;
+    - one lodging booking per hotel or rental ("bk-hotel-D"): its total, `price_as_of` and links;
     - one per stop of a booking-required activity ("bk-activity-G"): a tickets search.
     Ids come from stop tags, which stay the same across versions, so each booking keeps its
     status from `previous` (the version before). A booking-required item gets the id of the
@@ -609,11 +686,6 @@ def _flight_booking(itinerary: Itinerary) -> Booking | None:
         None,
     )
     fare = flight_item.est_cost if flight_item else None
-    price_as_of: datetime | None = None
-    if flight_item and flight_item.source and FLIGHTS_SOURCE in flight_item.source:
-        # Parse the "as of …" from the source string; not needed if we store it on the item,
-        # but the booking's price_as_of is for display only so null is fine too.
-        pass
     booking_link = _route_link(route, itinerary)
     return Booking(
         id=FLIGHT_BOOKING_ID,
@@ -622,7 +694,7 @@ def _flight_booking(itinerary: Itinerary) -> Booking | None:
         title=FLIGHT_BOOKING_TITLE,
         details=f"{route.departure.name} → {route.destination} round trip · {dates}",
         estimate=fare,
-        price_as_of=price_as_of,
+        price_as_of=None,  # the "as of" time is in the flight item's source (D35)
         links=[booking_link],
     )
 
@@ -633,7 +705,7 @@ def _lodging_booking(lodging: Lodging, stop: Stop) -> Booking:
         id=f"bk-hotel-{stop.tag}",
         kind="lodging",
         tags=[stop.tag],
-        title=HOTEL_BOOKING_TITLE,
+        title=RENTAL_BOOKING_TITLE if lodging.type == "vacation_rental" else HOTEL_BOOKING_TITLE,
         details=f"{stop.name} · {nights} · {_date_range(lodging.check_in, lodging.check_out)}",
         estimate=lodging.total_price,
         price_as_of=lodging.price_as_of,

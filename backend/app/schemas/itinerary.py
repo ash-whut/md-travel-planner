@@ -21,6 +21,7 @@ StopKind = Literal[
 ItemKind = Literal["transit", "flight", "lodging", "meal", "activity", "free_time"]
 TransitMode = Literal["walk", "transit", "drive", "rideshare", "flight"]
 PriceSource = Literal["ai_estimate", "serpapi_google_hotels", "none"]
+LodgingType = Literal["hotel", "vacation_rental"]
 CostSource = Literal["ai_estimate", "tool"]
 BookingKind = Literal["flight", "lodging", "activity"]
 BookingStatus = Literal["todo", "booked"]
@@ -71,6 +72,9 @@ class Stop(BaseModel):
 
 class Lodging(BaseModel):
     stop_tag: str
+    # From the cited hotels-tool result; "hotel" without one (and for versions saved before
+    # step 51).
+    type: LodgingType = "hotel"
     check_in: date
     check_out: date
     nights: int = Field(ge=1)

@@ -36,3 +36,27 @@ export class ApiError extends Error {
     this.status = status
   }
 }
+
+// The backend could not be reached at all (no HTTP response). Only thrown around the fetch call
+// itself (see fetchOrNetworkError), so a TypeError from a bug in our own code isn't taken for it.
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'NetworkError'
+  }
+}
+
+// fetch, but "no response at all" (fetch's TypeError, e.g. "Failed to fetch") becomes a
+// NetworkError. Other rejections (e.g. an abort by Stop) pass through unchanged.
+export async function fetchOrNetworkError(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init)
+  } catch (err) {
+    throw err instanceof TypeError ? new NetworkError(err.message) : err
+  }
+}
+
+// True when the backend could not be reached at all; a reply with an error status is an ApiError.
+export function isNetworkError(err: unknown): boolean {
+  return err instanceof NetworkError
+}

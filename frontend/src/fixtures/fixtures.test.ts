@@ -17,7 +17,7 @@ const ITEM_KEYS = [
 ].sort()
 const BOOKING_KEYS = ['id', 'kind', 'tags', 'title', 'details', 'estimate', 'price_as_of', 'links', 'status'].sort()
 const LODGING_KEYS = [
-  'stop_tag', 'check_in', 'check_out', 'nights', 'price_per_night', 'total_price', 'price_source',
+  'stop_tag', 'type', 'check_in', 'check_out', 'nights', 'price_per_night', 'total_price', 'price_source',
   'price_as_of', 'links',
 ].sort()
 const PROFILE_KEYS = [

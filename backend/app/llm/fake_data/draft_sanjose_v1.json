@@ -149,7 +149,7 @@
         {
           "kind": "transit",
           "stop_key": "s3",
-          "description": "Head to Pacific Inn via Uber.",
+          "description": "Head to your stay via Uber.",
           "start_time": "13:30",
           "duration_min": 30,
           "nights": null,
@@ -158,7 +158,7 @@
             "currency": "USD"
           },
           "booking_required": false,
-          "why": "Hotel is 4 miles away; rideshare beats the shuttle by ~25 min."
+          "why": "Your stay is 4 miles away; rideshare beats the shuttle by ~25 min."
         },
         {
           "kind": "lodging",

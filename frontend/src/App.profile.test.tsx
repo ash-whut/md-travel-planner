@@ -23,6 +23,7 @@ const emptyProfile: TripProfile = {
   dietary: null,
   pace: null,
   transport: null,
+  travel_mode: null,
   notes: null,
   missing_required: ['destination', 'dates', 'origin', 'travelers', 'interests'],
 }

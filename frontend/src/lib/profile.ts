@@ -73,3 +73,9 @@ export function profileChips(profile: TripProfile): ProfileChip[] {
   ]
   return chips.filter((chip): chip is ProfileChip => chip !== null)
 }
+
+// A plan needs somewhere to go: a city or a vibe ("beach weekend"). Every other missing detail is
+// filled with a default and listed as an assumption, so Generate waits only for this (D36).
+export function hasDestination(profile: TripProfile | null): boolean {
+  return profile !== null && (profile.cities.length > 0 || Boolean(profile.vibe))
+}

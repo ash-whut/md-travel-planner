@@ -23,6 +23,7 @@ function emptyProfile(overrides: Partial<TripProfile> = {}): TripProfile {
     dietary: null,
     pace: null,
     transport: null,
+    travel_mode: null,
     notes: null,
     missing_required: [...ALL_REQUIRED],
     ...overrides,

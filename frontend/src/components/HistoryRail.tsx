@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronsLeft, ChevronsRight, LogOut, MapPinned, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, Loader2, LogOut, MapPinned, Pencil, Plus, Trash2 } from 'lucide-react'
 import { formatRelative } from '@/lib/format'
 import type { SessionSummary } from '@/types'
 
@@ -18,6 +18,8 @@ interface Props {
   sessions: SessionSummary[] // most recently updated first
   activeId: string | null // the trip shown in the app
   error: string | null
+  loading?: boolean // the list is being loaded
+  busyId?: string | null // the trip being renamed or deleted
   onNew: () => void
   onOpen: (id: string) => void
   onRename: (id: string, title: string) => void
@@ -32,6 +34,8 @@ export function HistoryRail({
   sessions,
   activeId,
   error,
+  loading = false,
+  busyId = null,
   onNew,
   onOpen,
   onRename,
@@ -73,8 +77,9 @@ export function HistoryRail({
         onClick={onNew}
         className="mx-2 flex items-center gap-2 rounded-lg bg-accent px-2.5 py-2 text-sm font-medium text-white hover:opacity-90"
         title="New trip"
+        aria-label="New trip"
       >
-        <Plus size={18} />
+        <Plus size={18} aria-hidden="true" />
         {open && 'New trip'}
       </button>
 
@@ -88,8 +93,14 @@ export function HistoryRail({
       )}
 
       <nav aria-label="Trip history" className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2">
+        {open && loading && sessions.length === 0 && (
+          <p className="flex items-center gap-1.5 px-2.5 py-2 text-xs text-gray-400">
+            <Loader2 size={12} aria-hidden="true" className="animate-spin" /> Loading trips…
+          </p>
+        )}
         {sessions.map((s) => {
           const active = s.id === activeId
+          const busy = s.id === busyId
           if (open && editingId === s.id) {
             return (
               <div key={s.id} className="flex items-center gap-2 rounded-lg bg-accent-soft px-2.5 py-2">
@@ -113,9 +124,10 @@ export function HistoryRail({
           return (
             <div
               key={s.id}
+              aria-busy={busy}
               className={`group flex items-center rounded-lg ${
                 active ? 'bg-accent-soft text-accent' : 'text-gray-600 hover:bg-gray-100'
-              }`}
+              } ${busy ? 'pointer-events-none opacity-50' : ''}`}
             >
               <button
                 type="button"
@@ -194,6 +206,7 @@ export function HistoryRail({
         onClick={onToggle}
         className="mt-auto mb-3 flex items-center justify-center rounded-lg p-2 text-gray-400 hover:bg-gray-100"
         title={open ? 'Collapse' : 'Expand history'}
+        aria-label={open ? 'Collapse history' : 'Expand history'}
       >
         {open ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
       </button>

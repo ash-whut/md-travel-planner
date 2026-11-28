@@ -12,7 +12,7 @@ import type {
   UpdateBookingBody,
 } from '@/types'
 import { authHeaders } from './auth'
-import { ApiError, type ApiClient } from './client'
+import { ApiError, fetchOrNetworkError, type ApiClient } from './client'
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
 
@@ -33,7 +33,7 @@ function withAuth(init?: RequestInit): RequestInit | undefined {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, withAuth(init))
+  const res = await fetchOrNetworkError(`${BASE_URL}${path}`, withAuth(init))
   if (!res.ok) throw await toApiError(res)
   return (await res.json()) as T
 }
@@ -52,6 +52,8 @@ async function streamPost(
     signal,
     // Without this the library re-sends the POST whenever the tab is hidden and shown again.
     openWhenHidden: true,
+    // Only the request itself can fail as "backend not reachable"; a break mid-stream can't.
+    fetch: fetchOrNetworkError,
     async onopen(res) {
       if (!res.ok) throw await toApiError(res)
       if (!res.headers.get('content-type')?.startsWith(EventStreamContentType)) {
@@ -104,7 +106,7 @@ function renameSession(id: string, title: string): Promise<SessionSummary> {
 
 // 204 has no body, so this can't use request() (it parses JSON).
 async function deleteSession(id: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/sessions/${encodeURIComponent(id)}`, withAuth({ method: 'DELETE' }))
+  const res = await fetchOrNetworkError(`${BASE_URL}/sessions/${encodeURIComponent(id)}`, withAuth({ method: 'DELETE' }))
   if (!res.ok) throw await toApiError(res)
 }
 

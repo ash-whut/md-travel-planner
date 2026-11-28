@@ -1,7 +1,7 @@
 // Accounts (contracts §4, decisions D32): the login token and the auth/profile calls.
 // The token lives in localStorage and every backend request sends it as a Bearer header.
 import type { AuthBody, AuthResponse, User, UserProfile } from '@/types'
-import { ApiError } from './client'
+import { ApiError, fetchOrNetworkError } from './client'
 
 const BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
 const TOKEN_KEY = 'md-travel-planner.token'
@@ -38,7 +38,7 @@ export interface AuthClient {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchOrNetworkError(`${BASE_URL}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init.headers },
   })

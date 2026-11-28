@@ -15,6 +15,7 @@ const emptyProfile: UserProfile = {
   dietary: null,
   pace: null,
   transport: null,
+  travel_mode: null,
   interests: [],
 }
 const sean: User = { id: 'u-1', username: 'sean', profile: emptyProfile }
