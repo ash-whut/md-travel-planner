@@ -1,7 +1,7 @@
 // The open trip session: messages, profile, itinerary and the state of the current stream.
 // Components read from here; backend data comes in through loadSession / applyEvent.
 import { create } from 'zustand'
-import { ApiError, type ApiClient } from '@/api/client'
+import { ApiError, isNetworkError, type ApiClient } from '@/api/client'
 import { sanJoseMessages, sanJoseProfile, sanJoseStatusLines, sanJoseV2 } from '@/fixtures'
 import type {
   Booking,
@@ -59,6 +59,13 @@ interface TripData {
   selectedTag: string | null // the stop picked by a tag click (Plan flashes it, Map focuses its pin)
   tagFlashKey: number // bumped on every tag click, so clicking the same tag flashes it again
   bookingError: string | null // the last failed "Mark booked" save, shown on the Book tab
+  pendingBookings: string[] // ids of bookings whose status save is still running (their buttons wait)
+  loading: boolean // a trip is being loaded (start, history click, New trip)
+  backendDown: boolean // the last backend call got no response at all (shows the banner)
+  planError: string | null // a plan generation or chat edit failed (the Plan pane's toast)
+  // A reply that ended with an `error` event, or was cut off / broke mid-stream: its partial
+  // text stays visible next to the error and is dropped when the next request starts (D36).
+  unsavedReplyId: string | null
 }
 
 interface TripActions {
@@ -74,6 +81,8 @@ interface TripActions {
   applyEvent: (event: SseEvent) => void
   selectTag: (tag: string) => void
   setBookingStatus: (api: ApiClient, bookingId: string, status: BookingStatus) => Promise<void>
+  clearBookingError: () => void
+  dismissPlanError: () => void
   reset: () => void
 }
 
@@ -94,6 +103,11 @@ const initialData: TripData = {
   selectedTag: null,
   tagFlashKey: 0,
   bookingError: null,
+  pendingBookings: [],
+  loading: false,
+  backendDown: false,
+  planError: null,
+  unsavedReplyId: null,
 }
 
 // The open SSE stream (chat reply or generation), kept so Stop can abort it.
@@ -101,6 +115,31 @@ let activeStream: AbortController | null = null
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'Something went wrong'
+}
+
+// The Plan pane's toast after a failed generation or edit; the old plan always stays (spec §6).
+function planFailText(itinerary: Itinerary | null): string {
+  return itinerary
+    ? "Couldn't update the plan. Your previous plan is unchanged."
+    : "Couldn't make the plan. Use Retry in the chat to try again."
+}
+
+// The messages without the unsaved partial reply of a failed turn (see `unsavedReplyId`).
+function withoutUnsavedReply(state: TripData): Message[] {
+  return state.messages.filter((m) => m.id !== state.unsavedReplyId)
+}
+
+// True when `text` resends the last user message and no finished reply follows it (only stopped
+// replies without a plan version, or none after a failed turn): a retry, so no second bubble.
+// A stopped reply that saved a plan counts as finished. Same rule as the backend's dedupe (D36),
+// so the chat matches a reload.
+function isResend(messages: Message[], text: string): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role === 'user') return message.content === text
+    if (!message.content.endsWith(STOPPED_MARKER) || message.itinerary_version !== null) return false
+  }
+  return false
 }
 
 // A 4xx (bad request, unknown session) fails the same way again, so it offers no Retry.
@@ -150,7 +189,14 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
         itinerary_version: null,
         created_at: new Date().toISOString(),
       }
-      return { streaming: true, streamingMessageId: message.id, error: null, messages: [...state.messages, message] }
+      return {
+        streaming: true,
+        streamingMessageId: message.id,
+        error: null,
+        backendDown: false,
+        planError: null,
+        messages: [...state.messages, message],
+      }
     }
     case 'token':
       return {
@@ -184,17 +230,22 @@ export function reduceEvent(state: TripData, event: SseEvent): Partial<TripData>
         itinerary: event.data,
         generating: false,
         planStatus: null,
+        bookingError: null, // it was about the previous version
         session: state.session ? { ...state.session, status: 'planned' } : null,
         messages: state.messages.map((m) => (m.id === state.streamingMessageId ? { ...m, itinerary_version: version } : m)),
       }
     }
     case 'error':
+      // A failed plan (Generate or a chat edit) also gets the Plan pane's toast. The partial
+      // reply stays visible, but it isn't saved, so it is remembered for dropping later.
       return {
         streaming: false,
         streamingMessageId: null,
         generating: false,
         planStatus: null,
         error: event.data,
+        planError: state.generating ? planFailText(state.itinerary) : null,
+        unsavedReplyId: state.streamingMessageId,
         messages: withoutEmptyReply(state.messages, state.streamingMessageId),
       }
     case 'done':
@@ -225,13 +276,19 @@ export const useTripStore = create<TripState>()((set, get) => ({
       statusLines: sanJoseStatusLines,
     }),
 
+  // `loading` shows while the trip loads; loadSession (initialData) turns it and backendDown off.
   startSession: async (api) => {
+    set({ loading: true, error: null })
     try {
       const detail = await openSession(api)
       localStorage.setItem(SESSION_KEY, detail.id)
       get().loadSession(detail)
     } catch (err) {
-      set({ error: { message: `Couldn't load your trip: ${errorText(err)}`, retryable: true } })
+      set({
+        loading: false,
+        backendDown: isNetworkError(err),
+        error: { message: `Couldn't load your trip: ${errorText(err)}`, retryable: true },
+      })
     }
   },
 
@@ -239,35 +296,48 @@ export const useTripStore = create<TripState>()((set, get) => ({
   // trip), then load that trip and remember it for the next visit.
   openTrip: async (api, id) => {
     if (get().streaming) get().stop()
+    set({ loading: true })
     try {
       const detail = await api.getSession(id)
       localStorage.setItem(SESSION_KEY, detail.id)
       get().loadSession(detail)
     } catch (err) {
-      set({ error: { message: `Couldn't open that trip: ${errorText(err)}`, retryable: false } })
+      set({
+        loading: false,
+        backendDown: isNetworkError(err),
+        error: { message: `Couldn't open that trip: ${errorText(err)}`, retryable: false },
+      })
     }
   },
 
   // The New trip button (and deleting the last trip): same as openTrip, with a fresh session.
   newTrip: async (api) => {
     if (get().streaming) get().stop()
+    set({ loading: true })
     try {
       const detail = await api.createSession()
       localStorage.setItem(SESSION_KEY, detail.id)
       get().loadSession(detail)
     } catch (err) {
-      set({ error: { message: `Couldn't start a new trip: ${errorText(err)}`, retryable: false } })
+      set({
+        loading: false,
+        backendDown: isNetworkError(err),
+        error: { message: `Couldn't start a new trip: ${errorText(err)}`, retryable: false },
+      })
     }
   },
 
   // Shows the user message right away, then streams the assistant reply into the store.
-  // A retry resends without adding the user message again.
+  // A retry (the Retry button, or typing the same text again after a failed or stopped reply)
+  // resends without adding the user message again; the backend doesn't save it twice either
+  // (D36). The unsaved partial reply of a failed turn goes away first.
   sendMessage: async (api, content, opts = {}) => {
     const text = content.trim()
     const { session, streaming } = get()
     if (!text || !session || streaming) return
 
-    if (!opts.retry) {
+    set((state) => ({ messages: withoutUnsavedReply(state), unsavedReplyId: null }))
+    if (!opts.retry && !isResend(get().messages, text)) {
       const userMessage: Message = {
         id: `local-${Date.now()}`,
         role: 'user',
@@ -277,7 +347,7 @@ export const useTripStore = create<TripState>()((set, get) => ({
       }
       set((state) => ({ messages: [...state.messages, userMessage] }))
     }
-    set({ streaming: true, error: null, lastRequest: { kind: 'message', text } })
+    set({ streaming: true, error: null, planError: null, lastRequest: { kind: 'message', text } })
     await runStream(
       (onEvent, signal) => api.sendMessage(session.id, text, onEvent, signal),
       "Couldn't send your message",
@@ -289,7 +359,16 @@ export const useTripStore = create<TripState>()((set, get) => ({
   generatePlan: async (api) => {
     const { session, streaming } = get()
     if (!session || streaming) return
-    set({ streaming: true, generating: true, planStatus: null, error: null, lastRequest: { kind: 'generate' } })
+    set((state) => ({
+      messages: withoutUnsavedReply(state),
+      unsavedReplyId: null,
+      streaming: true,
+      generating: true,
+      planStatus: null,
+      error: null,
+      planError: null,
+      lastRequest: { kind: 'generate' },
+    }))
     await runStream((onEvent, signal) => api.generate(session.id, onEvent, signal), "Couldn't make the plan")
   },
 
@@ -301,7 +380,8 @@ export const useTripStore = create<TripState>()((set, get) => ({
     else await get().startSession(api)
   },
 
-  // Stop: abort the stream and keep the partial reply, marked like the backend saves it.
+  // Stop: abort the stream and keep the partial reply, marked like the backend saves it. A reply
+  // with no text and no new plan is dropped, as the backend doesn't save it (D36).
   stop: () => {
     activeStream?.abort()
     activeStream = null
@@ -310,9 +390,11 @@ export const useTripStore = create<TripState>()((set, get) => ({
       streamingMessageId: null,
       generating: false,
       planStatus: null,
-      messages: state.messages.map((m) =>
-        m.id === state.streamingMessageId ? { ...m, content: m.content.trimEnd() + STOPPED_MARKER } : m,
-      ),
+      messages: state.messages
+        .filter((m) => !(m.id === state.streamingMessageId && !m.content.trim() && m.itinerary_version === null))
+        .map((m) =>
+          m.id === state.streamingMessageId ? { ...m, content: m.content.trimEnd() + STOPPED_MARKER } : m,
+        ),
     }))
   },
 
@@ -323,25 +405,36 @@ export const useTripStore = create<TripState>()((set, get) => ({
   // "Mark booked" (or undo): shows the new status right away, saves it, and puts the old
   // status back if the save fails. A reply only counts while the booking still shows the
   // status this request set; a later click (e.g. Undo) has already replaced it otherwise.
+  // Not while a plan is being made: the new version copies the statuses it read before this
+  // save, so the change would be lost. The card's buttons wait while its save runs.
   setBookingStatus: async (api, bookingId, status) => {
-    const { session, itinerary } = get()
+    const { session, itinerary, generating } = get()
     const previous = itinerary?.bookings.find((b) => b.id === bookingId)
-    if (!session || !previous || previous.status === status) return
+    if (!session || !previous || previous.status === status || generating) return
 
     set((state) => ({ bookingError: null, itinerary: withBooking(state.itinerary, bookingId, (b) => ({ ...b, status })) }))
     if (session.id === DEMO_SESSION_ID) return // the demo trip only changes locally
 
+    set((state) => ({ pendingBookings: [...state.pendingBookings, bookingId] }))
     try {
       await api.patchBooking(session.id, bookingId, status)
+      set({ backendDown: false })
     } catch (err) {
+      set({ backendDown: isNetworkError(err) })
       const current = get().itinerary?.bookings.find((b) => b.id === bookingId)
       if (current?.status !== status) return // a newer click owns this booking now
       set((state) => ({
         bookingError: `Couldn't save the booking: ${errorText(err)}`,
         itinerary: withBooking(state.itinerary, bookingId, (b) => ({ ...b, status: previous.status })),
       }))
+    } finally {
+      set((state) => ({ pendingBookings: state.pendingBookings.filter((id) => id !== bookingId) }))
     }
   },
+
+  clearBookingError: () => set({ bookingError: null }),
+
+  dismissPlanError: () => set({ planError: null }),
 
   reset: () => set(initialData),
 }))
@@ -365,12 +458,17 @@ async function runStream(open: OpenStream, failText: string): Promise<void> {
     if (!finished && !controller.signal.aborted) {
       set((state) => ({
         error: { message: 'The reply was cut off.', retryable: true },
+        planError: state.generating ? planFailText(state.itinerary) : null,
+        unsavedReplyId: state.streamingMessageId, // dropped when the next request starts (D36)
         messages: withoutEmptyReply(state.messages, state.streamingMessageId),
       }))
     }
   } catch (err) {
     set((state) => ({
       error: { message: `${failText}: ${errorText(err)}`, retryable: isRetryable(err) },
+      backendDown: isNetworkError(err),
+      planError: state.generating ? planFailText(state.itinerary) : null,
+      unsavedReplyId: state.streamingMessageId,
       messages: withoutEmptyReply(state.messages, state.streamingMessageId),
     }))
   } finally {

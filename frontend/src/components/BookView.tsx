@@ -62,9 +62,14 @@ interface Props {
   onTagClick: (tag: string) => void
   onSetStatus: (bookingId: string, status: BookingStatus) => void
   error?: string | null // a failed status save
+  pending?: string[] // ids of bookings whose status save is still running
+  // A plan is being made: status changes wait, since the new version would drop them.
+  locked?: boolean
 }
 
-export function BookView({ itinerary, onTagClick, onSetStatus, error = null }: Props) {
+const LOCKED_TITLE = 'Wait until the plan is updated'
+
+export function BookView({ itinerary, onTagClick, onSetStatus, error = null, pending = [], locked = false }: Props) {
   const bookings = itinerary.bookings
   const [confirming, setConfirming] = useState<Booking | null>(() => demoBooking(bookings))
   const done = bookings.filter((b) => b.status === 'booked').length
@@ -104,57 +109,65 @@ export function BookView({ itinerary, onTagClick, onSetStatus, error = null }: P
       )}
 
       <ul className="mt-4 space-y-3">
-        {bookings.map((b) => (
-          <li key={b.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-1.5">
-              {b.tags.map((t, i) => (
-                <span key={t} className="flex items-center gap-1.5">
-                  {i > 0 && <ArrowRight size={14} className="text-gray-400" />}
-                  <TagBadge tag={t} day={firstDay.get(t) ?? 1} onClick={() => onTagClick(t)} />
-                </span>
-              ))}
-              <h3 className="ml-1.5 font-semibold">{b.title}</h3>
-              {isRental(b, itinerary) && (
-                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-700">Vacation rental</span>
-              )}
-            </div>
-            <p className="mt-2 text-sm font-medium text-gray-700">Est: {estimateLabel(b, itinerary)}</p>
-            <p className="text-xs text-gray-500">{detailsLabel(b)}</p>
-            <div className="mt-3 flex items-center gap-2">
-              {b.status === 'booked' ? (
-                <>
-                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                    <CheckCircle2 size={16} /> Booked
+        {bookings.map((b) => {
+          const saving = pending.includes(b.id)
+          const statusTitle = locked ? LOCKED_TITLE : saving ? 'Saving…' : undefined
+          return (
+            <li key={b.id} aria-busy={saving} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-1.5">
+                {b.tags.map((t, i) => (
+                  <span key={t} className="flex items-center gap-1.5">
+                    {i > 0 && <ArrowRight size={14} className="text-gray-400" />}
+                    <TagBadge tag={t} day={firstDay.get(t) ?? 1} onClick={() => onTagClick(t)} />
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onSetStatus(b.id, 'todo')}
-                    className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
-                  >
-                    Undo
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setConfirming(b)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-                  >
-                    Book <ExternalLink size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onSetStatus(b.id, 'booked')}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Mark booked
-                  </button>
-                </>
-              )}
-            </div>
-          </li>
-        ))}
+                ))}
+                <h3 className="ml-1.5 font-semibold">{b.title}</h3>
+                {isRental(b, itinerary) && (
+                  <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-700">Vacation rental</span>
+                )}
+              </div>
+              <p className="mt-2 text-sm font-medium text-gray-700">Est: {estimateLabel(b, itinerary)}</p>
+              <p className="text-xs text-gray-500">{detailsLabel(b)}</p>
+              <div className="mt-3 flex items-center gap-2">
+                {b.status === 'booked' ? (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+                      <CheckCircle2 size={16} /> Booked
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSetStatus(b.id, 'todo')}
+                      disabled={locked || saving}
+                      title={statusTitle}
+                      className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setConfirming(b)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+                    >
+                      Book <ExternalLink size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSetStatus(b.id, 'booked')}
+                      disabled={locked || saving}
+                      title={statusTitle}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Mark booked
+                    </button>
+                  </>
+                )}
+              </div>
+            </li>
+          )
+        })}
       </ul>
 
       {confirming && (

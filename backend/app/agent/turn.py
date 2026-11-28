@@ -8,7 +8,10 @@ The turn is an async generator of SSE events (contracts §5). Order:
 - failure:       message_start → … → error (if the plan was already saved, a fixed summary + done)
 The Generate button runs the same turn with no user message (content=None). An edit with no
 plan yet runs as chat.
-If the client stops the stream early, the partial reply is saved with STOPPED_MARKER.
+If the client stops the stream early, the partial reply is saved with STOPPED_MARKER (nothing is
+saved when no text was streamed and no plan was saved). A reply that fails with `error` is not
+saved. A Retry resends the same text; when the session's last user message is that text and no
+finished reply follows it (nothing, or only stopped replies), it isn't saved a second time (D36).
 Two models per turn (D26): the chat one understands and replies, the planner one composes.
 """
 
@@ -25,7 +28,7 @@ from app.agent.postprocess import CityWeather
 from app.agent.sse import SseEvent
 from app.db import repo
 from app.db.tables import new_id
-from app.llm.base import LLMProvider, Message
+from app.llm.base import LLMProvider, Message, ReplyCutOff
 from app.schemas.itinerary import Itinerary
 from app.schemas.profile import TripProfile, load_profile
 from app.schemas.turn import Action
@@ -35,6 +38,11 @@ logger = logging.getLogger(__name__)
 ERROR_MESSAGE = "Sorry, something went wrong while I was replying. Please try again."
 PLAN_ERROR_MESSAGE = (
     "Sorry, I couldn't make the plan this time. Your previous plan is unchanged. Please try again."
+)
+# The planner's reply hit the output limit (D33); asking for the same again fails the same way.
+PLAN_TOO_LONG_MESSAGE = (
+    "Sorry, the plan came out too long for me to finish, so your previous plan is unchanged. "
+    "Try asking for fewer stops per day or a shorter trip."
 )
 # Saved (and streamed) when the plan was saved but its summary reply failed (D19).
 PLAN_READY_FALLBACK = "Your plan is ready on the left. Ask me to change any stop by its letter."
@@ -90,8 +98,9 @@ async def run_turn(
         plan_version = saved.version
 
     try:
-        # Saved first, so the user message is kept even if the reply fails.
-        if content is not None:
+        # Saved first, so the user message is kept even if the reply fails. A Retry of a turn that
+        # failed or was stopped (or cut off) resends the same text: don't save it twice.
+        if content is not None and not is_retry(db, session_id, content):
             repo.add_message(db, session_id, "user", content)
         yield sse.message_start(message_id)
         started = True
@@ -153,14 +162,17 @@ async def run_turn(
         )
     except (GeneratorExit, asyncio.CancelledError):
         # Stop / client disconnect: the turn is closed (GeneratorExit) or its task cancelled.
-        # Nothing can be sent any more, so save what was streamed and let the stop go on.
-        stopped_text = "".join(parts).rstrip() + STOPPED_MARKER
-        repo.add_message(
-            db, session_id, "assistant", stopped_text,
-            itinerary_version=plan_version, message_id=message_id,
-        )
+        # Nothing can be sent any more, so save what was streamed and let the stop go on. With no
+        # text and no new plan there is nothing to keep (a lone "*(stopped)*" would only clutter
+        # the chat after a reload). A saved plan still gets its message (D19).
+        streamed = "".join(parts).rstrip()
+        if streamed or plan_version is not None:
+            repo.add_message(
+                db, session_id, "assistant", streamed + STOPPED_MARKER,
+                itinerary_version=plan_version, message_id=message_id,
+            )
         raise
-    except Exception:
+    except Exception as error:
         logger.exception("Turn failed for session %s", session_id)
         if not started:  # e.g. saving the user message failed; `error` always follows message_start
             yield sse.message_start(message_id)
@@ -175,9 +187,32 @@ async def run_turn(
             )
             yield sse.done(message_id)
             return
-        yield sse.error(PLAN_ERROR_MESSAGE if action in ("generate", "edit") else ERROR_MESSAGE)
+        yield sse.error(error_text(error, planning=action in ("generate", "edit")))
         return
     yield sse.done(message_id)
+
+
+def error_text(error: Exception, planning: bool) -> str:
+    """The friendly text of the `error` event: why the turn failed, without internals."""
+    if not planning:
+        return ERROR_MESSAGE
+    if isinstance(error, ReplyCutOff):
+        return PLAN_TOO_LONG_MESSAGE
+    return PLAN_ERROR_MESSAGE
+
+
+def is_retry(db: Session, session_id: str, content: str) -> bool:
+    """True when the session's last user message is this same text and no finished reply follows
+    it: only nothing (an `error`) or replies saved with STOPPED_MARKER (a Stop or a dropped
+    connection) and no plan version. Then the message is a Retry and is not saved again (D36)."""
+    for message in reversed(repo.list_messages(db, session_id)):
+        if message.role == "user":
+            return message.content == content
+        if not message.content.endswith(STOPPED_MARKER) or message.itinerary_version is not None:
+            # A finished reply (a stopped one that saved a plan counts too): the same text
+            # now is a new message.
+            return False
+    return False
 
 
 def auto_title(profile: TripProfile) -> str | None:

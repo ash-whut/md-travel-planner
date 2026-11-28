@@ -7,7 +7,7 @@ import {
   formatAsOf, formatCostRange, formatDate, formatDuration, formatMoney, formatNights, formatPerNight, formatTime,
   formatTimestamp, formatTransitLeg,
 } from '@/lib/format'
-import { profileChips } from '@/lib/profile'
+import { hasDestination, profileChips } from '@/lib/profile'
 import { firstDayByTag } from '@/lib/tags'
 import type { DayWeather, ItemKind, Itinerary, ItineraryItem, Lodging, Stop, TripProfile } from '@/types'
 import { TagBadge } from './TagBadge'
@@ -86,6 +86,7 @@ function PlanSkeleton({ planStatus }: { planStatus: string | null }) {
 
 /** No plan yet: the profile so far and a Generate button, or skeleton day cards while generating. */
 function EmptyPlan({ profile, generating, planStatus, canGenerate, onGenerate }: EmptyPlanProps) {
+  const needsDestination = !hasDestination(profile)
   return (
     <div className="flex h-full flex-col items-center overflow-y-auto px-6 py-10 text-center text-sm text-gray-500">
       <p>Your trip plan will appear here</p>
@@ -97,14 +98,22 @@ function EmptyPlan({ profile, generating, planStatus, canGenerate, onGenerate }:
       {generating ? (
         <PlanSkeleton planStatus={planStatus} />
       ) : (
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={!canGenerate}
-          className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Sparkles size={14} /> Generate
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={!canGenerate || needsDestination}
+            aria-describedby={needsDestination ? 'generate-hint' : undefined}
+            className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles size={14} aria-hidden="true" /> Generate
+          </button>
+          {needsDestination && (
+            <p id="generate-hint" className="mt-2 text-xs text-gray-400">
+              Tell me in the chat where you'd like to go first.
+            </p>
+          )}
+        </>
       )}
     </div>
   )

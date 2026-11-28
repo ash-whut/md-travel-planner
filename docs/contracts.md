@@ -357,7 +357,15 @@ Errors are `{ "detail": "message" }` with status 400/401/404/409/500, or 422 (in
 | `done` | `{ "message_id": "uuid" }` | complete; the assistant message is saved |
 
 Order: `message_start` comes first and `done` or `error` comes last. If the client aborts
-(Stop), the server stops and saves the partial text with " *(stopped)*" appended.
+(Stop), the server stops and saves the partial text with " *(stopped)*" appended; when no text
+was streamed and no plan version was saved, it saves no reply at all (step 46, D36).
+- A reply that ends with `error` is not saved. The client keeps its partial text on screen and
+  drops it when the next message, Retry or Generate starts (step 46, D36).
+- **Retry (step 46, D36):** `POST …/messages` doesn't save the user message again when the
+  session's last user message has the same content and no finished reply follows it (nothing, or
+  only replies ending in " *(stopped)*" with no `itinerary_version`): a resend after a failed,
+  stopped or dropped turn. A stopped reply that saved a plan version counts as finished. The
+  turn runs as usual.
 - Chat turn: `message_start → [profile] → [title] → token… → done`.
 - Making the plan (`/generate`, or a chat turn whose action is `generate`):
   `message_start → [profile] → [title] → status… → itinerary → token… → done`. The tokens are a short
