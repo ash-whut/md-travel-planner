@@ -29,7 +29,7 @@ the MVP is feature-complete.
 | Part | Choice | Why |
 |---|---|---|
 | Backend | Python 3.11+, **FastAPI**, Uvicorn, Pydantic v2, pydantic-settings | Easy async streaming, validation, auto docs at `/docs` |
-| DB | **SQLite** via **SQLModel** | A local file and nothing to install. Our data is tiny (chat text + JSON plans) |
+| DB | **SQLite** via **SQLModel**; Neon Postgres (`psycopg`) when deployed on Vercel (D37) | A local file and nothing to install. Our data is tiny (chat text + JSON plans) |
 | Streaming | `sse-starlette` (server), `@microsoft/fetch-event-source` (client) | One-way stream; works with POST |
 | HTTP to APIs | `httpx` | Simple, easy to mock in tests |
 | LLM | `openai` SDK against the **TAMU AI** OpenAI-compatible endpoint; `fake` provider offline | Free for us; the fake provider makes tests and offline dev key-free |

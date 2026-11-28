@@ -690,17 +690,20 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
 - **Files:** components, store, `backend/app/agent/turn.py` (friendly error texts), tests
 - **Tests:** unreachable banner; Retry; the old plan is kept after a failure.
 - **Done when:** tests green; a manual run with the backend stopped behaves sensibly.
-- **Notes:** **Built (D36):** "Backend not reachable" banner + Try again (login check keeps the token when down); loading texts; dismissible plan-pane error that keeps the old plan; server-side Retry dedupe (same last user message isn't saved twice); partial/stopped-before-text replies aren't saved; Generate waits for a city or vibe; booking buttons wait while generating/saving, `bookingError` clears; aria labels + focus outline; planner status always ends in error on a crash. **Still open:** a second Generate/chat stream on the same session isn't blocked server-side, so `updated_in_version` can be off by one in a race. `generating` turns on at any status `start`, which is safe only while chat turns send no status (D23). `locate_stops` runs again on a repair compose, so a hotel that isn't found is geocoded twice. Geocode each city once per plan, or add a rate gate, so a parallel round can't burst Geoapify past 5 requests/second (D25). Optionally take a cited hotel's (`h` ref) name from the tool (needs a contracts §2.3 line). A "skipped: limit" hotel call ends its status line in error; decide error vs end. The booking lock starts at the first `status` event, so a Mark booked during a chat edit's understanding phase can still be lost.
+- **Notes:** **Built (D36):** "Backend not reachable" banner + Try again (login check keeps the token when down); loading texts; dismissible plan-pane error that keeps the old plan; server-side Retry dedupe (same last user message isn't saved twice); partial/stopped-before-text replies aren't saved; Generate waits for a city or vibe; booking buttons wait while generating/saving, `bookingError` clears; aria labels + focus outline; planner status always ends in error on a crash. **Still open:** a second Generate/chat stream on the same session isn't blocked server-side, so `updated_in_version` can be off by one in a race. `generating` turns on at any status `start`, which is safe only while chat turns send no status (D23). `locate_stops` runs again on a repair compose, so a hotel that isn't found is geocoded twice. Optionally take a cited hotel's (`h` ref) name from the tool (needs a contracts §2.3 line). A "skipped: limit" hotel call ends its status line in error; decide error vs end. The booking lock starts at the first `status` event, so a Mark booked during a chat edit's understanding phase can still be lost.
 
 ### 47 · Demo readiness — ☐ *HUMAN+agent*
+The live demo comes at the end of the slides: open a few saved trips, then run one new search
+live. There is no offline demo.
 - **Builds:**
-  - manual scenario scripts in `backend/tests/scenarios/` (solo weekend, 3 friends 3 days, 2
-    cities, vibe-only "beach weekend", and the edit sequence "replace [F]", "move [E] to
-    day 2", "cheaper hotel");
-  - a README demo walkthrough;
-  - a clean-clone setup check.
-- **Done when:** a teammate runs the demo from a clean clone by following the README.
-- **Notes:** The demo fixtures (`sanjose-v1/v2.json`) don't match backend bookings yet. Activity booking titles should be the stop name with details like "Sat, Mar 6 · 1:00 PM". Flight details should read "IAH → San Jose Airport". The hotel's first link should be Google Hotels. Update the matching strings in `BookView.flow.test.tsx` too. From step 51: cover the rental case ("We'd like an Airbnb") in the walkthrough, and say that the Airbnb link opens a search, not a listing. From step 46: in the manual run with the backend stopped, check the login screen, the in-app "Backend not reachable" banner with Try again, and a stream killed mid-reply (then Retry). Also stop an edit ("replace [F]") during its summary, then send the same text again: it should make a new version.
+  - a short "Live demo" section in the README: how to start the app (or the deployed URL), which
+    saved trips to open and what to point out in each, and the one prompt to run live;
+  - saved trips in the demo account that show the features: day cards with letters, an edit by
+    letter ("replace [F]") with its version history, Map pins, Book with prices "as of", real
+    flight fares, and a rental ("We'd like an Airbnb"; its link opens a search, not a listing);
+  - one rehearsed live prompt that finishes well inside the time limit.
+- **Done when:** a teammate runs the demo by following the README section.
+- **Notes:** Error/offline cases are built (step 46) but are not part of the demo.
 
 ## Stretch (after the MVP works end to end)
 
@@ -837,6 +840,50 @@ Status: ☐ todo · ◐ in progress (initials) · ☑ done
   unchanged (`carry_flight_fares`, D35). Step 49 docs fixed: contracts §1/§2.2/§2.3, D12
   replaced, D35. Step 49 dead code cleaned up. Known gap (D35): the fare is lost when an airport
   can't be geocoded.
+
+### 53 · Deploy to Vercel — ☑ *BE+FE, then HUMAN*
+**One** Vercel project using the **Services** preset (Vercel detects both apps): `frontend/`
+(Vite) at `/` and `backend/` (FastAPI) at `/api`, on the same domain. Plus a free Neon Postgres
+database. Vercel functions keep no files between requests, so SQLite can't hold history there.
+Local dev and tests stay on SQLite. Same origin means the frontend uses
+`VITE_API_BASE_URL=/api` and needs no CORS change; preview deployments work too.
+- **Builds:**
+  - Postgres support: add `psycopg[binary]` to `backend/requirements.txt` (approved 2026-11-28).
+    `engine.py` turns a `postgres://` or `postgresql://` `DATABASE_URL` into
+    `postgresql+psycopg://`, and passes `check_same_thread` and runs the two `PRAGMA`s only for
+    SQLite. The `_add_missing_columns` check uses SQLAlchemy `inspect` so it works on both.
+    Use `pool_pre_ping=True` for Postgres.
+  - Tables: make sure they're created on Vercel too (the lifespan may not run per cold start;
+    if in doubt, create them once on the first `get_engine()`).
+  - A repo-root `vercel.json` for the Services setup (read https://vercel.com/docs/services
+    first): the two services, `/api/*` routed to the backend before the frontend catch-all,
+    and `maxDuration: 300` (Hobby's maximum) for the FastAPI function. Our routes already
+    start with `/api`; check whether Vercel passes the path through unchanged (rewrites do)
+    or strips the prefix, and make `/api/health` work either way.
+  - The frontend already reads `VITE_API_BASE_URL`; check that a relative `/api` works
+    everywhere (auth + http clients, SSE) and nothing else assumes localhost.
+  - A README "Deploy to Vercel" section with the human steps below, and a decision row. We
+    deploy from a personal fork of the team repo, linked to Vercel through Git. The project's
+    **Production Branch** is the working branch (not `main`), and the fork is kept in sync by
+    hand.
+- **Tests:** the URL rewrite (`postgres://` → `postgresql+psycopg://`); SQLite still gets the
+  PRAGMA; existing tests stay green on SQLite.
+- **HUMAN:** import the fork with the Services preset, add Neon from the Vercel Marketplace,
+  set the env vars, deploy, and run one live plan on the deployed site.
+- **Done when:** the deployed site logs in, makes a live plan within the time limit, and the
+  trip is still in the history after a redeploy.
+- **Notes:** **Built (D37):** `normalize_database_url` + Postgres engine (`pool_pre_ping`, SQLite-only PRAGMA/`check_same_thread`), tables created on first `get_engine()`, `inspect`-based column check, `repo.py` rowid tie-breaker now SQLite-only (it would have broken history on Postgres), repo-root `vercel.json` (Services, `/api` rewrite; no `functions` block since Hobby defaults to 300 s), README deploy section. Tests: `test_deploy.py`, `http.relative.test.ts`. Unchecked until the first deploy: `"framework": "vite"` in `vercel.json` (could be dropped; Vercel detects it), that the Neon `DATABASE_URL` is the pooled host, the cold-start time, whether TAMU AI accepts calls from Vercel's servers, and whether Stop (closing the stream) reaches the function.
+
+### 54 · Two hotel searches per city — ☐ *BE*
+- **Builds:** `PlanLimits` allows `search_hotels` **twice** per city in one plan (a count, not a
+  set); the third call gets `"skipped: limit"`. Flights stay once per route. Update the
+  `search_hotels` description in `tools/registry.py`, the planner prompt (`planner.md`: "at most
+  twice per city", only when the first search found nothing usable), contracts if they state
+  the limit, and D29/D-row wording that says "once per city".
+- **Tests:** a second hotel search for the same city runs; a third is skipped; "San Jose, CA"
+  and "san jose" count as the same city; flights still skip the second call.
+- **Done when:** tests green.
+- **Notes:** User's call (2026-11-28): the extra SerpApi search is worth it.
 
 **Later (not planned yet):** planner speed-ups (skip the "anything else?" tool round when round 1 fully succeeded; try Sonnet for choosing searches after comparing ~10 sample trips with Opus; or let the understand call list the searches), weather-aware searches (an explicit "rainy day → indoor places" rule in the planner prompt; the planner already sees the weather), performance (caching everything, real routing), sub-agents per
 domain (only if a domain's raw results get too big or messy for the planner), diff-aware

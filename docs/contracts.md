@@ -15,7 +15,7 @@ later steps can stay out until then.
 
 ---
 
-## 1. Database tables (SQLModel on SQLite, file `backend/travel.db`)
+## 1. Database tables (SQLModel on SQLite, file `backend/travel.db`; Neon Postgres on Vercel, D37)
 
 ### `session`
 | column | type | notes |

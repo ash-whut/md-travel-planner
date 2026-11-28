@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from sqlalchemy import literal_column
+from sqlalchemy import ColumnElement, literal_column
 from sqlmodel import Session, select
 
 from app.db.tables import AuthTokenRow, ItineraryRow, MessageRow, SessionRow, UserRow
@@ -31,7 +31,7 @@ def list_sessions(db: Session, user_id: str | None = None) -> list[SessionRow]:
     the trips made without an account when user_id is None."""
     statement = select(SessionRow).where(SessionRow.user_id == user_id).order_by(
         SessionRow.updated_at.desc(),  # type: ignore[attr-defined]
-        literal_column("session.rowid").desc(),  # newest-created first on a timestamp tie
+        *[column.desc() for column in _rowid(db, "session")],  # newest-created first on a tie
     )
     return list(db.exec(statement).all())
 
@@ -94,7 +94,7 @@ def list_messages(db: Session, session_id: str) -> list[MessageRow]:
         select(MessageRow)
         .where(MessageRow.session_id == session_id)
         # rowid (insertion order) breaks ties when two messages share a timestamp.
-        .order_by(MessageRow.created_at, literal_column("message.rowid"))
+        .order_by(MessageRow.created_at, *_rowid(db, "message"))
     )
     return list(db.exec(statement).all())
 
@@ -178,6 +178,14 @@ def _latest_itinerary_row(db: Session, session_id: str) -> ItineraryRow | None:
         .limit(1)
     )
     return db.exec(statement).first()
+
+
+def _rowid(db: Session, table: str) -> list[ColumnElement[Any]]:
+    """SQLite's rowid (insertion order) as a tie-breaker for sorting. Postgres has no rowid;
+    its microsecond timestamps make ties unlikely there, so it gets no tie-breaker."""
+    if db.get_bind().dialect.name == "sqlite":
+        return [literal_column(f"{table}.rowid")]
+    return []
 
 
 def _require_session(db: Session, session_id: str) -> SessionRow:
