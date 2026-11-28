@@ -872,9 +872,9 @@ Local dev and tests stay on SQLite. Same origin means the frontend uses
   set the env vars, deploy, and run one live plan on the deployed site.
 - **Done when:** the deployed site logs in, makes a live plan within the time limit, and the
   trip is still in the history after a redeploy.
-- **Notes:** **Built (D37):** `normalize_database_url` + Postgres engine (`pool_pre_ping`, SQLite-only PRAGMA/`check_same_thread`), tables created on first `get_engine()`, `inspect`-based column check, `repo.py` rowid tie-breaker now SQLite-only (it would have broken history on Postgres), repo-root `vercel.json` (Services, `/api` rewrite; no `functions` block since Hobby defaults to 300 s), README deploy section. Tests: `test_deploy.py`, `http.relative.test.ts`. Unchecked until the first deploy: `"framework": "vite"` in `vercel.json` (could be dropped; Vercel detects it), that the Neon `DATABASE_URL` is the pooled host, the cold-start time, whether TAMU AI accepts calls from Vercel's servers, and whether Stop (closing the stream) reaches the function.
+- **Notes:** **Built (D37):** `normalize_database_url` + Postgres engine (`pool_pre_ping`, SQLite-only PRAGMA/`check_same_thread`), tables created on first `get_engine()`, `inspect`-based column check, `repo.py` rowid tie-breaker now SQLite-only (it would have broken history on Postgres), repo-root `vercel.json` (Services, `/api` rewrite; no `functions` block since Hobby defaults to 300 s), README deploy section. Tests: `test_deploy.py`, `http.relative.test.ts`. **Deployed 2026-11-28** from the fork's `v2-hari` (made the fork's default branch so the import page could use it); Neon connected, history survives logout/login. Still unchecked: `"framework": "vite"` in `vercel.json` (could be dropped; Vercel detects it), that the Neon `DATABASE_URL` is the pooled host, the cold-start time, whether TAMU AI accepts calls from Vercel's servers, and whether Stop (closing the stream) reaches the function.
 
-### 54 · Two hotel searches per city — ☐ *BE*
+### 54 · Two hotel searches per city — ☑ *BE*
 - **Builds:** `PlanLimits` allows `search_hotels` **twice** per city in one plan (a count, not a
   set); the third call gets `"skipped: limit"`. Flights stay once per route. Update the
   `search_hotels` description in `tools/registry.py`, the planner prompt (`planner.md`: "at most
@@ -883,7 +883,7 @@ Local dev and tests stay on SQLite. Same origin means the frontend uses
 - **Tests:** a second hotel search for the same city runs; a third is skipped; "San Jose, CA"
   and "san jose" count as the same city; flights still skip the second call.
 - **Done when:** tests green.
-- **Notes:** User's call (2026-11-28): the extra SerpApi search is worth it.
+- **Notes:** User's call (2026-11-28): the extra SerpApi search is worth it. **Built:** `PER_CITY_LIMITS = {"search_hotels": 2}` / `PER_ROUTE_LIMITS = {"search_flights": 1}` counted per key in `PlanLimits`; prompt + registry description + D29/D34 updated; three old-rule tests updated to the new rule, 5 new tests in `test_hotels.py`.
 
 **Later (not planned yet):** planner speed-ups (skip the "anything else?" tool round when round 1 fully succeeded; try Sonnet for choosing searches after comparing ~10 sample trips with Opus; or let the understand call list the searches), weather-aware searches (an explicit "rainy day → indoor places" rule in the planner prompt; the planner already sees the weather), performance (caching everything, real routing), sub-agents per
 domain (only if a domain's raw results get too big or messy for the planner), diff-aware

@@ -1,8 +1,8 @@
 """Step 39: the hotel in the plan.
 
 Specified by plan step 39, contracts §2.3 (hotel refs) and D29/D30: the planner calls
-`search_hotels` (one search per city per plan, a second gets "skipped: limit"); compose sees the
-found hotels as refs (h1…) and picks one; postprocess builds the `lodging` entry with prices and
+`search_hotels` (two searches per city per plan since step 54, a third gets "skipped: limit");
+compose sees the found hotels as refs (h1…) and picks one; postprocess builds the `lodging` entry with prices and
 `price_as_of` from the tool, never from the draft (total = per night × nights); the hotel is a
 lettered stop with the tool's coordinates, and its item shows nights + the per-night cost with
 the source "SerpApi Google Hotels · as of …". A no-price fallback result gives null prices
@@ -457,22 +457,22 @@ def _run_planner(llm: FakeProvider) -> list[Finding]:
     return asyncio.run(asyncio.wait_for(collect(), timeout=30))
 
 
-def test_second_hotel_search_for_a_city_in_one_plan_is_skipped(
+def test_third_hotel_search_for_a_city_in_one_plan_is_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     searched = _count_hotel_searches(monkeypatch)
     llm = ScriptedPlanner([
-        [_hotel_call(1, "San Jose, CA"), _hotel_call(2, "san jose")],  # same city, same round
-        [_hotel_call(3, "San Jose, CA")],  # and again in a later round
+        [_hotel_call(1, "San Jose, CA"), _hotel_call(2, "san jose")],  # same city, both run
+        [_hotel_call(3, "San Jose, CA")],  # a third time in a later round
     ])
 
     findings = _run_planner(llm)
 
-    assert len(searched) == 1
-    assert [f.ref for f in findings] == ["h1"]
+    assert len(searched) == 2
+    assert [f.ref for f in findings] == ["h1", "h2"]
     round_one = llm.seen_rounds[1][0].results
     round_two = llm.seen_rounds[2][1].results
-    assert sum(registry.LIMIT_REPLY in reply for reply in round_one) == 1
+    assert not any(registry.LIMIT_REPLY in reply for reply in round_one)
     assert registry.LIMIT_REPLY in round_two[0]
 
 
@@ -496,8 +496,9 @@ def test_each_plan_gets_its_own_hotel_limit(monkeypatch: pytest.MonkeyPatch) -> 
     assert [f.ref for f in first] == [f.ref for f in second] == ["h1"]
 
 
-def test_planner_prompt_asks_for_one_hotel_search_per_city() -> None:
+def test_planner_prompt_asks_for_at_most_two_hotel_searches_per_city() -> None:
     system = planner.build_system(_profile(), TODAY)
 
     assert "search_hotels" in system
     assert "once per city" in system
+    assert "at most twice" in system

@@ -70,7 +70,7 @@ async def run_planner(
     in each, only the first MAX_CALLS_PER_ROUND calls run (in parallel) and the rest get
     SKIPPED_REPLY. The loop stops early when the model asks for no tools. A tool that fails or
     raises gets an error reply and planning goes on. One `registry.PlanLimits` covers the whole
-    run, so a second hotel search for a city gets "skipped: limit". If the `tool_turn` call
+    run, so a third hotel search for a city gets "skipped: limit". If the `tool_turn` call
     itself fails, the loop stops and compose works with what was found so far.
 
     Status lines: CHOOSING_LABEL runs from the first round to the end of the loop (it ends in
@@ -83,7 +83,7 @@ async def run_planner(
     findings: list[Finding] = []
     counts: dict[str, int] = {}  # ref prefix → how many refs it has given out
     used_labels = {CHOOSING_LABEL}
-    limits = registry.PlanLimits()  # one hotel search per city in this plan (D29)
+    limits = registry.PlanLimits()  # two hotel searches per city in this plan (D29)
 
     yield sse.status(CHOOSING_LABEL, "start")
     choosing_state = "end"

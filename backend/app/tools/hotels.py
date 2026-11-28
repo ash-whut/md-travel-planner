@@ -2,8 +2,8 @@
 places fallback.
 
 SerpApi's free plan is about 250 searches a month (step 37), so live results are cached for
-6 h by (city, check_in, check_out) only, and the registry allows one hotel search per city per
-plan (`registry.PlanLimits`). Google Hotels shows either hotels or vacation rentals
+6 h by (city, check_in, check_out) only, and the registry allows two hotel searches per city
+per plan (`registry.PlanLimits`, step 54). Google Hotels shows either hotels or vacation rentals
 (`vacation_rentals=true`), so one search makes two SerpApi calls, each cached on its own
 (step 51, D34). Without a key, or when the quota is used up, the tool falls back to lodging
 places from the places tool, with no prices (`price_source: "none"`) and no rentals.

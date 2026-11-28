@@ -57,7 +57,9 @@ SEARCH_HOTELS = Tool(
     name="search_hotels",
     description=(
         "Find hotels and vacation rentals with prices in a city for the whole stay. Call it "
-        "once per city; a second call for the same city is skipped."
+        "once per city; call it a second time only if the first found nothing usable, with a "
+        "different spelling or a nearby area (the same city and dates return the same results). "
+        "A third call for the same city is skipped."
     ),
     parameters={
         "type": "object",
@@ -112,11 +114,12 @@ TOOLS: dict[str, Tool] = {
     tool.name: tool for tool in [SEARCH_PLACES, SEARCH_HOTELS, SEARCH_FLIGHTS]
 }
 
-# Quota-limited tools that may run at most once per city in one plan (SerpApi's free plan is
-# about 250 searches a month). The prompt asks for this too, but code enforces it.
-ONCE_PER_CITY_TOOLS = {"search_hotels"}
-# Quota-limited tools that may run at most once per route in one plan.
-ONCE_PER_ROUTE_TOOLS = {"search_flights"}
+# Quota-limited tools and how often each may run per city in one plan (SerpApi's free plan is
+# about 250 searches a month). Hotels get a second try in case the first found nothing usable.
+# The prompt asks for this too, but code enforces it.
+PER_CITY_LIMITS = {"search_hotels": 2}
+# Quota-limited tools and how often each may run per route in one plan.
+PER_ROUTE_LIMITS = {"search_flights": 1}
 LIMIT_REPLY = "skipped: limit"
 
 
@@ -126,22 +129,25 @@ class PlanLimits:
     """
 
     def __init__(self) -> None:
-        self._used: set[tuple[str, str]] = set()
+        self._counts: dict[tuple[str, str], int] = {}
         self._lock = threading.Lock()
 
     def allow(self, name: str, arguments: dict[str, Any]) -> bool:
-        """True if this call may run, and counts it; False once its tool has already run for
-        this city (or route) in this plan. Tools without a limit are always allowed."""
-        if name in ONCE_PER_CITY_TOOLS:
+        """True if this call may run, and counts it; False once its tool has used up its limit
+        for this city (or route) in this plan. Tools without a limit are always allowed."""
+        if name in PER_CITY_LIMITS:
             key = (name, city_key(str(arguments.get("city", ""))))
-        elif name in ONCE_PER_ROUTE_TOOLS:
+            limit = PER_CITY_LIMITS[name]
+        elif name in PER_ROUTE_LIMITS:
             key = (name, route_key(arguments))
+            limit = PER_ROUTE_LIMITS[name]
         else:
             return True
         with self._lock:
-            if key in self._used:
+            used = self._counts.get(key, 0)
+            if used >= limit:
                 return False
-            self._used.add(key)
+            self._counts[key] = used + 1
             return True
 
 
